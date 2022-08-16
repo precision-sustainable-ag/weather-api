@@ -1,0 +1,13 @@
+logs/
+toolkit/
+node_modules/
+python/
+MRMS/
+Julia/
+package-lock.json
+.env
+.Rproj.user
+*.Rproj
+.Rhistory
+api_token_example.txt
+.git

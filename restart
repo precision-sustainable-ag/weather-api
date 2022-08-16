@@ -1,0 +1,4 @@
+# sudo pm2 restart index.js onfarmAPI.js weatherAPI.js cc-ncalcAPI.js
+
+sudo pm2 stop index.js -f
+sudo pm2 start index.js -f
