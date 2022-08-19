@@ -1,0 +1,231 @@
+@media print {
+  .settings, .menu {
+    display: none;
+  }
+}
+
+.d3 {
+  position: relative;
+  font: 12px Arial;
+  background: white;
+  page-break-inside: avoid;
+}
+
+.d3 svg {
+  position: absolute;
+  padding: inherit;  /* required */
+}
+
+.d3 rect {
+  stroke: black;
+  stroke-width: 0.5;
+}
+
+.d3 .labels {
+  position: absolute;
+}
+
+.d3 path { 
+  fill: none;
+}
+
+.d3 .grid .tick {
+  stroke-opacity: 0.2;
+  shape-rendering: crispEdges;
+}
+
+.d3 .grid path {
+  stroke-width: 0;
+}
+
+.d3 .title {
+  font-weight: bold;
+  text-align: center;
+  font-size: 110%;
+}
+
+.d3 .legend .option {
+  position: relative;
+  border: 1px solid transparent;
+  border-right: none;
+  padding: 0 0.3em;
+}
+
+.d3 .legend .option.selected {
+  border: 1px solid black;
+  border-right: none;
+}
+
+.d3 .xTitle {
+  position: absolute;
+  padding-bottom: inherit;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  color: gray;
+}
+
+.d3 .yTitle {
+  position: absolute;
+  top: 50%;
+  transform: rotate(-90deg) translateX(-50%);
+  transform-origin: 0 0;
+  text-align: center;
+  color: gray;
+}
+
+.d3 .legend {
+  position: absolute;
+  z-index: 1;
+  top: 5px;
+  right: 5px;
+  background: #f4f4f4;
+  border: 1px solid silver;
+  box-shadow: 4px 4px 2px 0px rgba(0,0,0,0.75);
+  padding: 0.2em;
+  cursor: pointer;
+}
+
+.d3 .legend:empty {
+  display: none;
+}
+
+.d3 img.settings {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  height: 16px;
+  opacity: 0.3;
+  display: none;
+}
+
+.d3:hover img.settings {
+  display: inline;
+}
+
+.d3 img.settings:hover {
+  opacity: 1;
+}
+
+.d3 .menu button {
+  width: 100%;
+  font-size: 100%;
+  text-align: left;
+}
+
+.d3 .menu table {
+  font-size: 100%;
+  border: none;
+}
+
+.d3 .menu td {
+  border: none;
+  padding: 0 0.3em;
+}
+
+.d3 .menu button:hover {
+  background: yellow;
+}  
+
+.d3 .menu {
+  position: absolute;
+  background: #ddd;
+  width: 15em;
+  display: none;
+  white-space: nowrap;
+  padding: 0.3em;
+  border: 1px solid black;
+  box-sizing: border-box;
+  box-shadow: 4px 4px 2px 0px rgba(0,0,0,0.75);
+  font: 12px Arial;
+  color: black;
+  z-index: 999;
+}
+
+.d3 .legend .menu {
+  left: calc(100% + 3px);
+}
+
+.d3 .settings .menu {
+  top: 0;
+  left: 20px;
+}
+
+.d3 .menu input {
+  width: 2.5em;
+  background: yellow;
+  float: right;
+}
+
+.d3 .legend .marker {
+  float: left;
+  width: 2em;
+  height: 3px;
+  margin-top: 0.4em;
+  margin-right: 0.5em;
+}
+
+.d3.nocircles circle, .d3.nolabels .label {
+  display: none;
+}
+
+.d3 circle {
+  stroke: blue;
+  stroke-width: 20;
+  stroke-opacity: 0;
+}
+
+.d3 svg g circle:hover {
+  fill: green !important;
+  r: 5;
+} 
+
+.d3 .tooltip {
+  position: fixed;
+  display: none;
+  background: #eee;
+  border: 1px solid silver;
+  border-radius: 5px;
+  padding: 0.3em;
+  font-size: 90%;
+  z-index: 999;
+  pointer-events: none;
+}
+
+.d3 .label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  font: 10px Arial;
+  z-index: 500;
+  background: #eee;
+  padding: 0.2em;
+  border: 1px solid gray;
+  cursor: pointer;
+  border-radius: 10px;
+  zopacity: 0;
+  transition: opacity 0.2s;
+}
+
+.d3 .label:hover {
+  font-weight: bold;
+  background: white;
+  opacity: 1;
+}
+
+.d3 .settings .menu .linechart,
+.d3 .option .menu .linechart,
+.d3 .settings .menu .columnchart,
+.d3 .option .menu .columnchart {
+  display: none;
+}
+
+.d3 .settings.linechart .menu .linechart,
+.d3 .option.linechart .menu .linechart,
+.d3 .settings.columnchart .menu .columnchart,
+.d3 .option.columnchart .menu .columnchart {
+  display: block;
+}
+

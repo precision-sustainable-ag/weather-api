@@ -1,0 +1,55 @@
+body {
+  margin: 0;
+  padding: 0;
+}
+
+#Graph {
+  height: 300px;
+  width: 80%;
+  background: #fafafa;
+  border: 1px solid black;
+  display: none;
+}
+
+#Graph .legend {
+  zposition: relative;
+  transform: translateX(100%);
+}
+
+#Data {
+  border: 1px solid black;
+  border-spacing: 0; 
+  empty-cells: show;
+  font: 13px arial;
+  white-space: nowrap;
+}
+
+#Data td, #Data th {
+  padding: 0.2em 0.5em;
+  border-right: 1px solid #ddd;
+  border-bottom: 1px solid #bbb;
+}
+
+#Data th {
+  background: #def;
+}
+
+#Data td:nth-child(n + 1) {
+  ztext-align: right;
+}
+
+#Data th {
+  position: sticky;
+  cursor: pointer;
+  top: 0;
+}
+
+#Data tr.graph td {
+  text-align: center;
+  background: #333;
+}
+
+#Data img.graph {
+  cursor: pointer;
+}
+
