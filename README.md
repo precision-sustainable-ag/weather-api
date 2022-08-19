@@ -14,7 +14,7 @@ The weather API serves weather data for the conterminous United States.
 
 ## Features
 
-The API is documented at https://weather.aesl.ces.uga.edu/weather/
+The API is documented at https://api.precisionsustainableag.org/weather/
 
 ## Local Installation Steps
 
@@ -36,7 +36,8 @@ The API is documented at https://weather.aesl.ces.uga.edu/weather/
 Weather|postgres|<weather server key>
 GoogleAPI||<google api key>
 ```
-7. After the dependencies have been installed and the .env file has been created, run `npm start` to run the code locally.
+7. After the dependencies have been installed and the .env file has been created, run `node index` to run the code locally.
+8. Open http://localhost:1010/.
 
 **Date Created:** 08/15/2022
 
