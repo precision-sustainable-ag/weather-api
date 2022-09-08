@@ -24,24 +24,24 @@
   </p>
 
   <h4>... where <i>parameters</i> may include one or more of:</h4>
-      <div class="indent">
-        [lat=<i>latitude</i>[,<i>latitude</i>,&hellip;]&lon=<i>longitude</i>[,<i>longitude</i>&hellip;]]  <span class="note">You can enter multiple latitudes and longitudes.</span><br>
-        [location=<i>location</i>]                                                <span class="note">Either <b>lat-lon</b> <em>or</em> <b>location</b> is required.</span><br><br>
-        [&start=[<i>year</i>-]<i>month-day</i>]                                 <span class="note"><b>year</b> is optional for 5-year averages and will be ignored.  It's required otherwise.</span><br><br>
-        [&end=[<i>year</i>-]<i>month-day</i>]                                   <span class="note">"</span><br><br>
-        [&attributes=<i>column names</i>]<br><br>
-        [&output=<b>json</b>|csv|html]<br><br>
-        [&order=<i>parm1</i> [desc] [,<i>parm2</i> [desc] &hellip;]]<br><br>
-        [&where=<i>condition</i>]                            <span class="note">A valid SQL expression, which limits the results of the query.</span><br><br>
-        [&stats=<i>expression</i>]                           <span class="note">A valid SQL aggregate expression, which references the attributes.</span><br><br>
-        [&options=rect]                                      <span class="note">Given two lat/lons, they will be treated as the corners of a rectangle [NE:SW or NW:SE].<br>Given a location, its northeast and southwest will be treated as the corners of a rectangle.<br>Data within the rectangle will be retrieved based on resolution.<br>Currently outputs NLDAS precipitation, but will output MRMS in the future.</span>
-        <br><br><br><br><br>
-        [&options=graph]                                     <span class="note">Show graphing options for HTML output.  (Does nothing for other output types.)</span>
-        <br><br>
-        [&options=gmt|utc]                                   <span class="note">Output in Coordinated Universal Time instead of local time.</span>
-        <br><br>
-        [&options=predicted]                                 <span class="note">Use real hourly data if available; otherwise, use 5-year average data.</span>
-      </div>
+  <div class="indent">
+    [lat=<i>latitude</i>[,<i>latitude</i>,&hellip;]&lon=<i>longitude</i>[,<i>longitude</i>&hellip;]]  <span class="note">You can enter multiple latitudes and longitudes.</span><br>
+    [location=<i>location</i>]                                                <span class="note">Either <b>lat-lon</b> <em>or</em> <b>location</b> is required.</span><br><br>
+    [&start=[<i>year</i>-]<i>month-day</i>]                                 <span class="note"><b>year</b> is optional for 5-year averages and will be ignored.  It's required otherwise.</span><br><br>
+    [&end=[<i>year</i>-]<i>month-day</i>]                                   <span class="note">"</span><br><br>
+    [&attributes=<i>column names</i>]<br><br>
+    [&output=<b>json</b>|csv|html]<br><br>
+    [&order=<i>parm1</i> [desc] [,<i>parm2</i> [desc] &hellip;]]<br><br>
+    [&where=<i>condition</i>]                            <span class="note">A valid SQL expression, which limits the results of the query.</span><br><br>
+    [&stats=<i>expression</i>]                           <span class="note">A valid SQL aggregate expression, which references the attributes.</span><br><br>
+    [&options=rect]                                      <span class="note">Given two lat/lons, they will be treated as the corners of a rectangle [NE:SW or NW:SE].<br>Given a location, its northeast and southwest will be treated as the corners of a rectangle.<br>Data within the rectangle will be retrieved based on resolution.<br>Currently outputs NLDAS precipitation, but will output MRMS in the future.</span>
+    <br><br><br><br><br>
+    [&options=graph]                                     <span class="note">Show graphing options for HTML output.  (Does nothing for other output types.)</span>
+    <br><br>
+    [&options=gmt|utc]                                   <span class="note">Output in Coordinated Universal Time instead of local time.</span>
+    <br><br>
+    [&options=predicted]                                 <span class="note">Use real hourly data if available; otherwise, use 5-year average data.</span>
+  </div>
 
   <hr>
 
