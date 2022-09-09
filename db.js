@@ -1337,15 +1337,24 @@ const growingDegreesDays = (req, res, accumulated) => {
 
   if (isMissing(res, {lat, lon, start, end, base})) return;
 
+  const mintemp = req.query.mintemp || -999;
+  const maxtemp = req.query.maxtemp ||  999;
+
   let sq = `
     select
       to_char(date, 'YYYY-MM-DD') as date,
-      (max(air_temperature) + min(air_temperature)) / 2 - ${base} as gdd
+      (maxtemp + mintemp) / 2 - ${base} as gdd
     from (
-      ${hourlyNLDAS(lat, lon, start, end, 'date, air_temperature')}
+      select
+        date,
+        least(${maxtemp}, max(air_temperature)) as maxtemp,
+        greatest(${mintemp}, least(${maxtemp}, min(air_temperature))) as mintemp
+      from (
+        ${hourlyNLDAS(lat, lon, start, end, `date, air_temperature`)}
+      ) alias
+      group by
+        date
     ) alias
-    group by
-      date
   `;
 
   if (accumulated) {
