@@ -677,7 +677,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
   } // lookup
 
   const clean = (s) => {
-    let t = decodeURI(s).replace(/["()+\-*/<>,= 0-9\.]|doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd|meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|frost/ig, '');
+    let t = decodeURI(s).replace(/["()+\-*/<>,= 0-9\.]|doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd|meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|frost|gdd/ig, '');
 
     if (t) {
       console.error('*'.repeat(80));
@@ -707,6 +707,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     if (daily) {
       if (attr) {
         cols = attr.toLowerCase()
+                   .replace(/,?gdd/g, '') // included automatically if req.query.gddbase 
                    .split(',')
                    .map(col =>
                           /^(lat|lon)$/.test(col) ? col :
@@ -731,6 +732,15 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                 min(meridional_wind_speed)    as min_meridional_wind_speed,    max(meridional_wind_speed)    as max_meridional_wind_speed,    avg(meridional_wind_speed)    as avg_meridional_wind_speed,
                 min(wind_speed)               as min_wind_speed,               max(wind_speed)               as max_wind_speed,               avg(wind_speed)               as avg_wind_speed
                `;
+      }
+      let {gddbase} = req.query;
+      if (gddbase) {
+        const mintemp = req.query.gddmin || gddbase;
+        const maxtemp = req.query.gddmax || 999;
+      
+        cols += `,
+          greatest(0, (least(${maxtemp}, max(air_temperature)) + greatest(${mintemp}, least(${maxtemp}, min(air_temperature)))) / 2 - ${gddbase}) as gdd
+        `;
       }
     } else {
       cols = attr ? fix(attr, true)
@@ -1298,23 +1308,6 @@ const nvm2Query = (req, res) => {
   }
 } // nvm2Query
 
-const hourlyNLDAS = (lat, lon, start, end, parms='*') => {
-  const year1 = +(start.split('-')[0]);
-  const year2 = +(end.split('-')[0]);
-  const sq = [];
-
-  for (let year = year1; year <= year2; year++) {
-    sq.push(`
-      select ${parms}
-      from 
-        weather.nldas_hourly_${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lon))}_${year}
-      where
-        lat=${ygrid(lat)} and lon=${xgrid(lon)} and date between '${start}' and '${end}'
-    `);
-  }
-  return sq.join(' union all ');
-} // hourlyNLDAS
-
 const isMissing = (res, parms) => {
   const error = [];
 
@@ -1331,61 +1324,6 @@ const isMissing = (res, parms) => {
     return false;
   }
 } // isMissing
-
-const growingDegreesDays = (req, res, accumulated) => {
-  const {lat, lon, start, end, base} = req.query;
-
-  if (isMissing(res, {lat, lon, start, end, base})) return;
-
-  const mintemp = req.query.mintemp || -999;
-  const maxtemp = req.query.maxtemp ||  999;
-
-  let sq = `
-    select
-      to_char(date, 'YYYY-MM-DD') as date,
-      (maxtemp + mintemp) / 2 - ${base} as gdd
-    from (
-      select
-        date,
-        least(${maxtemp}, max(air_temperature)) as maxtemp,
-        greatest(${mintemp}, least(${maxtemp}, min(air_temperature))) as mintemp
-      from (
-        ${hourlyNLDAS(lat, lon, start, end, `date, air_temperature`)}
-      ) alias
-      group by
-        date
-    ) alias
-  `;
-
-  if (accumulated) {
-    sq = `
-      select sum(gdd) as agdd from (
-        ${sq}
-      ) alias;
-    `
-  }
-
-  pool.query(
-    sq,
-    (err, results) => {
-      if (err) {
-        res.send(err);
-      } else if (results.rowCount) {
-        res.send(results.rows);
-      } else {
-        res.send({error: 'No data'})
-      }
-    }
-  );
-} // growingDegreesDays
-
-const gdd = (req, res) => {
-  growingDegreesDays(req, res, false);
-} // gdd
-
-const agdd = (req, res) => {
-  growingDegreesDays(req, res, true);
-} // agdd
 
 module.exports = {
   addresses,
@@ -1405,6 +1343,4 @@ module.exports = {
   nvm2Data,
   nvm2Update,
   nvm2Query,
-  gdd,
-  agdd,
 }
