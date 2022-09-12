@@ -1,0 +1,65 @@
+    <div id="UI1">Cover Crop Species</div>
+    <div id="UI2">Seeding Rate<br/>(lb/ac)</div>
+    <div id="UI3">Price<br/>($/lb)</div>
+    <div className="table">
+      <div colSpan="3" className="th">User Input</div>
+      <SpeciesRow ps={ps} db={db} n='1'/>
+      <SpeciesRow ps={ps} db={db} n='2'/>
+      <SpeciesRow ps={ps} db={db} n='3'/>
+      <SpeciesRow ps={ps} db={db} n='4'/>
+      <SpeciesRow ps={ps} db={db} n='5'/>
+      <div>
+        <span/>
+        <span/>
+        <span>{parms.rate1 * parms.price1 + parms.rate2 * parms.price2 + parms.rate3 * parms.price3 + parms.rate4 * parms.price4 + parms.rate5 * parms.price5}</span>
+      </div>
+    </div>
+
+<div id="D4">
+  <p>Common rates and prices	</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Seeding Rate<br/>(lb/ac)</th>
+        <th>Price<br/>($/lb)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>{(db.seedList[parms.species1] || {}).seedingRate}</td><td>{(db.seedList[parms.species1] || {}).price}</td></tr>
+      <tr><td>{(db.seedList[parms.species2] || {}).seedingRate}</td><td>{(db.seedList[parms.species2] || {}).price}</td></tr>
+      <tr><td>{(db.seedList[parms.species3] || {}).seedingRate}</td><td>{(db.seedList[parms.species3] || {}).price}</td></tr>
+      <tr><td>{(db.seedList[parms.species4] || {}).seedingRate}</td><td>{(db.seedList[parms.species4] || {}).price}</td></tr>
+      <tr><td>{(db.seedList[parms.species5] || {}).seedingRate}</td><td>{(db.seedList[parms.species5] || {}).price}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+  <div>
+    <div>
+      <select {...ps('species' + n)}>
+        <option/>
+        {Object.keys(db.seedList).map(s => <option key={s}>{s}</option>)}
+      </select>
+    </div>
+    <div><input {...ps('rate' + n)} /> </div>
+    <div><input {...ps('price' + n)} /> </div>
+  </div>
+
+
+
+
+                                                             H1|center
+                                                                                                                                                                              
+                                                                                                                                                                              
+About                                                                                                                                                                              
+
+                                                                                                                                                                              
+    Caption1
+    UI1         UI2        UI3                                                                                                                                                                              
+
+    species1    rate1      price1
+    species2    rate2      price2
+    species3    rate3      price3
+    species4    rate4      price4
+    species5    rate5      price5
+                           Total

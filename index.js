@@ -26,9 +26,12 @@ app.use(express.static(path.join(__dirname, 'public')));  // make the public fol
 
 app.use(express.static(__dirname + '/static', {dotfiles: 'allow' }));  // from Ayaan
 
+app.use(express.static(__dirname + '/public/client/build'));
+
 const db = require('./db');
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));  // send API
+app.get('/test', (req, res) => res.sendFile(__dirname + '/public/client/build/index.html'));  // send API
 
 app.get('/addresses',         db.addresses);          // list of addresses that have been geocoded, for use in Data Explorer
 app.get('/hits',              db.hits);               // list database queries, for use in Data Explorer
