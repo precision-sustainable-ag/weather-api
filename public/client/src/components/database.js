@@ -12,19 +12,12 @@ let fetched;
 export const Database = () => {
   const dispatch = useDispatch();
   const path = window.location.origin.replace(3000, 1010);
-  const ntables = useSelector(get.ntables);
-  const tables = useSelector(get.tables);
-  const rows = useSelector(get.rows);
-  const nindexes = useSelector(get.nindexes);
-  const indexes = useSelector(get.indexes);
-  const size = useSelector(get.size);
-  const addresses = useSelector(get.addresses);
-  const selected = useSelector(get.selected);
+  const database = useSelector(get.database);
   const data = useSelector(get.data);
-  const start = useSelector(get.start);
-  const nrows = 15;
-  const widths = useSelector(get.widths);
+  const nrows = 20;
   const scroller = useRef();
+
+  scroller.current?.focus();  
 
   if (!fetched) {
     fetched = true;
@@ -32,27 +25,27 @@ export const Database = () => {
     fetch(`${path}/counttablesrows`)
       .then(response => response.json())
       .then(data => {
-        dispatch(set.ntables(data[0].tables));
-        dispatch(set.rows(data[0].rows));
+        dispatch(set.database.ntables(data[0].tables));
+        dispatch(set.database.rows(data[0].rows));
       });
 
     fetch(`${path}/countindexes`)
       .then(response => response.json())
       .then(data => {
-        dispatch(set.nindexes(data[0].indexes));
+        dispatch(set.database.nindexes(data[0].indexes));
       });
 
     fetch(`${path}/databasesize`)
       .then(response => response.json())
       .then(data => {
-        const [size, unit] = data[0].size.split(' ');
-        dispatch(set.size(size / 1000));
+        const [size] = data[0].size.split(' ');
+        dispatch(set.database.size(size / 1000));
       });
 
     fetch(`${path}/addresses`)
       .then(response => response.json())
       .then(data => {
-        dispatch(set.addresses(data));
+        dispatch(set.database.addresses(data));
       });
   }
 
@@ -66,93 +59,93 @@ export const Database = () => {
             <td>weather</td>
             <td></td>
           </tr>
-          
+
+          <tr>
+            <td>Size</td>
+            <td>{database.size} TB</td>
+            <td></td>
+          </tr>
+ 
+          <tr>
+            <td>Rows</td>
+            <td>{commas(database.rows)}</td>
+            <td>(estimate)</td>
+          </tr>
+           
           <tr
-            className={selected === 'Tables' ? 'selected' : ''}
+            className={database.selected === 'Tables' ? 'selected' : ''}
           >
             <td
               onClick={() => {
                 scroller.current?.scrollTo(0, 0);
 
-                dispatch(set.selected('Tables'));
+                dispatch(set.database.selected('Tables'));
                
-                if (!tables.length) {
+                if (!database.tables.length) {
                   dispatch(set.data([{}]));
                   fetch(`${path}/tables`)
                     .then(response => response.json())
                     .then(data => {
-                      dispatch(set.tables(data));
+                      dispatch(set.database.tables(data));
                       dispatch(set.data(data));
                     });
                 } else {
-                  dispatch(set.data(tables));
+                  dispatch(set.data(database.tables));
                 }
               }}
             >
               <u>Tables</u>
             </td>
-            <td>{commas(ntables)}</td>
+            <td>{commas(database.ntables)}</td>
             <td>
-              {selected === 'Tables' && !tables.length && 'Loading ...'}
+              {database.selected === 'Tables' && !database.tables.length && 'Loading ...'}
             </td>
           </tr>
           
-          <tr>
-            <td>Rows</td>
-            <td>{commas(rows)}</td>
-            <td>(estimate)</td>
-          </tr>
-          
           <tr
-            className={selected === 'Indexes' ? 'selected' : ''}
+            className={database.selected === 'Indexes' ? 'selected' : ''}
           >
             <td
               onClick={() => {
                 scroller.current?.scrollTo(0, 0);
 
-                dispatch(set.selected('Indexes'));
+                dispatch(set.database.selected('Indexes'));
                
-                if (!indexes.length) {
+                if (!database.indexes.length) {
                   dispatch(set.data([{}]));
                   fetch(`${path}/indexes`)
                     .then(response => response.json())
                     .then(data => {
-                      dispatch(set.indexes(data));
+                      dispatch(set.database.indexes(data));
                       dispatch(set.data(data));
                     });
                 } else {
-                  dispatch(set.data(indexes));
+                  dispatch(set.data(database.indexes));
                 }
               }}
             >
               <u>Indexes</u>
             </td>
-            <td>{commas(nindexes)}</td>
+            <td>{commas(database.nindexes)}</td>
             <td>
-              {selected === 'Indexes' && !indexes.length && 'Loading ...'}
+              {database.selected === 'Indexes' && !database.indexes.length && 'Loading ...'}
             </td>
           </tr>
           
-          <tr>
-            <td>Size</td>
-            <td>{size} TB</td>
-            <td></td>
-          </tr>
-          
           <tr
-            className={selected === 'Addresses' ? 'selected' : ''}
+            className={database.selected === 'Addresses' ? 'selected' : ''}
           >
             <td
               onClick={() => {
                 scroller.current?.scrollTo(0, 0);
 
-                dispatch(set.selected('Addresses'));
-                dispatch(set.data(addresses));
+                dispatch(set.database.selected('Addresses'));
+                dispatch(set.data(database.addresses));
               }}
             >
               <u>Address lookups</u>
             </td>
-            <td>{commas(addresses.length)}</td>
+            <td>{commas(database.addresses.length)}</td>
             <td></td>
           </tr>
         </tbody>
@@ -163,23 +156,23 @@ export const Database = () => {
         ref={scroller}
         onScroll={(e) => {
           const top = e.currentTarget.scrollTop;
-          dispatch(set.start(top / 32));
+          dispatch(set.database.start(top / 24));
         }}
         tabIndex="1"
       >
-        <div style={{height: data.length * 32}}>
+        <div style={{height: data.length * 24}}>
           <table>
             <thead>
               <tr>
-                {Object.keys(data[0]).map((key, i) => <th style={{width: widths[i] * 9}}>{key}</th>)}
+                {Object.keys(data[0]).map((key, i) => <th style={{width: database.widths[i] * 0.7 + 'em'}}>{key}</th>)}
               </tr>
             </thead>
             <tbody>
-              {data.slice(start, start + nrows).map(row => <tr>{Object.values(row).map(data => <td>{data}</td>)}</tr>)}
+              {data.slice(database.start, database.start + nrows).map(row => <tr>{Object.values(row).map(data => <td>{data}</td>)}</tr>)}
             </tbody>
           </table>
         </div>
-      </div>      
+      </div>
     </div>
   )  
 }

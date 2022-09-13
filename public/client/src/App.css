@@ -160,7 +160,7 @@ nav button {
 .scroller {
   overflow: auto;
   position: relative;
-  height: calc(16 * 32px);
+  height: calc(21 * 24px);
   background: #bbb;
 }
 
@@ -169,7 +169,8 @@ nav button {
 }
 
 .scroller tr {
-  height: 32px;
+  height: 24px;
+  font: 12px courier new;
 }
 
 .scroller table {

@@ -2,17 +2,20 @@ import {createStore, set, get} from './redux-autosetters';
 
 let initialState = {
   screen: 'Usage',
-  ntables: 0,
-  tables: [],
-  rows: 0,
-  size: 0,
-  addresses: [],
-  nindexes: 0,
-  indexes: [],
-  widths: [],
+  database: {
+    ntables: 0,
+    tables: [],
+    rows: 0,
+    size: 0,
+    addresses: [],
+    nindexes: 0,
+    indexes: [],
+    widths: [],
+    data: [{}],
+    start: 0,
+    selected: '',
+  },
   data: [{}],
-  start: 0,
-  selected: '',
 };
 
 const afterChange = {
@@ -23,9 +26,8 @@ const afterChange = {
         widths[i] = Math.max(widths[i] || 0, (value || '').toString().length);
       });
     });
-    state.widths = widths;
-    state.start = 0;
-    console.log(state.widths);
+    state.database.widths = widths;
+    state.database.start = 0;
   }
 }
 export const test = (key, result) => {
