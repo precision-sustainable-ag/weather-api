@@ -3,7 +3,6 @@ import {useDispatch} from 'react-redux';
 
 export const Examples = () => {
   const path = window.location.origin.replace(3000, 1010);
-  const dispatch = useDispatch();
 
   const example = (desc, url) => {
     url = `${path}/${url}&output=html`;

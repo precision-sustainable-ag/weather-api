@@ -144,6 +144,35 @@ nav button {
   color: white;
 }
 
+.selected u {
+  color: white !important;
+}
+
 #Screen {
   padding: 0.5rem;
+}
+
+#Database u {
+  color: blue;
+  cursor: pointer;
+}
+
+.scroller {
+  overflow: auto;
+  position: relative;
+  height: calc(16 * 32px);
+  background: #bbb;
+}
+
+.scroller > div {
+  height: 1000rem;
+}
+
+.scroller tr {
+  height: 32px;
+}
+
+.scroller table {
+  position: fixed;
+  background: white;
 }

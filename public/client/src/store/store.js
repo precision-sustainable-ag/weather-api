@@ -2,8 +2,32 @@ import {createStore, set, get} from './redux-autosetters';
 
 let initialState = {
   screen: 'Usage',
+  ntables: 0,
+  tables: [],
+  rows: 0,
+  size: 0,
+  addresses: [],
+  nindexes: 0,
+  indexes: [],
+  widths: [],
+  data: [{}],
+  start: 0,
+  selected: '',
 };
 
+const afterChange = {
+  data: (state) => {
+    const widths = [];
+    state.data.forEach(row => {
+      Object.values(row).forEach((value, i) => {
+        widths[i] = Math.max(widths[i] || 0, (value || '').toString().length);
+      });
+    });
+    state.widths = widths;
+    state.start = 0;
+    console.log(state.widths);
+  }
+}
 export const test = (key, result) => {
   let value = get[key]?.(store.getState())?.toString();
   if (value !== result.toString()) {
@@ -53,6 +77,6 @@ export const clearInputs = (defaults) => {
   }
 } // clearInputs
 
-export const store = createStore(initialState);
+export const store = createStore(initialState, {afterChange});
 
 export {set, get} from './redux-autosetters';
