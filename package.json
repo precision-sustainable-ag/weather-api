@@ -76,6 +76,7 @@
     "http-signature": "^1.2.0",
     "iconv-lite": "^0.4.24",
     "inherits": "^2.0.4",
+    "ip": "^1.1.8",
     "ipaddr.js": "^1.9.1",
     "is-core-module": "^2.7.0",
     "is-extglob": "^2.1.1",
@@ -150,6 +151,7 @@
     "side-channel": "^1.0.4",
     "signal-exit": "^3.0.5",
     "split2": "^3.2.2",
+    "sql-formatter": "^10.6.0",
     "sqlstring": "^2.3.1",
     "sshpk": "^1.16.1",
     "statuses": "^2.0.1",
@@ -176,6 +178,8 @@
     "xtend": "^4.0.2"
   },
   "scripts": {
+    "start": "node index.js",
+    "build": "cd public/client && npm install && npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

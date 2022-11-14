@@ -1,3 +1,5 @@
+const {format} = require('sql-formatter');
+
 process.on('uncaughtException', err => {
   console.error(err);
   process.exit(1);
@@ -41,7 +43,7 @@ const init = (req) => {
   rect = options.includes('rect') && (location || (req.query.lat || '').split(',').length == 2);
 } // init
 
-const getLocation = (req, res, func) => {
+const getLocation = (res, func) => {
   pool.query(
     `select * from weather.addresses where address=$1`,
     [location],
@@ -116,20 +118,6 @@ const getLocation = (req, res, func) => {
   );
 } // getLocation
 
-const SQLFormat = (s) => {
-  return s;
-  let ind = '';
-  
-  return s.trim().split('\n').map(line => {
-    if (line.trim().endsWith('(')) {
-      ind += '  ';
-    } else if (/\) *[a-zA-Z]+$/.test(line)) {
-      ind = ind.slice(2);
-    }
-    return ind + line.trim();
-  }).join('\n');
-} // SQLFormat
-
 const f = (s) => {
   const ind = ' '.repeat(s.search(/[^\s]/) - 1);
   const rep = s.replace(new RegExp(ind, 'g'), '');
@@ -138,7 +126,15 @@ const f = (s) => {
 } // f
 
 const sendQuery = (req, res, sq) => {
-  // console.log(sq);
+  let formatted;
+
+  try {
+    formatted = format(sq.replace(/::\w+/g, ''), {
+      language: 'postgresql',
+    });
+  } catch(ee) {
+    formatted = sq;
+  }
 
   const process = (rows) => {
     if (!rows.length) {
@@ -227,7 +223,6 @@ const sendQuery = (req, res, sq) => {
       if (req.query.explain) {
         sq = 'explain ' + sq;
       }
-      console.error(sq);
 
       pool.query(sq, (err, results) => {
         if (err) {
@@ -682,7 +677,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
   } // lookup
 
   const clean = (s) => {
-    let t = decodeURI(s).replace(/["()+\-*/<>,= 0-9\.]|doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd|meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|frost/ig, '');
+    let t = decodeURI(s).replace(/["()+\-*/<>,= 0-9\.]|doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd|meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|frost|gdd/ig, '');
 
     if (t) {
       console.error('*'.repeat(80));
@@ -712,6 +707,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     if (daily) {
       if (attr) {
         cols = attr.toLowerCase()
+                   .replace(/,?gdd/g, '') // included automatically if req.query.gddbase 
                    .split(',')
                    .map(col =>
                           /^(lat|lon)$/.test(col) ? col :
@@ -736,6 +732,15 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                 min(meridional_wind_speed)    as min_meridional_wind_speed,    max(meridional_wind_speed)    as max_meridional_wind_speed,    avg(meridional_wind_speed)    as avg_meridional_wind_speed,
                 min(wind_speed)               as min_wind_speed,               max(wind_speed)               as max_wind_speed,               avg(wind_speed)               as avg_wind_speed
                `;
+      }
+      let {gddbase} = req.query;
+      if (gddbase) {
+        const mintemp = req.query.gddmin || gddbase;
+        const maxtemp = req.query.gddmax || 999;
+      
+        cols += `,
+          greatest(0, (least(${maxtemp}, max(air_temperature)) + greatest(${mintemp}, least(${maxtemp}, min(air_temperature)))) / 2 - ${gddbase}) as gdd
+        `;
       }
     } else {
       cols = attr ? fix(attr, true)
@@ -778,7 +783,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
   getColumns();
 
   if (location) {
-    getLocation(req, res, lookup);
+    getLocation(res, lookup);
   } else {
     lats = (req.query.lat || '').split(',');
     lons = (req.query.lon || '').split(',');
@@ -1036,10 +1041,10 @@ const nvm = (req, res) => {
            <tbody>
              <tr>${
                    results.rows.map(r => {
-                     let m = r['MRMS<br>precipitation'],
-                         n = r['NLDAS<br>precipitation'],
-                         rpd = Math.round(Math.abs(m -n ) / ((m + n) / 2) * 100) || 0,
-                         style = Math.abs(m - n) > 50.8 && rpd > 50 ? 'background: red; color: white; font-weight: bold;' :
+                     let m = r['MRMS<br>precipitation'];
+                     let n = r['NLDAS<br>precipitation'];
+                     let rpd = Math.round(Math.abs(m -n ) / ((m + n) / 2) * 100) || 0;
+                     let style = Math.abs(m - n) > 50.8 && rpd > 50 ? 'background: red; color: white; font-weight: bold;' :
                                  Math.abs(m - n) > 50.8 && rpd > 35 ? 'background: orange' :
                                  Math.abs(m - n) > 50.8 && rpd > 20 ? 'background: yellow' :
                                                           '';
@@ -1080,15 +1085,15 @@ const nvm = (req, res) => {
     });
   } // NVMprocess
 
-  let mlat,
-      mlon,
-      nlat,
-      nlon;
+  let mlat;
+  let mlon;
+  let nlat;
+  let nlon;
 
   init(req);
 
   if (location) {
-    getLocation(req, res, (lats, lons) => {
+    getLocation(res, (lats, lons) => {
       mlat = mround(lats);
       mlon = mround(lons);
       nlat = ygrid(lats);
@@ -1229,10 +1234,10 @@ const nvm2 = (req, res) => {
       );
     } // runQuery
 
-    let lat = Math.round(req.query.lat),
-        lon = Math.round(req.query.lon),
-        year = req.query.year,
-        s;
+    let lat = Math.round(req.query.lat);
+    let lon = Math.round(req.query.lon);
+    let year = req.query.year;
+    let s;
 
     init(req);
 
@@ -1302,6 +1307,23 @@ const nvm2Query = (req, res) => {
     console.error(ee.message);
   }
 } // nvm2Query
+
+const isMissing = (res, parms) => {
+  const error = [];
+
+  Object.keys(parms).forEach(key => {
+    if (!parms[key]) {
+      error.push(key);
+    }
+  });
+
+  if (error.length) {
+    res.status(400).send({ERROR: `Missing ${error}`});
+    return true;
+  } else {
+    return false;
+  }
+} // isMissing
 
 module.exports = {
   addresses,
