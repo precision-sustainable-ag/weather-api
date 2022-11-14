@@ -30,8 +30,7 @@ app.use(express.static(__dirname + '/public/client/build'));
 
 const db = require('./db');
 
-app.get('/', (req, res) => res.sendFile(__dirname + '/public/index.html'));  // send API
-app.get('/test', (req, res) => res.sendFile(__dirname + '/public/client/build/index.html'));  // send API
+app.get('/', (req, res) => res.sendFile(__dirname + '/public/client/build/index.html'));  // send API
 
 app.get('/addresses',         db.addresses);          // list of addresses that have been geocoded, for use in Data Explorer
 app.get('/hits',              db.hits);               // list database queries, for use in Data Explorer
@@ -51,6 +50,6 @@ app.get('/nvm2Update',        db.nvm2Update);         // "
 app.get('/nvm2Query',         db.nvm2Query);          // "
 app.get('/mvm',               db.mvm);                // query for inconsistencies between adjacent MRMS locations during 2019.  Example: https://weather.aesl.ces.uga.edu/weather/mvm?lat=39&lon=-76&num=100
 
-app.listen(1010);
+app.listen(80);
 
 console.log('Running!');

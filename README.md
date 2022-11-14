@@ -36,9 +36,9 @@ The API is documented at https://api.precisionsustainableag.org/weather/
 Weather|postgres|<weather server key>
 GoogleAPI||<google api key>
 ```
-7. After the dependencies have been installed and the .env file has been created, run `node index` to run the code locally.
-8. Open http://localhost:1010/.
+7. After the dependencies have been installed and the .env file has been created, run `npm start` to run the code locally.
+8. Open http://localhost.
 
 **Date Created:** 08/15/2022
 
-**Date Last Modified:** 08/19/2022
+**Date Last Modified:** 11/14/2022

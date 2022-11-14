@@ -170,7 +170,8 @@ nav button {
 
 .scroller tr {
   height: 24px;
-  font: 12px courier new;
+  font-size: 12px;
+  font-family: consolas, 'courier new', monospace;
 }
 
 .scroller table {

@@ -1,10 +1,7 @@
-import {set} from '../store/store';
-import {useDispatch} from 'react-redux';
-
 export const Examples = () => {
-  const format = date => date.getFullYear() + '-' + date.getMonth() + '-' + date.getDate();
+  const format = date => date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate();
 
-  const path = window.location.origin.replace(3000, 1010);
+  const path = window.location.origin.replace(/300\d/, 1010);
   const date1 = format(new Date(Date.now() - 12096e5));
   const date2 = format(new Date(Date.now() + 12096e5));
   console.log(date1, date2);

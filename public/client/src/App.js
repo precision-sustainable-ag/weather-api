@@ -2,8 +2,6 @@ import './App.css';
 
 import React from 'react';
 
-import {MenuItem, Button} from '@mui/material';
-import {useEffect, useState} from 'react';
 import {useSelector, useDispatch} from 'react-redux';
 
 import {get, set} from './store/store';

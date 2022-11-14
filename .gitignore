@@ -11,4 +11,3 @@ package-lock.json
 .Rhistory
 api_token_example.txt
 .git
-build/

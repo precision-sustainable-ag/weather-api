@@ -2,7 +2,7 @@ import {set} from '../store/store';
 import {useDispatch} from 'react-redux';
 
 export const Usage = () => {
-  const path = window.location.origin.replace(3000, 1010);
+  const path = window.location.origin.replace(/300\d/, 1010);
   const dispatch = useDispatch();
   return (
     <div id="Usage">

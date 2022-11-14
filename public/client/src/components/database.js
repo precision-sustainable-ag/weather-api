@@ -11,7 +11,7 @@ let fetched;
 
 export const Database = () => {
   const dispatch = useDispatch();
-  const path = window.location.origin.replace(3000, 1010);
+  const path = window.location.origin.replace(/300\d/, 1010);
   const database = useSelector(get.database);
   const data = useSelector(get.data);
   const nrows = 20;
