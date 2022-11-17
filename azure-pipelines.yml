@@ -34,8 +34,8 @@ stages:
       vmImage: $(vmImageName)
     steps:
     - script: |
-        echo Weather|postgres|Weather437 >> /home/vsts/work/1/s/.env
-        echo GoogleAPI|"$(GOOGLE_API_KEY)" >> /home/vsts/work/1/s/.env
+        echo "Weather|postgres|Weather437" >> /home/vsts/work/1/s/.env
+        echo "GoogleAPI|$(GOOGLE_API_KEY)" >> /home/vsts/work/1/s/.env
         cat /home/vsts/work/1/s/.env
       displayName: "Create .env"
     - task: Docker@2
