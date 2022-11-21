@@ -49,6 +49,7 @@ app.get('/nvm2Data',          db.nvm2Data);           // "
 app.get('/nvm2Update',        db.nvm2Update);         // "
 app.get('/nvm2Query',         db.nvm2Query);          // "
 app.get('/mvm',               db.mvm);                // query for inconsistencies between adjacent MRMS locations during 2019.  Example: https://weather.aesl.ces.uga.edu/weather/mvm?lat=39&lon=-76&num=100
+app.post('/rosetta',          db.rosetta);            // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
 app.listen(80);
 
