@@ -53,4 +53,5 @@ app.post('/rosetta',          db.rosetta);            // bypass CORS issue of ht
 
 app.listen(80);
 
+console.log('IP test 1');
 console.log('Running!');
