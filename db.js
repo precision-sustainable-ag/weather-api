@@ -153,7 +153,7 @@ const sendQuery = (req, res, sq) => {
             rows.map(r => Object.keys(r).map((v, i, a) => r[v])).join('\n');
             // rows.map(r => Object.values(r).toString()).join('<br>');
 
-        res.set('Content-Type', 'application/octet-stream');
+        res.set('Content-Type', 'text/csv');
         res.setHeader(`Content-disposition`, `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
         res.send(s);
         break;
