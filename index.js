@@ -1,3 +1,6 @@
+const ssl = require('ssl');
+ssl._create_default_https_context = ssl._create_unverified_context
+
 const ip = require('ip');
 console.log('IP:', ip.address());  // if needed for /etc/postgresql/11/main/pg_hba.conf
 

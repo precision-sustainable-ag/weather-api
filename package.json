@@ -154,6 +154,7 @@
     "sql-formatter": "^10.6.0",
     "sqlstring": "^2.3.1",
     "sshpk": "^1.16.1",
+    "ssl": "^1.0.0",
     "statuses": "^2.0.1",
     "streamsearch": "^0.1.2",
     "string_decoder": "^1.1.1",
