@@ -14,7 +14,7 @@ The weather API serves weather data for the conterminous United States.
 
 ## Features
 
-The API is documented at https://api.precisionsustainableag.org/weather/
+The API is documented at https://weather.covercrop-data.org/
 
 ## Local Installation Steps
 
