@@ -10,6 +10,7 @@ const request = require('request');
 const {pool, googleAPIKey} = require('./pools');
 
 const fs = require('fs');
+const {default: axios} = require('axios');
 
 // NLDAS-2 longitude and latitude:
 const xgrid = n =>  (Math.floor( n * 8) / 8).toFixed(3);
@@ -152,7 +153,7 @@ const sendQuery = (req, res, sq) => {
             rows.map(r => Object.keys(r).map((v, i, a) => r[v])).join('\n');
             // rows.map(r => Object.values(r).toString()).join('<br>');
 
-        res.set('Content-Type', 'application/octet-stream');
+        res.set('Content-Type', 'text/csv');
         res.setHeader(`Content-disposition`, `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
         res.send(s);
         break;
@@ -840,9 +841,10 @@ const queryJSON = (req, res, sq) => {
     (err, results) => {
       if (err) {
         console.error(err);
+        res.status(500).send(err);
+      } else {
+        res.status(200).json(results.rows);
       }
-
-      res.status(200).json(results.rows);
     }
   );
 } // queryJSON
@@ -1325,6 +1327,17 @@ const isMissing = (res, parms) => {
   }
 } // isMissing
 
+const rosetta = (req, res) => {
+  axios.post(
+    'https://www.handbook60.org/api/v1/rosetta/1',
+    {
+      soildata: req.body.soildata
+    }
+  ).then(data => {
+    res.send(data.data);
+  });
+} // rosetta
+
 module.exports = {
   addresses,
   getAverages,
@@ -1343,4 +1356,5 @@ module.exports = {
   nvm2Data,
   nvm2Update,
   nvm2Query,
+  rosetta,
 }

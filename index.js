@@ -1,3 +1,7 @@
+// https://stackoverflow.com/questions/44629631/while-using-pandas-got-error-urlopen-error-ssl-certificate-verify-failed-cert
+// const ssl = require('ssl');
+// ssl._create_default_https_context = ssl._create_unverified_context
+
 const ip = require('ip');
 console.log('IP:', ip.address());  // if needed for /etc/postgresql/11/main/pg_hba.conf
 
@@ -49,7 +53,9 @@ app.get('/nvm2Data',          db.nvm2Data);           // "
 app.get('/nvm2Update',        db.nvm2Update);         // "
 app.get('/nvm2Query',         db.nvm2Query);          // "
 app.get('/mvm',               db.mvm);                // query for inconsistencies between adjacent MRMS locations during 2019.  Example: https://weather.aesl.ces.uga.edu/weather/mvm?lat=39&lon=-76&num=100
+app.post('/rosetta',          db.rosetta);            // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
 app.listen(80);
 
+console.log('IP test 1');
 console.log('Running!');
