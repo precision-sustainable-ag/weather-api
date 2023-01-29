@@ -1338,6 +1338,43 @@ const rosetta = (req, res) => {
   });
 } // rosetta
 
+const watershed = (req, res) => {
+  const lookup = () => {
+    pool.query(
+      `
+        SELECT * FROM huc.huc12
+        WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'))
+      `,
+      (err, results) => {
+        if (err) {
+          res.status(500).send(err);
+        } else if (results.rows.length) {
+          const name = results.rows[0].name;
+          const huc12 = results.rows[0].huc12;
+          delete results.rows[0].geometry;
+          res.send(results.rows[0]);
+        } else {
+          res.send({});
+        }
+      }
+    );
+  } // lookup
+
+  init(req);
+  // res.send({location, lats, lons});
+  if (location) {
+    getLocation(res, lookup);
+  } else {
+    lats = (req.query.lat || '').split(',');
+    lons = (req.query.lon || '').split(',');
+    minLat = Math.min(...lats);
+    maxLat = Math.max(...lats);
+    minLon = Math.min(...lons);
+    maxLon = Math.max(...lons);
+    lookup();
+  }
+} // watershed
+
 module.exports = {
   addresses,
   getAverages,
@@ -1357,4 +1394,5 @@ module.exports = {
   nvm2Update,
   nvm2Query,
   rosetta,
+  watershed
 }
