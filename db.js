@@ -1342,7 +1342,7 @@ const watershed = (req, res) => {
   const lookup = () => {
     pool.query(
       `
-        SELECT * FROM huc.huc12
+        SELECT *, ST_AsText(geometry) as polygon FROM huc.huc12
         WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'))
       `,
       (err, results) => {
@@ -1352,7 +1352,13 @@ const watershed = (req, res) => {
           const name = results.rows[0].name;
           const huc12 = results.rows[0].huc12;
           delete results.rows[0].geometry;
-          res.send(results.rows[0]);
+          if (attributes) {
+            const obj = {};
+            attributes.forEach(a => obj[a.trim()] = results.rows[0][a.trim()]);
+            res.send(obj);
+          } else {
+            res.send(results.rows[0]);
+          }
         } else {
           res.send({});
         }
@@ -1361,7 +1367,8 @@ const watershed = (req, res) => {
   } // lookup
 
   init(req);
-  // res.send({location, lats, lons});
+  const attributes = req.query.attributes?.split(',');
+
   if (location) {
     getLocation(res, lookup);
   } else {
