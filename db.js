@@ -1338,6 +1338,83 @@ const rosetta = (req, res) => {
   });
 } // rosetta
 
+const watershed = (req, res) => {
+  const query = (sq) => {
+    console.log(sq);
+    pool.query(
+      sq,
+      (err, results) => {
+        if (err) {
+          res.status(500).send(err);
+        } else if (results.rows.length) {
+          res.send(results.rows.map((row) => {
+            delete row.geometry;
+            return row;
+          }));
+        } else {
+          res.send({});
+        }
+      }
+    );
+  } // query
+
+  const latLon = () => {
+    query(
+      `
+        SELECT ${attributes}
+        FROM huc.huc12
+        WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'))
+      `
+    );
+  } // latLon
+
+  init(req);
+  
+  let attributes = req.query.attributes?.split(',').map(a => a.trim().replace(/polygon/i, 'ST_AsText(geometry) as polygon'));
+  const polygon = req.query.polygon;
+
+  const state = req.query.state;
+  
+  if (!attributes) {
+    if (polygon === 'true') {
+      attributes = 'name,huc12,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area, ST_AsText(geometry) as polygon';
+    } else {
+      attributes = 'name,huc12,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area';
+    }
+  }
+
+  const huc = req.query.huc;
+
+  if (state) {
+    query(
+      `
+        SELECT ${attributes}
+        FROM huc.huc12
+        WHERE states like '%${state.toUpperCase()}%'
+      `
+    );
+  } else if (location) {
+    getLocation(res, latLon);
+  } else if (huc) {
+    query(
+      `
+        SELECT ${attributes}
+        FROM huc.huc12
+        WHERE huc12 like '${huc}%'
+      `
+    );
+  } else {
+    console.log(3);
+    lats = (req.query.lat || '').split(',');
+    lons = (req.query.lon || '').split(',');
+    minLat = Math.min(...lats);
+    maxLat = Math.max(...lats);
+    minLon = Math.min(...lons);
+    maxLon = Math.max(...lons);
+    latLon();
+  }
+} // watershed
+
 module.exports = {
   addresses,
   getAverages,
@@ -1357,4 +1434,5 @@ module.exports = {
   nvm2Update,
   nvm2Query,
   rosetta,
+  watershed
 }
