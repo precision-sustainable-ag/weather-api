@@ -1415,6 +1415,46 @@ const watershed = (req, res) => {
   }
 } // watershed
 
+const frost = (req, res) => {
+  const query = () => {
+    const lat = lats ? lats[0] : req.query.lat;
+    const lon = lons ? lons[0] : req.query.lon;
+
+    const sq = `
+      select * from frost.frost
+      where 
+        firstfreeze is not null and
+        firstfrost is not null and
+        lastfreeze is not null and
+        lastfrost is not null and
+        sqrt(power(lat - ${lat}, 2) + power(lon - ${lon}, 2)) < 0.7
+      order by sqrt(power(lat - ${lat}, 2) + power(lon - ${lon}, 2))
+      limit 1
+    `;
+
+    pool.query(
+      sq,
+      (err, results) => {
+        if (err) {
+          res.status(500).send(err);
+        } else if (results.rows.length) {
+          res.send(results.rows[0]);
+        } else {
+          res.send({});
+        }
+      }
+    );
+  } // query
+
+  init(req);
+
+  if (location) {
+    getLocation(req, query);
+  } else {
+    query();
+  }
+}; // frost
+
 module.exports = {
   addresses,
   getAverages,
@@ -1434,5 +1474,6 @@ module.exports = {
   nvm2Update,
   nvm2Query,
   rosetta,
-  watershed
+  watershed,
+  frost,
 }
