@@ -45,6 +45,9 @@ const init = (req) => {
 } // init
 
 const getLocation = (res, func) => {
+  if (+location) {
+    location = `zip ${location}`;
+  }
   pool.query(
     `select * from weather.addresses where address=$1`,
     [location],
@@ -77,6 +80,7 @@ const getLocation = (res, func) => {
             if (err) {
               res.status(200).send(err);
             } else try {
+              console.log(body);
               let latlon = [];
               let lat;
               let lon;
