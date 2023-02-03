@@ -1,3 +1,5 @@
+// downloaded from https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/archive/
+
 const fs = require('fs');
 const {pool} = require('../API/pools');
 
@@ -22,10 +24,16 @@ const readFiles = (dirname, onFileContent, onError = () => {}) => {
 
 const readFile = (filename, content) => {
   const get = (parm) => {
-    return (content[1][content[0].indexOf(parm)] || 'NULL')
+    let value = (content[1][content[0].indexOf(parm)] || 'NULL')
       .replace(/'/g, `''`)
       .replace(/COMMA/g, ',')
       .replace('-9999.0', 'NULL');
+
+    if (!/LATITUDE|LONGITUDE/.test(parm) && value !== 'NULL') {
+      value = `'${value}'`;
+    }
+
+    return value;
   } // get
 
   content = content.replace(/"\s*([^"]+?)\s*"/g, (_, c) => c.replace(/,/g, 'COMMA').trim());
@@ -45,12 +53,25 @@ const readFile = (filename, content) => {
 
   const sq = `
     insert into frost.frost (station, lat, lon, name, firstFreeze, firstFrost, lastFreeze, lastFrost)
-    values ('${station}', ${lat}, ${lon}, '${name}', '${firstFreeze}', '${firstFrost}', '${lastFreeze}', '${lastFrost}');
+    values ('${station}', ${lat}, ${lon}, ${name}, ${firstFreeze}, ${firstFrost}, ${lastFreeze}, ${lastFrost});
   `;
-  
+
+  // console.log({
+  //   station,
+  //   lat,
+  //   lon,
+  //   name,
+  //   firstFreeze,
+  //   firstFrost,
+  //   lastFreeze,
+  //   lastFrost,
+  // });
+  // console.log(sq);
+
   pool.query(sq, (err, results) => {
     if (err) {
       console.log(sq);
+      console.log(err);
       throw '';
     }
   });
@@ -64,10 +85,10 @@ pool.query(`
     lon real,
     station text,
     name text,
-    firstFreeze text,
-    firstFrost text,
-    lastFreeze text,
-    lastFrost text
+    firstfreeze text,
+    firstfrost text,
+    lastfreeze text,
+    lastfrost text
   );
 `);
 

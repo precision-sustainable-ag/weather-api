@@ -56,6 +56,7 @@ app.get('/mvm',               db.mvm);                // query for inconsistenci
 app.post('/rosetta',          db.rosetta);            // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
 app.all('/watershed', db.watershed);
+app.all('/frost', db.frost);
 app.listen(80);
 
 console.log('IP test 1');
