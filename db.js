@@ -80,7 +80,6 @@ const getLocation = (res, func) => {
             if (err) {
               res.status(200).send(err);
             } else try {
-              console.log(body);
               let latlon = [];
               let lat;
               let lon;
@@ -1367,6 +1366,11 @@ const watershed = (req, res) => {
       `
         SELECT ${attributes}
         FROM huc.huc12
+        LEFT JOIN huc.huc10 ON left(huc12.huc12, 10) = huc10.huc10
+        LEFT JOIN huc.huc6  ON left(huc12.huc12, 6)  = huc6.huc6
+        LEFT JOIN huc.huc8  ON left(huc12.huc12, 8)  = huc8.huc8
+        LEFT JOIN huc.huc4  ON left(huc12.huc12, 4)  = huc4.huc4
+        LEFT JOIN huc.huc2  ON left(huc12.huc12, 2)  = huc2.huc2
         WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'))
       `
     );
@@ -1374,16 +1378,25 @@ const watershed = (req, res) => {
 
   init(req);
   
-  let attributes = req.query.attributes?.split(',').map(a => a.trim().replace(/polygon/i, 'ST_AsText(geometry) as polygon'));
+  let attributes =
+    req.query.attributes?.split(',')
+      .map(attr => (
+        attr
+          .trim()
+          .replace(/^name$/, 'huc12.name')
+          .replace(/huc(\d+)name/, (_, s) => `huc${s}.name as huc${s}name`)
+          .replace(/polygon/i, 'ST_AsText(geometry) as polygon')
+      ));
+  
   const polygon = req.query.polygon;
 
   const state = req.query.state;
   
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'name,huc12,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area, ST_AsText(geometry) as polygon';
+      attributes = 'huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area, ST_AsText(geometry) as polygon';
     } else {
-      attributes = 'name,huc12,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area';
+      attributes = 'huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area';
     }
   }
 
@@ -1394,6 +1407,11 @@ const watershed = (req, res) => {
       `
         SELECT ${attributes}
         FROM huc.huc12
+        LEFT JOIN huc.huc10 ON left(huc12.huc12, 10) = huc10.huc10
+        LEFT JOIN huc.huc6  ON left(huc12.huc12, 6)  = huc6.huc6
+        LEFT JOIN huc.huc8  ON left(huc12.huc12, 8)  = huc8.huc8
+        LEFT JOIN huc.huc4  ON left(huc12.huc12, 4)  = huc4.huc4
+        LEFT JOIN huc.huc2  ON left(huc12.huc12, 2)  = huc2.huc2
         WHERE states like '%${state.toUpperCase()}%'
       `
     );
@@ -1404,11 +1422,15 @@ const watershed = (req, res) => {
       `
         SELECT ${attributes}
         FROM huc.huc12
+        LEFT JOIN huc.huc10 ON left(huc12.huc12, 10) = huc10.huc10
+        LEFT JOIN huc.huc6  ON left(huc12.huc12, 6)  = huc6.huc6
+        LEFT JOIN huc.huc8  ON left(huc12.huc12, 8)  = huc8.huc8
+        LEFT JOIN huc.huc4  ON left(huc12.huc12, 4)  = huc4.huc4
+        LEFT JOIN huc.huc2  ON left(huc12.huc12, 2)  = huc2.huc2
         WHERE huc12 like '${huc}%'
       `
     );
   } else {
-    console.log(3);
     lats = (req.query.lat || '').split(',');
     lons = (req.query.lon || '').split(',');
     minLat = Math.min(...lats);
