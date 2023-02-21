@@ -1441,6 +1441,69 @@ const watershed = (req, res) => {
   }
 } // watershed
 
+const mlra = (req, res) => {
+  const query = (sq) => {
+    console.log(sq);
+    pool.query(
+      sq,
+      (err, results) => {
+        if (err) {
+          res.status(500).send(err);
+        } else if (results.rows.length) {
+          res.send(results.rows.map((row) => {
+            delete row.geometry;
+            return row;
+          }));
+        } else {
+          res.send({});
+        }
+      }
+    );
+  } // query
+
+  const latLon = () => {
+    query(
+      `
+        SELECT distinct ${attributes}
+        FROM mlra.mlra
+        WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'))
+      `
+    );
+  } // latLon
+
+  init(req);
+  
+  let attributes =
+    req.query.attributes?.split(',')
+      .map(attr => (
+        attr
+          .trim()
+          .replace(/polygon/i, 'ST_AsText(geometry) as polygon')
+      ));
+  
+  const polygon = req.query.polygon;
+
+  if (!attributes) {
+    if (polygon === 'true') {
+      attributes = 'id,name,mlrarsym,lrrsym,lrrname,fips,st,length,area,ST_AsText(geometry) as polygon';
+    } else {
+      attributes = 'id,name,mlrarsym,lrrsym,lrrname,fips,st,length,area';
+    }
+  }
+
+  if (location) {
+    getLocation(res, latLon);
+  } else {
+    lats = (req.query.lat || '').split(',');
+    lons = (req.query.lon || '').split(',');
+    minLat = Math.min(...lats);
+    maxLat = Math.max(...lats);
+    minLon = Math.min(...lons);
+    maxLon = Math.max(...lons);
+    latLon();
+  }
+} // mlra
+
 const frost = (req, res) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
@@ -1501,5 +1564,6 @@ module.exports = {
   nvm2Query,
   rosetta,
   watershed,
+  mlra,
   frost,
 }
