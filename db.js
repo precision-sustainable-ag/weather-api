@@ -1462,31 +1462,34 @@ const mlra = (req, res) => {
   } // query
 
   const latLon = () => {
-    // query(
-    //   `
-    //     SELECT distinct ${attributes}
-    //     FROM mlra.mlra
-    //     WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'))
-    //   `
-    // );
-
-    query(`
-      SELECT
-        ${attributes},
-        string_agg(DISTINCT county || ' County' || ' ' || state, ', ') as counties,
-        string_agg(DISTINCT state, ', ') as states,
-        string_agg(DISTINCT state_code,', ') as state_codes,
-        string_agg(DISTINCT countyfips, ', ') as countyfips,
-        string_agg(DISTINCT statefips, ', ') as statefips
-      FROM counties a
-      RIGHT JOIN (
-        SELECT *, ST_AsText(geometry) as polygon
-        FROM mlra.mlra
-        WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'))
-      ) b
-      ON ST_Intersects(ST_SetSRID(b.geometry, 4269), a.geometry)
-      GROUP BY ${attributes}
-    `);
+    if (mlra) {
+      query(`
+        SELECT
+          b.id,b.name,b.mlrarsym,b.lrrsym,b.lrrname,
+          string_agg(DISTINCT county || ' County' || ' ' || state, ', ') as counties,
+          string_agg(DISTINCT state, ', ') as states,
+          string_agg(DISTINCT state_code,', ') as state_codes,
+          string_agg(DISTINCT countyfips, ', ') as countyfips,
+          string_agg(DISTINCT statefips, ', ') as statefips
+          ${polygon ? ', polygon' : ''}
+        FROM counties a
+        RIGHT JOIN (
+          SELECT *, ST_AsText(geometry) as polygon
+          FROM mlra.mlra
+          WHERE mlrarsym = '${mlra}'
+        ) b
+        ON ST_Intersects(ST_SetSRID(b.geometry, 4269), a.geometry)
+        GROUP BY b.id,b.name,b.mlrarsym,b.lrrsym,b.lrrname ${polygon ? ', polygon' : ''}
+      `);
+    } else {
+      query(
+        `
+          SELECT distinct ${attributes}
+          FROM mlra.mlra
+          WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'))
+        `
+      );
+    }
   } // latLon
 
   init(req);
@@ -1500,12 +1503,13 @@ const mlra = (req, res) => {
       ));
   
   const polygon = req.query.polygon;
+  const mlra = req.query.mlra;
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'b.id,b.name,b.mlrarsym,b.lrrsym,b.lrrname,polygon';
+      attributes = 'id,name,mlrarsym,lrrsym,lrrname,ST_AsText(geometry) as polygon';
     } else {
-      attributes = 'b.id,b.name,b.mlrarsym,b.lrrsym,b.lrrname';
+      attributes = 'id,name,mlrarsym,lrrsym,lrrname';
     }
   }
 
