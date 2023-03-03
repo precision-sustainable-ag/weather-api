@@ -1504,6 +1504,69 @@ const mlra = (req, res) => {
   }
 } // mlra
 
+const county = (req, res) => {
+  const query = (sq) => {
+    console.log(sq);
+    pool.query(
+      sq,
+      (err, results) => {
+        if (err) {
+          res.status(500).send(err);
+        } else if (results.rows.length) {
+          res.send(results.rows.map((row) => {
+            delete row.geometry;
+            return row;
+          }));
+        } else {
+          res.send({});
+        }
+      }
+    );
+  } // query
+
+  const latLon = () => {
+    query(
+      `
+        SELECT distinct ${attributes}
+        FROM counties
+        WHERE ST_Contains(geometry::geometry, ST_Transform(ST_SetSRID(ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'), 4326), 4269))
+      `
+    );
+  } // latLon
+
+  init(req);
+  
+  let attributes =
+    req.query.attributes?.split(',')
+      .map(attr => (
+        attr
+          .trim()
+          .replace(/polygon/i, 'ST_AsText(geometry) as polygon')
+      ));
+  
+  const polygon = req.query.polygon;
+
+  if (!attributes) {
+    if (polygon === 'true') {
+      attributes = 'county,state,state_code,countyfips,statefips,ST_AsText(geometry) as polygon';
+    } else {
+      attributes = 'county,state,state_code,countyfips,statefips';
+    }
+  }
+
+  if (location) {
+    getLocation(res, latLon);
+  } else {
+    lats = (req.query.lat || '').split(',');
+    lons = (req.query.lon || '').split(',');
+    minLat = Math.min(...lats);
+    maxLat = Math.max(...lats);
+    minLon = Math.min(...lons);
+    maxLon = Math.max(...lons);
+    latLon();
+  }
+} // county
+
 const frost = (req, res) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
@@ -1565,5 +1628,6 @@ module.exports = {
   rosetta,
   watershed,
   mlra,
+  county,
   frost,
 }

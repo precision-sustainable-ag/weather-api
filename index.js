@@ -57,6 +57,7 @@ app.post('/rosetta',          db.rosetta);            // bypass CORS issue of ht
 
 app.all('/watershed', db.watershed);
 app.all('/mlra', db.mlra);
+app.all('/county', db.county);
 app.all('/frost', db.frost);
 app.listen(80);
 
