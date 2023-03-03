@@ -1485,9 +1485,9 @@ const mlra = (req, res) => {
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'id,name,mlrarsym,lrrsym,lrrname,fips,st,length,area,ST_AsText(geometry) as polygon';
+      attributes = 'id,name,mlrarsym,lrrsym,lrrname,ST_AsText(geometry) as polygon';
     } else {
-      attributes = 'id,name,mlrarsym,lrrsym,lrrname,fips,st,length,area';
+      attributes = 'id,name,mlrarsym,lrrsym,lrrname';
     }
   }
 
