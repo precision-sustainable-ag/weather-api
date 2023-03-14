@@ -1385,7 +1385,7 @@ const watershed = (req, res) => {
           .trim()
           .replace(/^name$/, 'huc12.name')
           .replace(/huc(\d+)name/, (_, s) => `huc${s}.name as huc${s}name`)
-          .replace(/polygon/i, 'ST_AsText(geometry) as polygon')
+          .replace(/polygon/i, `(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,ST_AsText(geometry) as polygon`)
       ));
   
   const polygon = req.query.polygon;
@@ -1394,7 +1394,7 @@ const watershed = (req, res) => {
   
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = `huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area, (ST_AsGeoJSON(geometry)::jsonb->'coordinates') as polygonarray, ST_AsText(geometry) as polygon`;
+      attributes = `huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area, (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray, ST_AsText(geometry) as polygon`;
     } else {
       attributes = 'huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area';
     }
@@ -1499,7 +1499,7 @@ const mlra = (req, res) => {
       .map(attr => (
         attr
           .trim()
-          .replace(/polygon/i, 'ST_AsText(geometry) as polygon')
+          .replace(/polygon/i, `(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,ST_AsText(geometry) as polygon`)
       ));
   
   const polygon = req.query.polygon;
@@ -1507,7 +1507,7 @@ const mlra = (req, res) => {
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = `id,name,mlrarsym,lrrsym,lrrname,(ST_AsGeoJSON(geometry)::jsonb->'coordinates') as polygonarray, ST_AsText(geometry) as polygon`;
+      attributes = `id,name,mlrarsym,lrrsym,lrrname,(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray, ST_AsText(geometry) as polygon`;
     } else {
       attributes = 'id,name,mlrarsym,lrrsym,lrrname';
     }
@@ -1563,14 +1563,14 @@ const county = (req, res) => {
       .map(attr => (
         attr
           .trim()
-          .replace(/polygon/i, 'ST_AsText(geometry) as polygon')
+          .replace(/polygon/i, `(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,ST_AsText(geometry) as polygon`)
       ));
   
   const polygon = req.query.polygon;
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = `county,state,state_code,countyfips,statefips,(ST_AsGeoJSON(geometry)::jsonb->'coordinates') as polygonarray,ST_AsText(geometry) as polygon`;
+      attributes = `county,state,state_code,countyfips,statefips,(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,ST_AsText(geometry) as polygon`;
     } else {
       attributes = 'county,state,state_code,countyfips,statefips';
     }
