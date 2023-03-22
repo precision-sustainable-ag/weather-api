@@ -1589,6 +1589,29 @@ const county = (req, res) => {
   }
 } // county
 
+const countyspecies = (req, res) => {
+  const county = req.query.county || '%';
+  const state = req.query.state;
+
+  const sq = `
+    SELECT DISTINCT symbol
+    FROM countyspecies
+    WHERE county ILIKE '${county}' and state ILIKE '${state}'
+    ORDER by symbol
+  `;
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        res.send(results.rows.map((row) => row.symbol));
+      }
+    }
+  );
+} // countyspecies
+
 const frost = (req, res) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
@@ -1651,5 +1674,6 @@ module.exports = {
   watershed,
   mlra,
   county,
+  countyspecies,
   frost,
 }
