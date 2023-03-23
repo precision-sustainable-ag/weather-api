@@ -60,6 +60,8 @@ app.all('/mlra', db.mlra);
 app.all('/county', db.county);
 app.all('/frost', db.frost);
 app.all('/countyspecies', db.countyspecies);
+app.all('/plants', db.plants);
+
 app.listen(80);
 
 console.log('IP test 1');
