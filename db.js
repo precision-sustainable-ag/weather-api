@@ -1612,6 +1612,29 @@ const countyspecies = (req, res) => {
   );
 } // countyspecies
 
+const plants = (req, res) => {
+  const symbols = req.query.symbol.split(',').map((s) => `'${s.toLowerCase()}'`);
+
+  const sq = `
+    SELECT *
+    FROM plants
+    WHERE LOWER(symbol) IN (${symbols})
+  `;
+
+  console.log(sq);
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        res.send(results.rows);
+      }
+    }
+  );
+} // plants
+
 const frost = (req, res) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
@@ -1675,5 +1698,6 @@ module.exports = {
   mlra,
   county,
   countyspecies,
+  plants,
   frost,
 }
