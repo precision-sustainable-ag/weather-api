@@ -1,24 +1,25 @@
 import {set} from '../store/store';
 import {useDispatch} from 'react-redux';
+import {Columns} from './columns';
 
-export const Usage = () => {
+export const Weather = () => {
   const path = window.location.origin.replace(/300\d/, 1010);
   const dispatch = useDispatch();
   return (
     <div id="Usage">
-      <h3>Usage</h3>
+      <h4>Weather Data</h4>
       <table>
         <tbody>
           <tr>
-            <td>Hourly data</td>
+            <td>Hourly weather data</td>
             <td>{path}/hourly?<i>parameters</i></td>
           </tr>
           <tr>
-            <td>5-year hourly averages</td>
+            <td>5-year hourly weather averages</td>
             <td>{path}/averages?<i>parameters</i></td>
           </tr>
           <tr>
-            <td>Daily statistics</td>
+            <td>Daily weather statistics</td>
             <td>{path}/daily?<i>parameters</i></td>
           </tr>
         </tbody>
@@ -115,6 +116,23 @@ export const Usage = () => {
           </tr>
         </tbody>
       </table>
+
+      <details>
+        <summary>Weather columns</summary>
+        <Columns />
+      </details>
+
+      <hr/>
+
+      <h4>Frost data</h4>
+      <table>
+        <tbody>
+          <tr>
+            <td>30-year frost normals</td>
+            <td>{path}/frost?<i>parameters</i></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   )
-} // Usage
+} // Weather

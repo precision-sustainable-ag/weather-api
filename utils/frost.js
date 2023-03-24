@@ -1,17 +1,17 @@
 // downloaded from https://www.ncei.noaa.gov/data/normals-annualseasonal/1991-2020/archive/
 
 const fs = require('fs');
-const {pool} = require('../API/pools');
+const { pool } = require('../API/pools');
 
 const readFiles = (dirname, onFileContent, onError = () => {}) => {
-  fs.readdir(dirname, function(err, filenames) {
+  fs.readdir(dirname, (err, filenames) => {
     if (err) {
       console.log(err);
       onError(err);
       return;
     }
-    filenames.forEach(function(filename) {
-      fs.readFile(dirname + filename, 'utf-8', function(err, content) {
+    filenames.forEach((filename) => {
+      fs.readFile(dirname + filename, 'utf-8', (err, content) => {
         if (err) {
           onError(err);
           return;
@@ -25,7 +25,7 @@ const readFiles = (dirname, onFileContent, onError = () => {}) => {
 const readFile = (filename, content) => {
   const get = (parm) => {
     let value = (content[1][content[0].indexOf(parm)] || 'NULL')
-      .replace(/'/g, `''`)
+      .replace(/'/g, '\'\'')
       .replace(/COMMA/g, ',')
       .replace('-9999.0', 'NULL');
 
@@ -34,22 +34,22 @@ const readFile = (filename, content) => {
     }
 
     return value;
-  } // get
+  }; // get
 
   content = content.replace(/"\s*([^"]+?)\s*"/g, (_, c) => c.replace(/,/g, 'COMMA').trim());
-  content = content.split(/[\n\r]+/).map(s => s.split(','));
+  content = content.split(/[\n\r]+/).map((s) => s.split(','));
   if (content[0].length != content[1].length) {
     console.log(content[0].length, content[1].length);
   }
-  
+
   const station = content[1][0];
-  const lat         = get('LATITUDE');
-  const lon         = get('LONGITUDE');
-  const name        = get('NAME');
+  const lat = get('LATITUDE');
+  const lon = get('LONGITUDE');
+  const name = get('NAME');
   const firstFreeze = get('ANN-TMIN-PRBFST-T32FP50');
-  const firstFrost  = get('ANN-TMIN-PRBFST-T36FP50');
-  const lastFreeze  = get('ANN-TMIN-PRBLST-T32FP50');
-  const lastFrost   = get('ANN-TMIN-PRBLST-T36FP50');
+  const firstFrost = get('ANN-TMIN-PRBFST-T36FP50');
+  const lastFreeze = get('ANN-TMIN-PRBLST-T32FP50');
+  const lastFrost = get('ANN-TMIN-PRBLST-T36FP50');
 
   const sq = `
     insert into frost.frost (station, lat, lon, name, firstFreeze, firstFrost, lastFreeze, lastFrost)

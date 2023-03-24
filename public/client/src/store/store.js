@@ -1,7 +1,7 @@
 import {createStore, set, get} from './redux-autosetters';
 
 let initialState = {
-  screen: 'Usage',
+  screen: 'Weather',
   database: {
     ntables: 0,
     tables: [],
