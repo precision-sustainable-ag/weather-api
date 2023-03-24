@@ -266,6 +266,25 @@ export const Columns = () => {
             <td>Present</td>
             <td>Only detectable precipitations are stored in the database (rainfall > 0)</td>
           </tr>
+
+          <tr>
+            <td>Growing degree days</td>
+            <td></td>
+            <td>gdd</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>0.125° x 0.125°</td>
+            <td></td>
+            <td></td>
+            <td className="checked"></td>
+            <td></td>
+            <td></td>
+            <td>01/01/2015</td>
+            <td>Present</td>
+            <td>-</td>
+          </tr>
+
         </tbody>              
       </table>
     </>

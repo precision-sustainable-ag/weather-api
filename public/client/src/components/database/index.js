@@ -1,4 +1,4 @@
-import {set, get} from '../store/store';
+import {set, get} from '../../store/store';
 import {useDispatch, useSelector} from 'react-redux';
 import {useRef} from 'react';
 

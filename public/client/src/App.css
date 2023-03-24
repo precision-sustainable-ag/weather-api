@@ -11,16 +11,16 @@ html, body {
   padding: 0;
 }
 
-#Usage i {
+#Weather i {
   color: brown;
 }
 
-#Usage u {
+#Weather u {
   color: blue;
   cursor: pointer;
 }
 
-#Usage li {
+#Weather li {
   padding-bottom: 0.5em;
 }
 
@@ -135,7 +135,7 @@ nav {
 }
 
 nav button {
-  width: 8rem;
+  width: 10rem;
   height: 2rem;
 }
 
