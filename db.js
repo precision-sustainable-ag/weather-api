@@ -457,7 +457,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                                          shortwave_radiation,
                                          coalesce(b.precipitation, 0) as precipitation,
                                          nldas,
-                                         frost
+                                         null as frost
                                   from (
                                     ${mainTable}
                                   ) a
@@ -750,7 +750,8 @@ const runQuery = (req, res, type, start, end, format, daily) => {
   let attr = (req.query.attributes || req.query.attr || '').replace(/(soil_temperature|water_temperature|dewpoint|vapor_pressure),?/g, '').replace(/,$/, '');
   let mpe = /\bmpe\b/i.test(attr);
   let mrms = /hourly|daily/.test(req.url) && !/nomrms/.test(options);
-  const year1 = Math.max(+start.slice(0, 4), 2015);
+  // const year1 = Math.max(+start.slice(0, 4), 2015);
+  const year1 = Math.max(+start.slice(0, 4), 2005);
   const year2 = Math.min(+end.slice(0, 4), new Date().getFullYear());
   let years = [];
   let { group } = req.query;
