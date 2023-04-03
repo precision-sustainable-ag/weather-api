@@ -1,7 +1,8 @@
+import React from 'react';
 import {createStore, set, get} from './redux-autosetters';
 
 let initialState = {
-  screen: 'Usage',
+  screen: 'Weather',
   database: {
     ntables: 0,
     tables: [],
@@ -30,6 +31,7 @@ const afterChange = {
     state.database.start = 0;
   }
 }
+
 export const test = (key, result) => {
   let value = get[key]?.(store.getState())?.toString();
   if (value !== result.toString()) {
@@ -82,3 +84,14 @@ export const clearInputs = (defaults) => {
 export const store = createStore(initialState, {afterChange});
 
 export {set, get} from './redux-autosetters';
+
+export const example = (desc, url) => {
+  const path = window.location.origin.replace(/:300\d/, '');
+  url = `${path}/${url}&output=html`;
+  return (
+    <li>
+      <p>{desc}:</p>
+      <p className="indent"><a target="_blank" href={url} rel="noreferrer"><span className="server"></span>{url}</a></p>
+    </li>
+  )
+} // example

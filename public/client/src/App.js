@@ -2,14 +2,13 @@ import './App.css';
 
 import React from 'react';
 
-import {useSelector, useDispatch} from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 
-import {get, set} from './store/store';
-import {Usage} from './components/usage';
-import {Columns} from './components/columns';
-import {Notes} from './components/notes';
-import {Examples} from './components/examples';
-import {Database} from './components/database';
+import { get, set } from './store/store';
+import { Weather } from './components/weather';
+import { Frost } from './components/frost';
+import { Examples } from './components/examples';
+import { Database } from './components/database';
 
 function App() {
   const Screen = () => (
@@ -21,11 +20,13 @@ function App() {
   const dispatch = useDispatch();
   const screen = useSelector(get.screen);
   const screens = {
-    Usage,
-    Columns,
-    Notes,
+    Weather,
+    Frost,
     Examples,
-    Database,
+  }
+
+  if (window.location.href.includes('debug')) {
+    screens.Database = Database;
   }
 
   return (
@@ -39,7 +40,9 @@ function App() {
       >
         {
           Object.keys(screens).map(key =>
-            <button key={key} className={screen === key ? 'selected' : ''}>{key}</button>
+            <button key={key} className={screen === key ? 'selected' : ''}>
+              {key}
+            </button>
           )
         }
       </nav>
