@@ -1597,6 +1597,28 @@ const countyspecies = (req, res) => {
   );
 }; // countyspecies
 
+const mlraspecies = (req, res) => {
+  const { mlra } = req.query;
+
+  const sq = `
+    SELECT distinct * FROM mlra_species a
+    INNER JOIN plants b
+    on plant_symbol=symbol
+    WHERE mlra='${mlra}';
+  `;
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        res.send(results.rows);
+      }
+    },
+  );
+}; // mlraspecies
+
 const plants = (req, res) => {
   console.log('here');
   const symbols = req.query.symbol.split(',').map((s) => `'${s.toLowerCase()}'`);
@@ -1684,6 +1706,7 @@ module.exports = {
   mlra,
   county,
   countyspecies,
+  mlraspecies,
   plants,
   frost,
 };
