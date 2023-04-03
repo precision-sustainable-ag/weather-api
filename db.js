@@ -1601,7 +1601,10 @@ const mlraspecies = (req, res) => {
   const { mlra } = req.query;
 
   const sq = `
-    SELECT distinct * FROM mlra_species a
+    SELECT distinct * FROM (
+      SELECT plant_symbol, mlra
+      FROM mlra_species
+    ) a
     INNER JOIN plants b
     on plant_symbol=symbol
     WHERE mlra='${mlra}';
