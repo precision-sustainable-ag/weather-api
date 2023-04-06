@@ -1,4 +1,27 @@
 const { format } = require('sql-formatter');
+
+const display = (s) => {
+  console.log(s);
+  console.log('_'.repeat(process.stdout.columns));
+}; // display
+
+const pretty = (sq) => {
+  let result;
+  try {
+    result = format(
+      sq,
+      {
+        language: 'postgresql',
+      },
+    ).replace(/,\s*\n\s*/g, ', ');
+  } catch (error) {
+    // sql-formatter sometimes bombs
+    result = sq;
+  }
+  display(result);
+  return result;
+}; // pretty
+
 const axios = require('axios');
 const { pool, googleAPIKey } = require('./pools');
 
@@ -56,7 +79,7 @@ const getLocation = (res, func) => {
       if (err) {
         res.status(200).send(err);
       } else if (results.rows.length) {
-        console.log(`Found ${location}`);
+        display(`Found ${location}`);
         lats = [results.rows[0].lat];
         lons = [results.rows[0].lon];
         if (rect) {
@@ -79,26 +102,23 @@ const getLocation = (res, func) => {
               res.status(400).send(err);
             } else {
               try {
-                const latlon = [];
-                let lat;
-                let lon;
+                // eslint-disable-next-line prefer-destructuring
+                const lat = data.results[0].geometry.location.lat;
+                const lon = data.results[0].geometry.location.lng;
                 const lat1 = data.results[0].geometry.viewport.northeast.lat;
                 const lon1 = data.results[0].geometry.viewport.northeast.lng;
                 const lat2 = data.results[0].geometry.viewport.southwest.lat;
                 const lon2 = data.results[0].geometry.viewport.southwest.lng;
 
-                console.log({
+                display({
                   location,
+                  lat,
+                  lon,
                   lat1,
                   lon1,
                   lat2,
                   lon2,
                 });
-
-                for (const i in data.results[0].geometry.location) { // why can't I simply do data.results[0].geometry.location.lat ???
-                  latlon.push(data.results[0].geometry.location[i]);
-                }
-                [lat, lon] = latlon;
 
                 lats = [lat];
                 lons = [lon];
@@ -137,15 +157,7 @@ const f = (s) => {
 }; // f
 
 const sendQuery = (req, res, sq) => {
-  let formatted;
-
-  try {
-    formatted = format(sq.replace(/::\w+/g, ''), {
-      language: 'postgresql',
-    });
-  } catch (ee) {
-    formatted = sq;
-  }
+  // pretty(sq);
 
   const process = (rows) => {
     if (!rows.length) {
@@ -153,10 +165,11 @@ const sendQuery = (req, res, sq) => {
       return;
     }
 
-    // prevent duplicate rows.  screws up LIMIT unfortunately
-    let lastJSON;
-    rows = rows.filter((row) => lastJSON != (lastJSON = JSON.stringify(row)));
+    // prevent duplicate rows. screws up LIMIT unfortunately. hopefully unnecessary
+    //   let lastJSON;
+    //   rows = rows.filter((row) => lastJSON !== (lastJSON = JSON.stringify(row)));
 
+    let s;
     switch (output ? output.toLowerCase() : 'json') {
       case 'csv':
         s = `${Object.keys(rows[0]).toString()}\n${
@@ -233,9 +246,7 @@ const sendQuery = (req, res, sq) => {
         sq = `explain ${sq}`;
       }
 
-      console.log(1);
       pool.query(sq, (err, results) => {
-        console.log(2);
         if (err) {
           console.error(sq);
           console.error(err);
@@ -1170,14 +1181,15 @@ const nvm2 = (req, res) => {
             res.status(200).send(err);
           } else {
             try {
-              s = `<link rel="stylesheet" href="css/weather.css">
-                   <link rel="stylesheet" href="//aesl.ces.uga.edu/weatherapp/src/nvm2.css">
-                   <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
-                   <script src="https://aesl.ces.uga.edu/scripts/jqLibrary.js"></script>
-                   <script src="https://aesl.ces.uga.edu/weatherapp/src/nvm2.js"></script>
-                   <script>let monthly = ${JSON.stringify(results.rows)};</script>
-                   <div id="Data"></div>
-                  `;
+              let s = `
+                <link rel="stylesheet" href="css/weather.css">
+                <link rel="stylesheet" href="//aesl.ces.uga.edu/weatherapp/src/nvm2.css">
+                <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
+                <script src="https://aesl.ces.uga.edu/scripts/jqLibrary.js"></script>
+                <script src="https://aesl.ces.uga.edu/weatherapp/src/nvm2.js"></script>
+                <script>let monthly = ${JSON.stringify(results.rows)};</script>
+                <div id="Data"></div>
+               `;
 
               pool.query(
                 `select to_char(date, 'yyyy-mm-dd HH:00') as "Date", lat as "Lat", lon as "Lon",
@@ -1211,9 +1223,9 @@ const nvm2 = (req, res) => {
                             `;
                       }
 
-                      pool.query(
-                        `insert into weather.nvm2 (lat, lon, year, data)
-                       values (${lat}, ${lon}, ${year}, '${s.replace(/ /g, ' ').trim()}')
+                      pool.query(`
+                        insert into weather.nvm2 (lat, lon, year, data)
+                        values (${lat}, ${lon}, ${year}, '${s.replace(/ /g, ' ').trim()}')
                       `,
                       );
 
@@ -1235,7 +1247,6 @@ const nvm2 = (req, res) => {
     let lat = Math.round(req.query.lat);
     let lon = Math.round(req.query.lon);
     let { year } = req.query;
-    let s;
 
     init(req);
 
@@ -1335,7 +1346,7 @@ const rosetta = (req, res) => {
 
 const watershed = (req, res) => {
   const query = (sq) => {
-    console.log(sq);
+    pretty(sq);
     pool.query(
       sq,
       (err, results) => {
@@ -1385,9 +1396,33 @@ const watershed = (req, res) => {
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area, (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray, ST_AsText(geometry) as polygon';
+      attributes = `
+        huc12, huc12.name,
+        huc10, huc10.name as huc10name,
+        huc8, huc8.name as huc8name,
+        huc6, huc6.name as huc6name,
+        huc4, huc4.name as huc4name,
+        huc2, huc2.name as huc2name,
+        tnmid, metasourceid, sourcedatadesc, sourceoriginator, sourcefeatureid,
+        loaddate, referencegnis_ids, areaacres, areasqkm, states, hutype, humod,
+        tohuc, noncontributingareaacres, noncontributingareasqkm, globalid,
+        shape_Length, shape_Area,
+        (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,
+        ST_AsText(geometry) as polygon
+      `;
     } else {
-      attributes = 'huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area';
+      attributes = `
+        huc12, huc12.name,
+        huc10, huc10.name as huc10name,
+        huc8, huc8.name as huc8name,
+        huc6, huc6.name as huc6name,
+        huc4, huc4.name as huc4name,
+        huc2, huc2.name as huc2name,
+        tnmid, metasourceid, sourcedatadesc, sourceoriginator, sourcefeatureid,
+        loaddate, referencegnis_ids, areaacres, areasqkm, states, hutype, humod,
+        tohuc, noncontributingareaacres, noncontributingareasqkm, globalid,
+        shape_Length, shape_Area
+      `;
     }
   }
 
@@ -1434,7 +1469,7 @@ const watershed = (req, res) => {
 
 const mlra = (req, res) => {
   const query = (sq) => {
-    console.log(sq);
+    pretty(sq);
     pool.query(
       sq,
       (err, results) => {
@@ -1497,9 +1532,13 @@ const mlra = (req, res) => {
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'id,name,mlrarsym,lrrsym,lrrname,(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray, ST_AsText(geometry) as polygon';
+      attributes = `
+        id, name, mlrarsym, lrrsym, lrrname,
+        (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,
+        ST_AsText(geometry) as polygon
+      `;
     } else {
-      attributes = 'id,name,mlrarsym,lrrsym,lrrname';
+      attributes = 'id, name, mlrarsym, lrrsym, lrrname';
     }
   }
 
@@ -1518,7 +1557,7 @@ const mlra = (req, res) => {
 
 const county = (req, res) => {
   const query = (sq) => {
-    console.log(sq);
+    pretty(sq);
     pool.query(
       sq,
       (err, results) => {
@@ -1559,9 +1598,13 @@ const county = (req, res) => {
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'county,state,state_code,countyfips,statefips,(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon';
+      attributes = `
+        county, state, state_code, countyfips, statefips,
+        (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,
+        ST_AsText(geometry) as polygon
+      `;
     } else {
-      attributes = 'county,state,state_code,countyfips,statefips';
+      attributes = 'county, state, state_code, countyfips, statefips';
     }
   }
 
@@ -1627,7 +1670,6 @@ const mlraspecies = (req, res) => {
 }; // mlraspecies
 
 const plants = (req, res) => {
-  console.log('here');
   const symbols = req.query.symbol.split(',').map((s) => `'${s.toLowerCase()}'`);
 
   const sq = `
@@ -1636,7 +1678,7 @@ const plants = (req, res) => {
     WHERE LOWER(symbol) IN (${symbols})
   `;
 
-  console.log(sq);
+  pretty(sq);
 
   pool.query(
     sq,

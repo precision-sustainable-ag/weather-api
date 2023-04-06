@@ -153,7 +153,7 @@
     "side-channel": "^1.0.4",
     "signal-exit": "^3.0.5",
     "split2": "^3.2.2",
-    "sql-formatter": "^10.6.0",
+    "sql-formatter": "^10.7.2",
     "sqlstring": "^2.3.1",
     "sshpk": "^1.16.1",
     "ssl": "^1.0.0",

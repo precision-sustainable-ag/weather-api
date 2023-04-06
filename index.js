@@ -66,5 +66,5 @@ app.all('/plants', db.plants);
 
 app.listen(80);
 
-console.log('IP test 1');
 console.log('Running!');
+console.log('_'.repeat(process.stdout.columns));
