@@ -1,14 +1,11 @@
 const { format } = require('sql-formatter');
+const axios = require('axios');
+const { pool, googleAPIKey } = require('./pools');
 
 process.on('uncaughtException', (err) => {
   console.error(err);
   process.exit(1);
 });
-
-const request = require('request');
-
-const { default: axios } = require('axios');
-const { pool, googleAPIKey } = require('./pools');
 
 // NLDAS-2 longitude and latitude:
 const xgrid = (n) => (Math.floor(n * 8) / 8).toFixed(3);
@@ -73,28 +70,33 @@ const getLocation = (res, func) => {
         }
       } else {
         console.time(`Looking up ${location}`);
-        request(
-          {
-            url: `https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`,
-            json: true,
-            // headers: {referer: '128.192.142.200'}
-          },
-          (err, resp, body) => {
+        axios.get(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`
+        )
+          .then(({ data }) => {
             console.timeEnd(`Looking up ${location}`);
             if (err) {
-              res.status(200).send(err);
+              res.status(400).send(err);
             } else {
               try {
                 const latlon = [];
                 let lat;
                 let lon;
-                const lat1 = body.results[0].geometry.viewport.northeast.lat;
-                const lon1 = body.results[0].geometry.viewport.northeast.lng;
-                const lat2 = body.results[0].geometry.viewport.southwest.lat;
-                const lon2 = body.results[0].geometry.viewport.southwest.lng;
+                const lat1 = data.results[0].geometry.viewport.northeast.lat;
+                const lon1 = data.results[0].geometry.viewport.northeast.lng;
+                const lat2 = data.results[0].geometry.viewport.southwest.lat;
+                const lon2 = data.results[0].geometry.viewport.southwest.lng;
 
-                for (const i in body.results[0].geometry.location) { // why can't I simply do body.results[0].geometry.location.lat ???
-                  latlon.push(body.results[0].geometry.location[i]);
+                console.log({
+                  location,
+                  lat1,
+                  lon1,
+                  lat2,
+                  lon2,
+                });
+
+                for (const i in data.results[0].geometry.location) { // why can't I simply do data.results[0].geometry.location.lat ???
+                  latlon.push(data.results[0].geometry.location[i]);
                 }
                 [lat, lon] = latlon;
 
@@ -121,8 +123,7 @@ const getLocation = (res, func) => {
                 console.error(ee.message);
               }
             }
-          },
-        );
+          });
       }
     },
   );
@@ -232,7 +233,9 @@ const sendQuery = (req, res, sq) => {
         sq = `explain ${sq}`;
       }
 
+      console.log(1);
       pool.query(sq, (err, results) => {
+        console.log(2);
         if (err) {
           console.error(sq);
           console.error(err);
@@ -640,40 +643,41 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     }
     pool.query(
       `select * from weather.timezone
-         where lat=${ygrid(lats[0])} and lon=${xgrid(lons[0])}
-        `,
+       where lat=${ygrid(lats[0])} and lon=${xgrid(lons[0])}
+      `,
       (err, results) => {
-        try {
-          if (err) {
-            res.status(200).send(err);
-          } else if (results.rows.length) {
-            return query(results.rows[0].rawoffset);
-          } else {
-            console.time('Getting timezone');
-            request(
-              {
-                url: `https://maps.googleapis.com/maps/api/timezone/json?location=${ygrid(lats[0])},${xgrid(lons[0])}&timestamp=0&key=${googleAPIKey}`,
-                json: true,
-              },
-              (err, resp, body) => {
-                console.timeEnd('Getting timezone');
-                try {
-                  pool.query(`insert into weather.timezone
-                                (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
-                                values (${ygrid(lats[0])}, ${xgrid(lons[0])}, ${body.dstOffset}, ${body.rawOffset}, '${body.timeZoneId}', '${body.timeZoneName}')
-                               `);
-                  return query(body.rawOffset);
-                } catch (ee) {
-                  res.status(200).send('error');
-                }
-              },
-            );
-          }
-        } catch (ee) {
-          console.error(`lookup error: ${ee.message}`);
+        if (err) {
+          res.status(400).send(err);
+          return false;
         }
+
+        if (results.rows.length) {
+          return query(results.rows[0].rawoffset);
+        }
+
+        console.time('Getting timezone');
+        axios.get(
+          `https://maps.googleapis.com/maps/api/timezone/json?location=${ygrid(lats[0])},${xgrid(lons[0])}&timestamp=0&key=${googleAPIKey}`,
+        )
+          .then(({ data }) => {
+            console.timeEnd('Getting timezone');
+            if (data.status === 'ZERO_RESULTS') { // Google API can't determine timezone for some locations over water, such as (28, -76)
+              return query(0);
+            }
+
+            pool.query(`
+              insert into weather.timezone (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
+              values (${ygrid(lats[0])}, ${xgrid(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}')
+            `);
+
+            return query(data.rawOffset);
+          });
+
+        return false;
       },
     );
+
+    return false;
   }; // lookup
 
   const clean = (s) => {
