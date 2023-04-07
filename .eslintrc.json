@@ -40,6 +40,7 @@
           "namedComponents": "arrow-function",
           "unnamedComponents": "arrow-function"
         }
-      ]
+      ],
+      "quotes": [{ "allowTemplateLiterals": true }]
     }
 }

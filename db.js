@@ -1,38 +1,6 @@
 const { format } = require('sql-formatter');
-
-const display = (s) => {
-  console.log(s);
-  console.log('_'.repeat(process.stdout.columns));
-}; // display
-
-const pretty = (sq) => {
-  let result;
-  try {
-    result = format(
-      sq,
-      {
-        language: 'postgresql',
-      },
-    ).replace(/,\s*\n\s*/g, ', ');
-  } catch (error) {
-    // sql-formatter sometimes bombs
-    result = sq;
-  }
-  display(result);
-  return result;
-}; // pretty
-
 const axios = require('axios');
 const { pool, googleAPIKey } = require('./pools');
-
-process.on('uncaughtException', (err) => {
-  console.error(err);
-  process.exit(1);
-});
-
-// NLDAS-2 longitude and latitude:
-const xgrid = (n) => (Math.floor(n * 8) / 8).toFixed(3);
-const ygrid = (n) => -(Math.floor(-n * 8) / 8).toFixed(3);
 
 let lats;
 let lons;
@@ -68,6 +36,140 @@ const init = (req) => {
   rect = options.includes('rect') && (location || (req.query.lat || '').split(',').length == 2);
 }; // init
 
+// NLDAS-2 longitude and latitude:
+const xgrid = (n) => (Math.floor(n * 8) / 8).toFixed(3);
+const ygrid = (n) => -(Math.floor(-n * 8) / 8).toFixed(3);
+
+/** ____________________________________________________________________________________________________________________________________
+ * Sanitizes a string for safe use in an SQL query.
+ *
+ * @param {string} s - The string to sanitize.
+ * @returns {string} - The sanitized string.
+ */
+const sanitize = (s) => (
+  (s || '')
+    .replace(/\b(select|insert|update|drop|delete|truncate|create|alter|grant|revoke)\b/ig, '')
+    .replace(/'/g, `''`)
+); // sanitize
+
+/** ____________________________________________________________________________________________________________________________________
+ * Sanitizes a query parameter by converting it to a safe SQL string.
+ * Works for both POST and GET.
+ * 
+ * @param {object} req - The request object from Express.js.
+ * @param {string} parm - The name of the query parameter to sanitize.
+ * @returns {string} A sanitized SQL string.
+ */
+const safeQuery = (req, parm) => (
+  sanitize(req.body[parm] || req.query[parm])
+); // safeQuery
+
+/** ____________________________________________________________________________________________________________________________________
+ * Convert a comma-separated string to an array of safe SQL-quoted strings.
+ *
+ * @param {string} s - The comma-separated string to convert.
+ * @param {string} [method='toString'] - The method to call on each array element to convert to a string.
+ * @returns {string|null} A comma-separated string of safe SQL-quoted strings, or null if input is falsy.
+ */
+const safeQuotes = (s, method = 'toString') => {
+  if (!s) {
+    return null;
+  }
+
+  return s.split(',').map((s2) => `'${s2[method]().replace(/'/g, `''`)}'`).join(',');
+}; // safeQuotes
+
+/** ____________________________________________________________________________________________________________________________________
+ * Logs a string to the console and adds a horizontal line below it.
+ *
+ * @param {string} s - The string to log to the console.
+ * @returns {undefined}
+ */
+const debug = (s) => {
+  console.log(s);
+  console.log('_'.repeat(process.stdout.columns));
+}; // debug
+
+/** ____________________________________________________________________________________________________________________________________
+ * sql-formatter puts comma-separated items on separate lines.
+ * 
+ * This wraps text at the specified maximum length,
+ * while maintaining the current indentation
+ * and preserving comma-separated items on the same line.
+ * 
+ * @param {string} text The text to wrap.
+ * @param {number} [maxLength=process.stdout.columns] The maximum line length.
+ * @returns {string} The wrapped text.
+ */
+const wrapText = (text, maxLength = process.stdout.columns) => {
+  const lines = text.split('\n');
+
+  lines.forEach((line, index) => {
+    if (line.length > maxLength) {
+      const terms = [];
+      let paren = 0;
+      if (line.trim()[0] === ')') {
+        paren = 1;
+      }
+      let s = '';
+      [...line].forEach((c) => {
+        s += c;
+        if (c === '(') paren += 1;
+        else if (c === ')') paren -= 1;
+        else if (c === ',' && paren === 0) {
+          terms.push(s);
+          s = '';
+        }
+      });
+      terms.push(s);
+
+      const indent = line.match(/ +/)?.[0] || '';
+      const ml = maxLength - indent;
+      s = '';
+      const wrapped = [];
+      terms.forEach((term) => {
+        if ((s + term).length > ml) {
+          wrapped.push(indent + s.trim());
+          s = indent;
+        }
+
+        s += term;
+      });
+      wrapped.push(indent + s.trim());
+      lines[index] = wrapped.join('\n');
+    }
+  });
+
+  return lines.join('\n');
+} // wrapText
+
+/** ____________________________________________________________________________________________________________________________________
+ * Formats and prints a SQL query to the console.
+ *
+ * @param {string} sq - The SQL query to format and print.
+ * @returns {string} The formatted SQL query.
+ */
+const pretty = (sq) => {
+  let result;
+  try {
+    result = format(
+      sq,
+      {
+        language: 'postgresql',
+      },
+    )
+      .replace(/,\s*\n\s*/g, ', ');
+
+    result = wrapText(result);
+  } catch (error) {
+    console.log(error);
+    // sql-formatter sometimes bombs
+    result = sq;
+  }
+  debug(`${result};`);
+  return result;
+}; // pretty
+
 const getLocation = (res, func) => {
   if (+location) {
     location = `zip ${location}`;
@@ -79,7 +181,7 @@ const getLocation = (res, func) => {
       if (err) {
         res.status(200).send(err);
       } else if (results.rows.length) {
-        display(`Found ${location}`);
+        debug(`Found ${location}`);
         lats = [results.rows[0].lat];
         lons = [results.rows[0].lon];
         if (rect) {
@@ -110,7 +212,7 @@ const getLocation = (res, func) => {
                 const lat2 = data.results[0].geometry.viewport.southwest.lat;
                 const lon2 = data.results[0].geometry.viewport.southwest.lng;
 
-                display({
+                debug({
                   location,
                   lat,
                   lon,
@@ -830,11 +932,11 @@ const getAverages = (req, res) => {
   let end = req.query.end ? `${req.query.end} 23:59` : '12-31 23:59';
 
   init(req);
-  if (start.split('-').length == 3) { // drop year
+  if (start.split('-').length === 3) { // drop year
     start = start.slice(start.indexOf('-') + 1);
   }
 
-  if (end.split('-').length == 3) { // drop year
+  if (end.split('-').length === 3) { // drop year
     end = end.slice(end.indexOf('-') + 1);
   }
 
@@ -1527,8 +1629,8 @@ const mlra = (req, res) => {
         .replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
     ));
 
-  const { polygon } = req.query;
-  const { mlra } = req.query;
+  const polygon = safeQuery(req, 'polygon');
+  const mlra = safeQuery(req, 'mlra');
 
   if (!attributes) {
     if (polygon === 'true') {
@@ -1670,7 +1772,14 @@ const mlraspecies = (req, res) => {
 }; // mlraspecies
 
 const plants = (req, res) => {
-  const symbols = req.query.symbol.split(',').map((s) => `'${s.toLowerCase()}'`);
+  const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
+
+  if (!symbols) {
+    res.status(400).send({
+      error: 'symbol required',
+    });
+    return;
+  }
 
   const sq = `
     SELECT *
@@ -1685,6 +1794,7 @@ const plants = (req, res) => {
     (err, results) => {
       if (err) {
         res.status(500).send(err);
+        debug(err);
       } else {
         res.send(results.rows);
       }
