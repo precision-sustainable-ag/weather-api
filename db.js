@@ -15,14 +15,16 @@ let options;
 let output;
 let ip;
 
+/**
+ * Initializes various parameters based on the given request object.
+ * 
+ * @param {Object} req - The request object.
+ * @returns {undefined}
+ */
 const init = (req) => {
-  ip = req.ip
-       || (req.headers['x-forwarded-for'] || '').split(',').pop()
-       || req.connection.remoteAddress
-       || req.socket.remoteAddress
-       || req.connection.socket.remoteAddress;
+  const ip = (req.headers['x-forwarded-for'] || '').split(',').pop() || req.socket.remoteAddress;
 
-  output = req.query.explain ? 'json' : req.query.output || 'json';
+  output = req.query.explain ? 'json' : req.query.output ?? 'json';
 
   lats = null;
   lons = null;
@@ -36,9 +38,22 @@ const init = (req) => {
   rect = options.includes('rect') && (location || (req.query.lat || '').split(',').length == 2);
 }; // init
 
-// NLDAS-2 longitude and latitude:
-const xgrid = (n) => (Math.floor(n * 8) / 8).toFixed(3);
-const ygrid = (n) => -(Math.floor(-n * 8) / 8).toFixed(3);
+/** ____________________________________________________________________________________________________________________________________
+ * Round latitude and longitude values to the nearest NLDAS-2 grid coordinates used in the database.
+ * 
+ * @param {number} n - The latitude or longitude value to be rounded.
+ * @returns {string} The rounded NLDAS-2 grid coordinate as a string with three decimal places.
+ */
+const NLDASlat = (n) => -(Math.floor(-n * 8) / 8).toFixed(3);
+const NLDASlon = (n) => (Math.floor(n * 8) / 8).toFixed(3);
+
+/** ____________________________________________________________________________________________________________________________________
+ * Rounds an MRMS lat or lon to two decimal places using a midpoint rounding strategy.
+ *
+ * @param {number} n - The number to round.
+ * @returns {string} A string representation of the rounded number.
+ */
+const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
 
 /** ____________________________________________________________________________________________________________________________________
  * Sanitizes a string for safe use in an SQL query.
@@ -162,14 +177,24 @@ const pretty = (sq) => {
 
     result = wrapText(result);
   } catch (error) {
+    // in case sql-formatter bombs
     console.log(error);
-    // sql-formatter sometimes bombs
     result = sq;
   }
   debug(`${result};`);
   return result;
 }; // pretty
 
+/** ____________________________________________________________________________________________________________________________________
+ * Gets the latitude and longitude coordinates of a location using the Google Maps API or the database.
+ * (New locations are added to the database.)
+ * If `location` is a valid ZIP code, it will be automatically converted to "zip <code>".
+ * If `rect` is `true`, also calculates the bounding box (minLat, maxLat, minLon, maxLon) for the location.
+ * If `func` is provided, it will be called with the resulting latitude and longitude arrays.
+ *
+ * @param {Object} res - Express response object.
+ * @param {Function} func - Optional callback function to receive the resulting latitude and longitude arrays.
+ */
 const getLocation = (res, func) => {
   if (+location) {
     location = `zip ${location}`;
@@ -251,13 +276,31 @@ const getLocation = (res, func) => {
   );
 }; // getLocation
 
-const f = (s) => {
+/** ____________________________________________________________________________________________________________________________________
+ * Removes the leading whitespace indentation from a string.
+ *
+ * @param {string} s - The input string.
+ * @returns {string} - The string without leading whitespace indentation.
+ */
+const unindent = (s) => {
   const ind = ' '.repeat(s.search(/[^\s]/) - 1);
   const rep = s.replace(new RegExp(ind, 'g'), '');
 
   return rep;
-}; // f
+}; // unindent
 
+/** ____________________________________________________________________________________________________________________________________
+ * Processes a query and sends the results to the client in the requested format: csv, html, or json (default).
+ * Saves the query to the "hits" table, along with date, IP, and runtime.  This can be avoided using the "nosave" parameter.
+ * Saves the results to the "queries" table for faster retrieval of repeat queries. Deletes any older than 30 days.
+ * If the "explain" parameter exists, sends EXPLAIN details rather than executing the query.
+ *
+ * @function
+ * @param {Object} req - The HTTP request object.
+ * @param {Object} res - The HTTP response object.
+ * @param {string} sq - The SQL query to execute.
+ * @returns {undefined}
+ */
 const sendQuery = (req, res, sq) => {
   // pretty(sq);
 
@@ -388,8 +431,6 @@ const sendQuery = (req, res, sq) => {
   });
 }; // sendQuery
 
-const mround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
-
 const runQuery = (req, res, type, start, end, format, daily) => {
   const query = (offset) => {
     let byx;
@@ -403,8 +444,8 @@ const runQuery = (req, res, type, start, end, format, daily) => {
 
       for (let y = minLat; y <= maxLat; y += byy) {
         for (let x = minLon; x <= maxLon; x += byx) {
-          rtables[`weather.${type}${Math.trunc(ygrid(y))}_${-Math.trunc(xgrid(x))}`] = true;
-          latlons.push(`'${+ygrid(y)}${+xgrid(x)}'`);
+          rtables[`weather.${type}${Math.trunc(NLDASlat(y))}_${-Math.trunc(NLDASlon(x))}`] = true;
+          latlons.push(`'${+NLDASlat(y)}${+NLDASlon(x)}'`);
         }
       }
       rtables = Object.keys(rtables);
@@ -414,7 +455,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     const cond = where ? ` and (${where})` : '';
     const dateCond = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
     const tables = rect ? rtables
-      .map((table, i) => f(`
+      .map((table, i) => unindent(`
                                select lat as rlat, lon as rlon, *
                                from (
                                  ${years.map(
@@ -431,17 +472,17 @@ const runQuery = (req, res, type, start, end, format, daily) => {
         .map((lat, i) => {
           let mainTable = type == 'nldas_hourly_'
             ? years.map(
-              (year) => f(`
+              (year) => unindent(`
                                                       select *, precipitation as nldas
-                                                      from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}_${year}
-                                                      where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
+                                                      from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
+                                                      where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
                                                             ${dateCond}
                                                   `),
             ).join(' union all ')
-            : f(`
+            : unindent(`
                                                   select *
-                                                  from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}
-                                                  where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
+                                                  from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
+                                                  where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
                                                         ${dateCond}
                                                  `);
 
@@ -462,8 +503,8 @@ const runQuery = (req, res, type, start, end, format, daily) => {
               mainTable += ' union all ';
               maxdate = ` date > (
                                               select max(date) from (
-                                                select date from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}_new union all
-                                                select date from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}_${year}
+                                                select date from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new union all
+                                                select date from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
                                               ) a
                                             )
                                             and
@@ -518,9 +559,9 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                       null::real as soilm6,
                       null::real as mstav1,
                       null::real as mstav2
-                    from weather.ha_${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}
+                    from weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
                   ) a
-                  where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
+                  where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
                         ${maxdate}
                         ${dateCond}
                 `).join(' union all ');
@@ -533,22 +574,22 @@ const runQuery = (req, res, type, start, end, format, daily) => {
 
             mrmsTable = `
                                 (${years.map((year) => `
-                                    select * from weather.mrms_${Math.trunc(mround(lat))}_${-Math.trunc(mround(lons[i]))}_${year}
-                                    where lat = ${mround(lat)} and lon = ${mround(lons[i])} and ${dateCond}
+                                    select * from weather.mrms_${Math.trunc(MRMSround(lat))}_${-Math.trunc(MRMSround(lons[i]))}_${year}
+                                    where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
                                   `).join(' union all ')
 }
   
                                   union all
   
-                                  select * from weather.mrms_${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}_new
-                                  where lat = ${mround(lat)} and lon = ${mround(lons[i])} and ${dateCond}
+                                  select * from weather.mrms_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new
+                                  where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
   
                                   union all
   
                                   select b.date, lat, lon, precipitation from weather.mrmsmissing a
                                   left join (${mainTable}) b
                                   on a.date = b.date
-                                  where lat=${ygrid(lat)} and lon=${xgrid(lons[i])}
+                                  where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])}
                                 ) m
                               `;
 
@@ -586,12 +627,12 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                                       ${cond}
                               `;
           } if (mpe) {
-            const mpeTable = `weather.mpe_hourly_${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}`;
+            const mpeTable = `weather.mpe_hourly_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}`;
 
             return `select ${lat} as rlat, ${lons[i]} as rlon, *
                                       from (
                                         select a.*, mpe
-                                        from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))} a
+                                        from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))} a
                                         left join (
                                           select * from ${mpeTable}
                                           where (lat, lon) in (
@@ -604,14 +645,14 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                                         ) b
                                         on a.date = b.date
                                       ) alias1
-                                      where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
+                                      where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
                                             date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
                                             ${cond}
                                      `;
           }
           return `select ${lat} as rlat, ${lons[i]} as rlon, *
                                       from (${mainTable}) a
-                                      where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
+                                      where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
                                             date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
                                             ${cond}
                                      `;
@@ -686,7 +727,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
 
     if (req.query.gaws) {
       attr = (req.query.attr || '').split(',');
-      sq = f(`
+      sq = unindent(`
              select *
              from (
                ${sq}
@@ -756,7 +797,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     }
     pool.query(
       `select * from weather.timezone
-       where lat=${ygrid(lats[0])} and lon=${xgrid(lons[0])}
+       where lat=${NLDASlat(lats[0])} and lon=${NLDASlon(lons[0])}
       `,
       (err, results) => {
         if (err) {
@@ -770,7 +811,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
 
         console.time('Getting timezone');
         axios.get(
-          `https://maps.googleapis.com/maps/api/timezone/json?location=${ygrid(lats[0])},${xgrid(lons[0])}&timestamp=0&key=${googleAPIKey}`,
+          `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(lats[0])},${NLDASlon(lons[0])}&timestamp=0&key=${googleAPIKey}`,
         )
           .then(({ data }) => {
             console.timeEnd('Getting timezone');
@@ -780,7 +821,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
 
             pool.query(`
               insert into weather.timezone (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
-              values (${ygrid(lats[0])}, ${xgrid(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}')
+              values (${NLDASlat(lats[0])}, ${NLDASlon(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}')
             `);
 
             return query(data.rawOffset);
@@ -1205,18 +1246,18 @@ const nvm = (req, res) => {
 
   if (location) {
     getLocation(res, (lats, lons) => {
-      mlat = mround(lats);
-      mlon = mround(lons);
-      nlat = ygrid(lats);
-      nlon = xgrid(lons);
+      mlat = MRMSround(lats);
+      mlon = MRMSround(lons);
+      nlat = NLDASlat(lats);
+      nlon = NLDASlon(lons);
 
       NVMprocess();
     });
   } else {
-    mlat = mround(req.query.lat);
-    mlon = mround(req.query.lon);
-    nlat = ygrid(req.query.lat);
-    nlon = xgrid(req.query.lon);
+    mlat = MRMSround(req.query.lat);
+    mlon = MRMSround(req.query.lon);
+    nlat = NLDASlat(req.query.lat);
+    nlon = NLDASlon(req.query.lon);
 
     NVMprocess();
   }
