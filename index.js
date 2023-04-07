@@ -44,22 +44,22 @@ app.get('/tables', db.tables); // list database tables, for use in Data Explorer
 app.get('/counttablesrows', db.counttablesrows); // number of tables and rows, for use in Data Explorer
 app.get('/countindexes', db.countindexes); // number of indexes, for use in Data Explorer
 app.get('/databasesize', db.databasesize); // size of the database
-app.get('/averages', db.getAverages); // 5-year hourly averages
-app.get('/hourly', db.getHourly); // real hourly data
-app.get('/daily', db.getDaily); // daily statistics
+app.get('/averages', db.initializeVariables, db.getAverages); // 5-year hourly averages
+app.get('/hourly', db.initializeVariables, db.getHourly); // real hourly data
+app.get('/daily', db.initializeVariables, db.getDaily); // daily statistics
 app.get('/GAWeatherStations', db.GAWeatherStations); // Georgia Weather Station data for output in Data Explorer (http://aesl.ces.uga.edu/weatherapp/de)
-app.get('/nvm', db.nvm); // query for discrepancies between MRMS and NLDAS-2 precipitation.  Example: http://weather.aesl.ces.uga.edu/weather/nvm?location=texas.  Likely superceded by nvm2.
-app.get('/nvm2', db.nvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
-app.get('/nvm2Data', db.nvm2Data); // "
+app.get('/nvm', db.initializeVariables, db.nvm); // query for discrepancies between MRMS and NLDAS-2 precipitation.  Example: http://weather.aesl.ces.uga.edu/weather/nvm?location=texas.  Likely superceded by nvm2.
+app.get('/nvm2', db.initializeVariables, db.nvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
+app.get('/nvm2Data', db.initializeVariables, db.nvm2Data); // "
 app.get('/nvm2Update', db.nvm2Update); // "
 app.get('/nvm2Query', db.nvm2Query); // "
 app.get('/mvm', db.mvm); // query for inconsistencies between adjacent MRMS locations during 2019.  Example: https://weather.aesl.ces.uga.edu/weather/mvm?lat=39&lon=-76&num=100
 app.post('/rosetta', db.rosetta); // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
-app.all('/watershed', db.watershed);
-app.all('/mlra', db.mlra);
-app.all('/county', db.county);
-app.all('/frost', db.frost);
+app.all('/watershed', db.initializeVariables, db.watershed);
+app.all('/mlra', db.initializeVariables, db.mlra);
+app.all('/county', db.initializeVariables, db.county);
+app.all('/frost', db.initializeVariables, db.frost);
 app.all('/countyspecies', db.countyspecies);
 app.all('/mlraspecies', db.mlraspecies);
 app.all('/plants', db.plants);

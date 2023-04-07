@@ -15,14 +15,25 @@ let options;
 let output;
 let ip;
 
+/** ____________________________________________________________________________________________________________________________________
+ * Logs a string to the console and adds a horizontal line below it.
+ *
+ * @param {string} s - The string to log to the console.
+ * @returns {undefined}
+ */
+const debug = (s) => {
+  console.log(s);
+  console.log('_'.repeat(process.stdout.columns));
+}; // debug
+
 /**
  * Initializes various parameters based on the given request object.
- * 
+ *
  * @param {Object} req - The request object.
  * @returns {undefined}
  */
 const init = (req) => {
-  const ip = (req.headers['x-forwarded-for'] || '').split(',').pop() || req.socket.remoteAddress;
+  ip = (req.headers['x-forwarded-for'] || '').split(',').pop() || req.socket.remoteAddress;
 
   output = req.query.explain ? 'json' : req.query.output ?? 'json';
 
@@ -35,12 +46,27 @@ const init = (req) => {
   maxLon = null;
   location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
   options = (req.query.options || '').toLowerCase().split(',');
-  rect = options.includes('rect') && (location || (req.query.lat || '').split(',').length == 2);
+  rect = options.includes('rect') && (location || (req.query.lat || '').split(',').length === 2);
+
+  debug({
+    lats,
+    lons,
+    cols,
+    minLat,
+    maxLat,
+    minLon,
+    maxLon,
+    rect,
+    location,
+    options,
+    output,
+    ip,
+  });
 }; // init
 
 /** ____________________________________________________________________________________________________________________________________
  * Round latitude and longitude values to the nearest NLDAS-2 grid coordinates used in the database.
- * 
+ *
  * @param {number} n - The latitude or longitude value to be rounded.
  * @returns {string} The rounded NLDAS-2 grid coordinate as a string with three decimal places.
  */
@@ -95,23 +121,12 @@ const safeQuotes = (s, method = 'toString') => {
 }; // safeQuotes
 
 /** ____________________________________________________________________________________________________________________________________
- * Logs a string to the console and adds a horizontal line below it.
- *
- * @param {string} s - The string to log to the console.
- * @returns {undefined}
- */
-const debug = (s) => {
-  console.log(s);
-  console.log('_'.repeat(process.stdout.columns));
-}; // debug
-
-/** ____________________________________________________________________________________________________________________________________
  * sql-formatter puts comma-separated items on separate lines.
- * 
+ *
  * This wraps text at the specified maximum length,
  * while maintaining the current indentation
  * and preserving comma-separated items on the same line.
- * 
+ *
  * @param {string} text The text to wrap.
  * @param {number} [maxLength=process.stdout.columns] The maximum line length.
  * @returns {string} The wrapped text.
@@ -156,7 +171,7 @@ const wrapText = (text, maxLength = process.stdout.columns) => {
   });
 
   return lines.join('\n');
-} // wrapText
+}; // wrapText
 
 /** ____________________________________________________________________________________________________________________________________
  * Formats and prints a SQL query to the console.
@@ -318,7 +333,7 @@ const sendQuery = (req, res, sq) => {
     switch (output ? output.toLowerCase() : 'json') {
       case 'csv':
         s = `${Object.keys(rows[0]).toString()}\n${
-          rows.map((r) => Object.keys(r).map((v, i, a) => r[v])).join('\n')}`;
+          rows.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
         // rows.map(r => Object.values(r).toString()).join('<br>');
 
         res.set('Content-Type', 'text/csv');
@@ -342,7 +357,7 @@ const sendQuery = (req, res, sq) => {
                  <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
                </thead>
                <tbody>
-                 <tr>${rows.map((r) => `<td>${Object.keys(r).map((v, i, a) => r[v]).join('<td>')}`).join('<tr>')}</tr>
+                 <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
                </tbody>
              </table>
 
@@ -410,9 +425,9 @@ const sendQuery = (req, res, sq) => {
           const jr = JSON.stringify(results.rows);
           const q = `insert into weather.queries (date, url, query, results) values (now(), '${req.originalUrl}', '${qq}', '${jr}')`;
 
-          pool.query(q, (err, results) => {
-            if (err) {
-              console.error('queries_error', err);
+          pool.query(q, (error) => {
+            if (error) {
+              console.error('queries_error', error);
             }
           });
         }
@@ -439,8 +454,8 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     const latlons = [];
 
     if (rect) {
-      byy = Math.max(0.125, 0.125 * (maxLat - minLat | 0));
-      byx = Math.max(0.125, 0.125 * (maxLon - minLon | 0));
+      byy = Math.max(0.125, 0.125 * Math.floor(maxLat - minLat));
+      byx = Math.max(0.125, 0.125 * Math.floor(maxLon - minLon));
 
       for (let y = minLat; y <= maxLat; y += byy) {
         for (let x = minLon; x <= maxLon; x += byx) {
@@ -455,38 +470,35 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     const cond = where ? ` and (${where})` : '';
     const dateCond = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
     const tables = rect ? rtables
-      .map((table, i) => unindent(`
-                               select lat as rlat, lon as rlon, *
-                               from (
-                                 ${years.map(
-    (year) => (type == 'ha_' ? `select * from ${table}` : `select * from ${table}_${year}`),
-  ).join(' union all ')
-}
-                               ) a
-                               where lat::text || lon in (${latlons}) and
-                                     date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
-                                     ${cond}
-                              `))
+      .map((table) => unindent(`
+        select lat as rlat, lon as rlon, *
+        from (
+          ${years.map((year) => (type === 'ha_' ? `select * from ${table}` : `select * from ${table}_${year}`)).join(' union all ')}
+        ) a
+        where lat::text || lon in (${latlons}) and
+              date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
+              ${cond}
+      `))
       .join(' union all\n')
       : lats
         .map((lat, i) => {
-          let mainTable = type == 'nldas_hourly_'
+          let mainTable = type === 'nldas_hourly_'
             ? years.map(
               (year) => unindent(`
-                                                      select *, precipitation as nldas
-                                                      from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
-                                                      where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
-                                                            ${dateCond}
-                                                  `),
+                select *, precipitation as nldas
+                from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
+                where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                      ${dateCond}
+              `),
             ).join(' union all ')
             : unindent(`
-                                                  select *
-                                                  from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
-                                                  where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
-                                                        ${dateCond}
-                                                 `);
+              select *
+              from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
+              where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                    ${dateCond}
+            `);
 
-          if (type == 'nldas_hourly_' && (req.query.predicted == 'true' || options.includes('predicted'))) {
+          if (type === 'nldas_hourly_' && (req.query.predicted == 'true' || options.includes('predicted'))) {
             let dc = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
             const years = [];
 
@@ -501,70 +513,70 @@ const runQuery = (req, res, type, start, end, format, daily) => {
 
             if (mainTable) {
               mainTable += ' union all ';
-              maxdate = ` date > (
-                                              select max(date) from (
-                                                select date from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new union all
-                                                select date from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
-                                              ) a
-                                            )
-                                            and
-                                          `;
+              maxdate = `
+                date > (
+                  select max(date) from (
+                    select date from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new union all
+                    select date from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
+                  ) a
+                )
+                and
+              `;
             }
 
-            mainTable
-                                += years
-                .filter((year) => year !== 'new')
-                .map((year) => `
-                  select * from (
-                    select
-                      make_timestamp(${year},
-                      extract(month from date)::integer, extract(day from date)::integer, extract(hour from date)::integer, 0, 0) as date,
-                      lat, lon, air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed, longwave_radiation,
-                      convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation,
-                      null::boolean as frost, relative_humidity, wind_speed, precipitation as nldas,
-                      null::real as evp,
-                      null::real as weasd,
-                      null::real as snod,
-                      null::real as albdo,
-                      null::real as tsoil,
-                      null::real as veg,
-                      null::real as snom,
-                      null::real as nswrs,
-                      null::real as nlwrs,
-                      null::real as lhtfl,
-                      null::real as shtfl,
-                      null::real as avsft,
-                      null::real as gflux,
-                      null::real as asnow,
-                      null::real as arain,
-                      null::real as acond,
-                      null::real as ccond,
-                      null::real as lai,
-                      null::real as sbsno,
-                      null::real as evbs,
-                      null::real as evcw,
-                      null::real as dswrf,
-                      null::real as dlwrf,
-                      null::real as trans,
-                      null::real as cnwat,
-                      null::real as snohf,
-                      null::real as bgrun,
-                      null::real as ssrun,
-                      null::real as snowc,
-                      null::real as soilm1,
-                      null::real as soilm2,
-                      null::real as soilm3,
-                      null::real as soilm4,
-                      null::real as soilm5,
-                      null::real as soilm6,
-                      null::real as mstav1,
-                      null::real as mstav2
-                    from weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
-                  ) a
-                  where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
-                        ${maxdate}
-                        ${dateCond}
-                `).join(' union all ');
+            mainTable += years
+              .filter((year) => year !== 'new')
+              .map((year) => `
+                select * from (
+                  select
+                    make_timestamp(${year},
+                    extract(month from date)::integer, extract(day from date)::integer, extract(hour from date)::integer, 0, 0) as date,
+                    lat, lon, air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed, longwave_radiation,
+                    convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation,
+                    null::boolean as frost, relative_humidity, wind_speed, precipitation as nldas,
+                    null::real as evp,
+                    null::real as weasd,
+                    null::real as snod,
+                    null::real as albdo,
+                    null::real as tsoil,
+                    null::real as veg,
+                    null::real as snom,
+                    null::real as nswrs,
+                    null::real as nlwrs,
+                    null::real as lhtfl,
+                    null::real as shtfl,
+                    null::real as avsft,
+                    null::real as gflux,
+                    null::real as asnow,
+                    null::real as arain,
+                    null::real as acond,
+                    null::real as ccond,
+                    null::real as lai,
+                    null::real as sbsno,
+                    null::real as evbs,
+                    null::real as evcw,
+                    null::real as dswrf,
+                    null::real as dlwrf,
+                    null::real as trans,
+                    null::real as cnwat,
+                    null::real as snohf,
+                    null::real as bgrun,
+                    null::real as ssrun,
+                    null::real as snowc,
+                    null::real as soilm1,
+                    null::real as soilm2,
+                    null::real as soilm3,
+                    null::real as soilm4,
+                    null::real as soilm5,
+                    null::real as soilm6,
+                    null::real as mstav1,
+                    null::real as mstav2
+                  from weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
+                ) a
+                where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                      ${maxdate}
+                      ${dateCond}
+              `).join(' union all ');
 
             // res.status(200).send(mainTable);
           }
@@ -573,89 +585,91 @@ const runQuery = (req, res, type, start, end, format, daily) => {
             let mrmsTable;
 
             mrmsTable = `
-                                (${years.map((year) => `
-                                    select * from weather.mrms_${Math.trunc(MRMSround(lat))}_${-Math.trunc(MRMSround(lons[i]))}_${year}
-                                    where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
-                                  `).join(' union all ')
+              (${years.map((year) => `
+                  select * from weather.mrms_${Math.trunc(MRMSround(lat))}_${-Math.trunc(MRMSround(lons[i]))}_${year}
+                  where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
+                `).join(' union all ')
 }
-  
-                                  union all
-  
-                                  select * from weather.mrms_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new
-                                  where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
-  
-                                  union all
-  
-                                  select b.date, lat, lon, precipitation from weather.mrmsmissing a
-                                  left join (${mainTable}) b
-                                  on a.date = b.date
-                                  where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])}
-                                ) m
-                              `;
+
+                union all
+
+                select * from weather.mrms_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new
+                where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
+
+                union all
+
+                select b.date, lat, lon, precipitation from weather.mrmsmissing a
+                left join (${mainTable}) b
+                on a.date = b.date
+                where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])}
+              ) m
+            `;
 
             // originally select distinct:
             return `
-                                select ${lat} as rlat, ${lons[i]} as rlon, *
-                                from (
-                                  select coalesce(a.date, b.date) as date,
-                                         coalesce(a.lat, b.lat) as lat,
-                                         coalesce(a.lon, b.lon) as lon,
-                                         air_temperature,
-                                         humidity,
-                                         relative_humidity,
-                                         pressure,
-                                         zonal_wind_speed,
-                                         meridional_wind_speed,
-                                         wind_speed,
-                                         longwave_radiation,
-                                         convective_precipitation,
-                                         potential_energy,
-                                         potential_evaporation,
-                                         shortwave_radiation,
-                                         coalesce(b.precipitation, 0) as precipitation,
-                                         nldas,
-                                         null as frost
-                                  from (
-                                    ${mainTable}
-                                  ) a
-                                  full join (
-                                    select * from ${mrmsTable}
-                                  ) b
-                                  on a.date = b.date
-                                ) alias1
-                                where ${dateCond}
-                                      ${cond}
-                              `;
+              select ${lat} as rlat, ${lons[i]} as rlon, *
+              from (
+                select coalesce(a.date, b.date) as date,
+                        coalesce(a.lat, b.lat) as lat,
+                        coalesce(a.lon, b.lon) as lon,
+                        air_temperature,
+                        humidity,
+                        relative_humidity,
+                        pressure,
+                        zonal_wind_speed,
+                        meridional_wind_speed,
+                        wind_speed,
+                        longwave_radiation,
+                        convective_precipitation,
+                        potential_energy,
+                        potential_evaporation,
+                        shortwave_radiation,
+                        coalesce(b.precipitation, 0) as precipitation,
+                        nldas,
+                        null as frost
+                from (
+                  ${mainTable}
+                ) a
+                full join (
+                  select * from ${mrmsTable}
+                ) b
+                on a.date = b.date
+              ) alias1
+              where ${dateCond}
+                    ${cond}
+            `;
           } if (mpe) {
             const mpeTable = `weather.mpe_hourly_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}`;
 
-            return `select ${lat} as rlat, ${lons[i]} as rlon, *
-                                      from (
-                                        select a.*, mpe
-                                        from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))} a
-                                        left join (
-                                          select * from ${mpeTable}
-                                          where (lat, lon) in (
-                                            select lat, lon
-                                            from ${mpeTable}
-                                            where abs(lat - ${lat}) < 0.125 and abs(lon - ${lons[i]}) < 0.125
-                                            order by sqrt(power(lat - ${lat}, 2) + power(lon - ${lons[i]}, 2))
-                                            limit 1
-                                          )                                 
-                                        ) b
-                                        on a.date = b.date
-                                      ) alias1
-                                      where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
-                                            date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
-                                            ${cond}
-                                     `;
+            return `
+              select ${lat} as rlat, ${lons[i]} as rlon, *
+              from (
+                select a.*, mpe
+                from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))} a
+                left join (
+                  select * from ${mpeTable}
+                  where (lat, lon) in (
+                    select lat, lon
+                    from ${mpeTable}
+                    where abs(lat - ${lat}) < 0.125 and abs(lon - ${lons[i]}) < 0.125
+                    order by sqrt(power(lat - ${lat}, 2) + power(lon - ${lons[i]}, 2))
+                    limit 1
+                  )                                 
+                ) b
+                on a.date = b.date
+              ) alias1
+              where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                    date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
+                    ${cond}
+            `;
           }
-          return `select ${lat} as rlat, ${lons[i]} as rlon, *
-                                      from (${mainTable}) a
-                                      where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
-                                            date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
-                                            ${cond}
-                                     `;
+          return `
+            select ${lat} as rlat, ${lons[i]} as rlon, *
+            from (${mainTable}) a
+            where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                  date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
+                  ${cond}
+          `;
         })
         .join(' union all\n');
 
@@ -666,21 +680,23 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     const order = req.query.order || `1 ${cols.split(/\s*,\s*/).includes('lat') ? ',lat' : ''} ${cols.split(/\s*,\s*/).includes('lon') ? ',lon' : ''}`;
 
     if (daily) {
-      sq = `select to_char(date::timestamp + interval '${offset} seconds', '${format}') as date,
-                   ${cols.replace(/\blat\b/, 'rlat as lat').replace(/\blon\b/, 'rlon as lon')}
-            from (
-              select date as GMT, *
-              from (${tables}) tables
-            ) a
-            group by to_char(date::timestamp + interval '${offset} seconds', '${format}'), rlat, rlon
-            order by ${order}
-           `;
+      sq = `
+        select to_char(date::timestamp + interval '${offset} seconds', '${format}') as date,
+                ${cols.replace(/\blat\b/, 'rlat as lat').replace(/\blon\b/, 'rlon as lon')}
+        from (
+          select date as GMT, *
+          from (${tables}) tables
+        ) a
+        group by to_char(date::timestamp + interval '${offset} seconds', '${format}'), rlat, rlon
+        order by ${order}
+      `;
     } else {
       let other = '';
-      const zgy = `replace(extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months'), '5', '6') as growingyear, `;
-      const gy = `(extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months')))::text || '-' ||
-                 (extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months')) + 1)::text
-                 as growingyear, `;
+      const gy = `
+        (extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months')))::text || '-' ||
+        (extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months')) + 1)::text
+        as growingyear, 
+      `;
 
       if (/\bdoy\b/.test(req.query.stats)) {
         other += `extract(doy from date::timestamp + interval '${offset} seconds') as doy, `;
@@ -706,81 +722,77 @@ const runQuery = (req, res, type, start, end, format, daily) => {
           .replace(/\bgrowingyear\b/g, gy);
       }
 
-      sq = `select ${other} to_char(date::timestamp + interval '${offset} seconds', '${format}') as date,
-                   ${cols.replace(/\blat\b/, 'rlat as lat').replace(/\blon\b/, 'rlon as lon')}
-            from (
-              select date as GMT, *
-              from (${tables}) tables
-            ) a
-            order by ${order}
-           `;
+      sq = `
+        select ${other} to_char(date::timestamp + interval '${offset} seconds', '${format}') as date,
+                ${cols.replace(/\blat\b/, 'rlat as lat').replace(/\blon\b/, 'rlon as lon')}
+        from (
+          select date as GMT, *
+          from (${tables}) tables
+        ) a
+        order by ${order}
+      `;
     }
 
     if (stats) {
-      sq = `select ${group ? `${group}, ` : ''} ${stats}
-            from (
-              ${sq}
-            ) alias
-            ${group ? `group by ${group}` : ''}
-           `;
+      sq = `
+        select ${group ? `${group}, ` : ''} ${stats}
+        from (
+          ${sq}
+        ) alias
+        ${group ? `group by ${group}` : ''}
+      `;
     }
 
     if (req.query.gaws) {
       attr = (req.query.attr || '').split(',');
       sq = unindent(`
-             select *
-             from (
-               ${sq}
-             ) a
-             left join (
-               select ${attr.includes('air_temperature')
-    ? `min_air_temperature as ws_min_air_temperature,
-                           max_air_temperature as ws_max_air_temperature,
-                           avg_air_temperature as ws_avg_air_temperature,`
-    : ''
-}
-                      ${attr.includes('soil_temperature')
-    ? `min_soil_temperature_10cm as ws_min_soil_temperature,
-                           max_soil_temperature_10cm as ws_max_soil_temperature,
-                           avg_soil_temperature_10cm as ws_avg_soil_temperature,`
-    : ''
-}
-                      ${attr.includes('soil_temperature')
-    ? `min_water_temp as ws_min_water_temperature,
-                           max_water_temp as ws_max_water_temperature,
-                           avg_water_temp as ws_avg_water_temperature,`
-    : ''
-}
-                      ${attr.includes('pressure')
-    ? `min_atmospheric_pressure as ws_min_pressure,
-                           max_atmospheric_pressure as ws_max_pressure,
-                           avg_atmospheric_pressure as ws_avg_pressure,`
-    : ''
-}
-                      ${attr.includes('relative_humidity')
-    ? `min_humidity / 100 as ws_min_relative_humidity,
-                           max_humidity / 100 as ws_max_relative_humidity,
-                           avg_humidity / 100 as ws_avg_relative_humidity,`
-    : ''
-}
-                      ${attr.includes('dewpoint')
-    ? `min_dewpoint as ws_min_dewpoint,
-                           max_dewpoint as ws_max_dewpoint,
-                           avg_dewpoint as ws_avg_dewpoint,`
-    : ''
-}
-                      ${attr.includes('vapor_pressure')
-    ? `min_vapor_pressure as ws_min_vapor_pressure,
-                           max_vapor_pressure as ws_max_vapor_pressure,
-                           avg_vapor_pressure as ws_avg_vapor_pressure,`
-    : ''
-}
-                      date
-               from weather.stationdata
-               where site=${req.query.gaws}
-             ) b
-             on a.date::date = b.date::date
-           `);
+        select *
+        from (
+          ${sq}
+        ) a
+        left join (
+          select
+            ${attr.includes('air_temperature') ? `
+              min_air_temperature as ws_min_air_temperature,
+              max_air_temperature as ws_max_air_temperature,
+              avg_air_temperature as ws_avg_air_temperature,
+            ` : ''}
+            ${attr.includes('soil_temperature') ? `
+              min_soil_temperature_10cm as ws_min_soil_temperature,
+              max_soil_temperature_10cm as ws_max_soil_temperature,
+              avg_soil_temperature_10cm as ws_avg_soil_temperature,
+            ` : ''}
+            ${attr.includes('soil_temperature') ? `
+              min_water_temp as ws_min_water_temperature,
+              max_water_temp as ws_max_water_temperature,
+              avg_water_temp as ws_avg_water_temperature,
+            ` : ''}
+            ${attr.includes('pressure') ? `
+              min_atmospheric_pressure as ws_min_pressure,
+              max_atmospheric_pressure as ws_max_pressure,
+              avg_atmospheric_pressure as ws_avg_pressure,
+            ` : ''}
+            ${attr.includes('relative_humidity') ? `
+              min_humidity / 100 as ws_min_relative_humidity,
+              max_humidity / 100 as ws_max_relative_humidity,
+              avg_humidity / 100 as ws_avg_relative_humidity,
+            ` : ''}
+            ${attr.includes('dewpoint') ? `
+              min_dewpoint as ws_min_dewpoint,
+              max_dewpoint as ws_max_dewpoint,
+              avg_dewpoint as ws_avg_dewpoint,
+            ` : ''}
+            ${attr.includes('vapor_pressure') ? `
+              min_vapor_pressure as ws_min_vapor_pressure,
+              max_vapor_pressure as ws_max_vapor_pressure,
+              avg_vapor_pressure as ws_avg_vapor_pressure,
+            ` : ''}
+            date
+          from weather.stationdata
+          where site=${req.query.gaws}
+        ) b
+        on a.date::date = b.date::date
+      `);
     }
 
     if (req.query.limit) {
@@ -870,21 +882,22 @@ const runQuery = (req, res, type, start, end, format, daily) => {
               : `min(${fix(col, false)}) as min_${col}, max(${fix(col, false)}) as max_${col}, avg(${fix(col, false)}) as avg_${col}`))
           .join(',');
       } else {
-        cols = `lat, lon,
-                sum(precipitation)            as precipitation,
-                sum(longwave_radiation)       as longwave_radiation,
-                sum(shortwave_radiation)      as shortwave_radiation,
-                sum(potential_energy)         as potential_energy,
-                sum(potential_evaporation)    as potential_evaporation,
-                sum(convective_precipitation) as convective_precipitation,
-                min(air_temperature)          as min_air_temperature,          max(air_temperature)          as max_air_temperature,          avg(air_temperature)          as avg_air_temperature,
-                min(humidity)                 as min_humidity,                 max(humidity)                 as max_humidity,                 avg(humidity)                 as avg_humidity,
-                min(relative_humidity)        as min_relative_humidity,        max(relative_humidity)        as max_relative_humidity,        avg(relative_humidity)        as avg_relative_humidity,
-                min(pressure)                 as min_pressure,                 max(pressure)                 as max_pressure,                 avg(pressure)                 as avg_pressure,
-                min(zonal_wind_speed)         as min_zonal_wind_speed,         max(zonal_wind_speed)         as max_zonal_wind_speed,         avg(zonal_wind_speed)         as avg_zonal_wind_speed,
-                min(meridional_wind_speed)    as min_meridional_wind_speed,    max(meridional_wind_speed)    as max_meridional_wind_speed,    avg(meridional_wind_speed)    as avg_meridional_wind_speed,
-                min(wind_speed)               as min_wind_speed,               max(wind_speed)               as max_wind_speed,               avg(wind_speed)               as avg_wind_speed
-               `;
+        cols = `
+          lat, lon,
+          sum(precipitation)            as precipitation,
+          sum(longwave_radiation)       as longwave_radiation,
+          sum(shortwave_radiation)      as shortwave_radiation,
+          sum(potential_energy)         as potential_energy,
+          sum(potential_evaporation)    as potential_evaporation,
+          sum(convective_precipitation) as convective_precipitation,
+          min(air_temperature)          as min_air_temperature,          max(air_temperature)          as max_air_temperature,          avg(air_temperature)          as avg_air_temperature,
+          min(humidity)                 as min_humidity,                 max(humidity)                 as max_humidity,                 avg(humidity)                 as avg_humidity,
+          min(relative_humidity)        as min_relative_humidity,        max(relative_humidity)        as max_relative_humidity,        avg(relative_humidity)        as avg_relative_humidity,
+          min(pressure)                 as min_pressure,                 max(pressure)                 as max_pressure,                 avg(pressure)                 as avg_pressure,
+          min(zonal_wind_speed)         as min_zonal_wind_speed,         max(zonal_wind_speed)         as max_zonal_wind_speed,         avg(zonal_wind_speed)         as avg_zonal_wind_speed,
+          min(meridional_wind_speed)    as min_meridional_wind_speed,    max(meridional_wind_speed)    as max_meridional_wind_speed,    avg(meridional_wind_speed)    as avg_meridional_wind_speed,
+          min(wind_speed)               as min_wind_speed,               max(wind_speed)               as max_wind_speed,               avg(wind_speed)               as avg_wind_speed
+        `;
       }
       const { gddbase } = req.query;
       if (gddbase) {
@@ -955,15 +968,12 @@ const getHourly = (req, res) => {
   const end = req.query.end ? req.query.end + (/:/.test(req.query.end) ? '' : ' 23:59')
     : '2099-12-31 23:59';
 
-  init(req);
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD HH24:MI');
 }; // getHourly
 
 const getDaily = (req, res) => {
   const start = req.query.start || '2000-01-01';
   const end = req.query.end ? `${req.query.end} 23:59` : '2099-12-31 23:59';
-
-  init(req);
 
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD', true);
 }; // getDaily
@@ -972,7 +982,6 @@ const getAverages = (req, res) => {
   let start = req.query.start || '01-01';
   let end = req.query.end ? `${req.query.end} 23:59` : '12-31 23:59';
 
-  init(req);
   if (start.split('-').length === 3) { // drop year
     start = start.slice(start.indexOf('-') + 1);
   }
@@ -1242,8 +1251,6 @@ const nvm = (req, res) => {
   let nlat;
   let nlon;
 
-  init(req);
-
   if (location) {
     getLocation(res, (lats, lons) => {
       mlat = MRMSround(lats);
@@ -1391,8 +1398,6 @@ const nvm2 = (req, res) => {
     let lon = Math.round(req.query.lon);
     let { year } = req.query;
 
-    init(req);
-
     pool.query(
       `select data from weather.nvm2 where lat = ${lat} and lon = ${lon} and year = ${year}`,
       (err, results) => {
@@ -1411,8 +1416,6 @@ const nvm2 = (req, res) => {
 }; // nvm2
 
 const nvm2Data = (req, res) => {
-  init(req);
-
   pool.query(
     'select distinct lat, lon, year from weather.nvm2',
     (err, results) => {
@@ -1521,8 +1524,6 @@ const watershed = (req, res) => {
       `,
     );
   }; // latLon
-
-  init(req);
 
   let attributes = req.query.attributes?.split(',')
     .map((attr) => (
@@ -1661,8 +1662,6 @@ const mlra = (req, res) => {
     }
   }; // latLon
 
-  init(req);
-
   let attributes = req.query.attributes?.split(',')
     .map((attr) => (
       attr
@@ -1727,8 +1726,6 @@ const county = (req, res) => {
       `,
     );
   }; // latLon
-
-  init(req);
 
   let attributes = req.query.attributes?.split(',')
     .map((attr) => (
@@ -1874,8 +1871,6 @@ const frost = (req, res) => {
     );
   }; // query
 
-  init(req);
-
   if (location) {
     getLocation(req, query);
   } else {
@@ -1884,6 +1879,10 @@ const frost = (req, res) => {
 }; // frost
 
 module.exports = {
+  initializeVariables: (req, res, next) => {
+    init(req);
+    next();
+  },
   addresses,
   getAverages,
   getHourly,

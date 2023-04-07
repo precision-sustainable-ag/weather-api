@@ -41,6 +41,6 @@
           "unnamedComponents": "arrow-function"
         }
       ],
-      "quotes": [{ "allowTemplateLiterals": true }]
+      "quotes": ["error", "single", { "allowTemplateLiterals": true }]
     }
 }
