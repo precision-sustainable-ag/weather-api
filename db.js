@@ -1840,6 +1840,39 @@ const plants = (req, res) => {
   );
 }; // plants
 
+const plants2 = (req, res) => {
+  // const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
+
+  // if (!symbols) {
+  //   res.status(400).send({
+  //     error: 'symbol required',
+  //   });
+  //   return;
+  // }
+
+  // const sq = `
+  //   SELECT *
+  //   FROM plants2
+  //   WHERE LOWER(symbol) IN (${symbols})
+  // `;
+
+  const sq = `SELECT * FROM plants2 WHERE alepth_ind is not null`;
+
+  pretty(sq);
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        res.status(500).send(err);
+        debug(err);
+      } else {
+        res.send(results.rows);
+      }
+    },
+  );
+}; // plants2
+
 const frost = (req, res) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
@@ -1878,6 +1911,40 @@ const frost = (req, res) => {
   }
 }; // frost
 
+async function test(req, res) {
+  let results = '<ol style="font: 12px verdana">';
+  const failed = '<strong style="color:red;">Failed</strong>';
+
+  async function testGoogleMapsAPI() {
+    const { data } = await axios.get(
+      `https://maps.googleapis.com/maps/api/timezone/json?location=35.43,-95&timestamp=0&key=${googleAPIKey}`,
+    );
+
+    results += `
+      <li>Google Maps API: ${JSON.stringify(data)}
+    `;
+
+    if (data.status !== 'OK') {
+      results += failed;
+    }
+  } // GoogleMapsAPI
+
+  async function testHourly() {
+    const request = {
+      lat: 39.032056,
+      lon: -76.873972,
+      output: 'html',
+    };
+
+    runQuery(request, res, 'nldas_hourly_', '2020-01-01', '2020-01-02', 'YYYY-MM-DD HH24:MI');
+  } // testHourly
+
+  await testGoogleMapsAPI();
+  await testHourly();
+
+  res.send(results);
+} // test
+
 module.exports = {
   initializeVariables: (req, res, next) => {
     init(req);
@@ -1907,5 +1974,7 @@ module.exports = {
   countyspecies,
   mlraspecies,
   plants,
+  plants2,
   frost,
+  test,
 };

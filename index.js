@@ -63,6 +63,9 @@ app.all('/frost', db.initializeVariables, db.frost);
 app.all('/countyspecies', db.countyspecies);
 app.all('/mlraspecies', db.mlraspecies);
 app.all('/plants', db.plants);
+app.all('/plants2', db.plants2);
+
+app.get('/test', db.test);
 
 app.listen(80);
 
