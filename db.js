@@ -1796,6 +1796,8 @@ const mlraspecies = (req, res) => {
     ON plant_symbol=symbol
     INNER JOIN plants2 c
     ON plant_symbol=c.symbol
+    LEFT JOIN plantfamily d
+    on family=d.family_name
     WHERE mlra='${mlra}';
   `;
 
