@@ -1793,9 +1793,13 @@ const mlraspecies = (req, res) => {
       FROM mlra_species
     ) a
     INNER JOIN plants b
-    on plant_symbol=symbol
+    ON plant_symbol=symbol
+    INNER JOIN plants2 c
+    ON plant_symbol=c.symbol
     WHERE mlra='${mlra}';
   `;
+
+  pretty(sq);
 
   pool.query(
     sq,
