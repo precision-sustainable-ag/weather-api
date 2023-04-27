@@ -469,6 +469,8 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     let sq;
     const cond = where ? ` and (${where})` : '';
     const dateCond = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
+    const parms = 'date,lat,lon,air_temperature,humidity,relative_humidity,pressure,zonal_wind_speed,meridional_wind_speed,wind_speed,longwave_radiation,convective_precipitation,potential_energy,potential_evaporation,shortwave_radiation,precipitation';
+
     const tables = rect ? rtables
       .map((table) => unindent(`
         select lat as rlat, lon as rlon, *
@@ -485,7 +487,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
           let mainTable = type === 'nldas_hourly_'
             ? years.map(
               (year) => unindent(`
-                select *, precipitation as nldas
+                select ${parms}, precipitation as nldas
                 from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
                 where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
                       ${dateCond}
@@ -533,7 +535,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                     extract(month from date)::integer, extract(day from date)::integer, extract(hour from date)::integer, 0, 0) as date,
                     lat, lon, air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed, longwave_radiation,
                     convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation,
-                    null::boolean as frost, relative_humidity, wind_speed, precipitation as nldas,
+                    relative_humidity, wind_speed, precipitation as nldas,
                     null::real as evp,
                     null::real as weasd,
                     null::real as snod,
@@ -606,7 +608,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
             `;
 
             // originally select distinct:
-            return `
+            const sq = `
               select ${lat} as rlat, ${lons[i]} as rlon, *
               from (
                 select coalesce(a.date, b.date) as date,
@@ -625,8 +627,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                         potential_evaporation,
                         shortwave_radiation,
                         coalesce(b.precipitation, 0) as precipitation,
-                        nldas,
-                        null as frost
+                        nldas
                 from (
                   ${mainTable}
                 ) a
@@ -638,6 +639,8 @@ const runQuery = (req, res, type, start, end, format, daily) => {
               where ${dateCond}
                     ${cond}
             `;
+
+            return sq;
           } if (mpe) {
             const mpeTable = `weather.mpe_hourly_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}`;
 
@@ -847,7 +850,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
   }; // lookup
 
   const clean = (s) => {
-    const t = decodeURI(s).replace(/["()+\-*/<>,= 0-9\.]|doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd|meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|frost|gdd/ig, '');
+    const t = decodeURI(s).replace(/["()+\-*/<>,= 0-9\.]|doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd|meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd/ig, '');
 
     if (t) {
       console.error('*'.repeat(80));
@@ -910,7 +913,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
       }
     } else {
       cols = attr ? fix(attr, true)
-        : 'lat, lon, air_temperature, humidity, relative_humidity, pressure, zonal_wind_speed, meridional_wind_speed, wind_speed, longwave_radiation, convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation, frost';
+        : 'lat, lon, air_temperature, humidity, relative_humidity, pressure, zonal_wind_speed, meridional_wind_speed, wind_speed, longwave_radiation, convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation';
 
       if (/averages|daily/.test(req.url)) {
         cols = cols.replace(', frost', '');
@@ -1815,6 +1818,36 @@ const mlraspecies = (req, res) => {
   );
 }; // mlraspecies
 
+const mlraspecies2 = (req, res) => {
+  const { mlra } = req.query;
+
+  const sq = `
+    SELECT distinct * FROM (
+      SELECT plant_symbol, mlra
+      FROM mlra_species
+    ) a
+    INNER JOIN plants3 b
+    ON plant_symbol=symbol
+    LEFT JOIN plantfamily d
+    on value=d.family_name
+    WHERE mlra='${mlra}'
+    ORDER BY symbol;
+  `;
+
+  pretty(sq);
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        res.send(results.rows);
+      }
+    },
+  );
+}; // mlraspecies2
+
 const plants = (req, res) => {
   const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
 
@@ -1979,6 +2012,7 @@ module.exports = {
   county,
   countyspecies,
   mlraspecies,
+  mlraspecies2,
   plants,
   plants2,
   frost,
