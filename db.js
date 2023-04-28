@@ -96,7 +96,7 @@ const sanitize = (s) => (
 /** ____________________________________________________________________________________________________________________________________
  * Sanitizes a query parameter by converting it to a safe SQL string.
  * Works for both POST and GET.
- * 
+ *
  * @param {object} req - The request object from Express.js.
  * @param {string} parm - The name of the query parameter to sanitize.
  * @returns {string} A sanitized SQL string.
@@ -235,9 +235,7 @@ const getLocation = (res, func) => {
         }
       } else {
         console.time(`Looking up ${location}`);
-        axios.get(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`
-        )
+        axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`)
           .then(({ data }) => {
             console.timeEnd(`Looking up ${location}`);
             if (err) {
@@ -500,7 +498,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                     ${dateCond}
             `);
 
-          if (type === 'nldas_hourly_' && (req.query.predicted == 'true' || options.includes('predicted'))) {
+          if (type === 'nldas_hourly_' && (req.query.predicted === 'true' || options.includes('predicted'))) {
             let dc = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
             const years = [];
 
@@ -584,15 +582,12 @@ const runQuery = (req, res, type, start, end, format, daily) => {
           }
 
           if (mrms && years.length) {
-            let mrmsTable;
-
-            mrmsTable = `
+            const mrmsTable = `
               (${years.map((year) => `
                   select * from weather.mrms_${Math.trunc(MRMSround(lat))}_${-Math.trunc(MRMSround(lons[i]))}_${year}
                   where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
                 `).join(' union all ')
 }
-
                 union all
 
                 select * from weather.mrms_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new
@@ -608,39 +603,42 @@ const runQuery = (req, res, type, start, end, format, daily) => {
             `;
 
             // originally select distinct:
-            const sq = `
-              select ${lat} as rlat, ${lons[i]} as rlon, *
-              from (
-                select coalesce(a.date, b.date) as date,
-                        coalesce(a.lat, b.lat) as lat,
-                        coalesce(a.lon, b.lon) as lon,
-                        air_temperature,
-                        humidity,
-                        relative_humidity,
-                        pressure,
-                        zonal_wind_speed,
-                        meridional_wind_speed,
-                        wind_speed,
-                        longwave_radiation,
-                        convective_precipitation,
-                        potential_energy,
-                        potential_evaporation,
-                        shortwave_radiation,
-                        coalesce(b.precipitation, 0) as precipitation,
-                        nldas
-                from (
+            const sq2 = `
+              SELECT ${lat} AS rlat, ${lons[i]} AS rlon, *
+              FROM (
+                SELECT 
+                  COALESCE(a.date, b.date) AS date,
+                  COALESCE(a.lat, b.lat) AS lat,
+                  COALESCE(a.lon, b.lon) AS lon,
+                  air_temperature,
+                  humidity,
+                  relative_humidity,
+                  pressure,
+                  zonal_wind_speed,
+                  meridional_wind_speed,
+                  wind_speed,
+                  longwave_radiation,
+                  convective_precipitation,
+                  potential_energy,
+                  potential_evaporation,
+                  shortwave_radiation,
+                  coalesce(b.precipitation, 0) AS precipitation,
+                  nldas
+                FROM (
                   ${mainTable}
                 ) a
-                full join (
-                  select * from ${mrmsTable}
+                FULL JOIN (
+                  SELECT * FROM ${mrmsTable}
                 ) b
-                on a.date = b.date
+                ON a.date = b.date
               ) alias1
-              where ${dateCond}
-                    ${cond}
+              WHERE
+                ${dateCond}
+                ${cond}
             `;
 
-            return sq;
+            pretty(sq2);
+            return sq2;
           } if (mpe) {
             const mpeTable = `weather.mpe_hourly_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}`;
 
@@ -923,7 +921,6 @@ const runQuery = (req, res, type, start, end, format, daily) => {
 
   let attr = (req.query.attributes || req.query.attr || '').replace(/(soil_temperature|water_temperature|dewpoint|vapor_pressure),?/g, '').replace(/,$/, '');
   let mpe = /\bmpe\b/i.test(attr);
-  let mrms = /hourly|daily/.test(req.url) && !/nomrms/.test(options);
   // const year1 = Math.max(+start.slice(0, 4), 2015);
   const year1 = Math.max(+start.slice(0, 4), 2005);
   const year2 = Math.min(+end.slice(0, 4), new Date().getFullYear());
@@ -945,9 +942,11 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     years.push(i);
   }
 
-  if (year2 == new Date().getFullYear()) {
+  if (year2 === new Date().getFullYear()) {
     years.push('new');
   }
+
+  let mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options);
 
   getColumns();
 
@@ -1554,7 +1553,7 @@ const watershed = (req, res) => {
         loaddate, referencegnis_ids, areaacres, areasqkm, states, hutype, humod,
         tohuc, noncontributingareaacres, noncontributingareasqkm, globalid,
         shape_Length, shape_Area,
-        (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,
+        (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,
         ST_AsText(geometry) as polygon
       `;
     } else {
