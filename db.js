@@ -1847,6 +1847,30 @@ const mlraspecies2 = (req, res) => {
   );
 }; // mlraspecies2
 
+const mlraerrors = (req, res) => {
+  const sq = `
+    select * from (
+      select distinct mlrarsym as newmlra from mlra.mlra
+    ) a
+    full join (
+      select distinct mlra as oldmlra from mlra_species
+    ) b
+    on newmlra=oldmlra
+    where newmlra is null or oldmlra is null
+  `;
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        res.status(500).send(err);
+      } else {
+        res.send(results.rows);
+      }
+    },
+  );
+}; // mlraerrors
+
 const plants = (req, res) => {
   const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
 
@@ -2008,6 +2032,7 @@ module.exports = {
   rosetta,
   watershed,
   mlra,
+  mlraerrors,
   county,
   countyspecies,
   mlraspecies,
