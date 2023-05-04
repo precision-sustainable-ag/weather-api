@@ -1853,7 +1853,7 @@ const mlraerrors = (req, res) => {
       select distinct mlrarsym as newmlra from mlra.mlra
     ) a
     full join (
-      select distinct mlra as oldmlra from mlra_species
+      select distinct mlra as oldmlra from mlra_lrr
     ) b
     on newmlra=oldmlra
     where newmlra is null or oldmlra is null
