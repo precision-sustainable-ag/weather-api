@@ -15,15 +15,39 @@ let options;
 let output;
 let ip;
 
-/** ____________________________________________________________________________________________________________________________________
- * Logs a string to the console and adds a horizontal line below it.
- *
- * @param {string} s - The string to log to the console.
- * @returns {undefined}
+/**
+ * Logs a message along with the line number where the debug function is called.
+ * @param {string} s - The message to log.
+ * @returns {void}
  */
-const debug = (s) => {
-  console.log(s);
-  console.log('_'.repeat(process.stdout.columns));
+const debug = (s, res, status = 200) => {
+  try {
+    throw new Error();
+  } catch (error) {
+    // Extract the stack trace
+    const stackLines = error.stack.split('\n');
+
+    let lineNumber;
+    // Find the line number
+    try {
+      lineNumber = parseInt(stackLines[2].match(/at.*\((.*):(\d+):\d+\)/)[2], 10);
+    } catch (err) {
+      lineNumber = '';
+    }
+
+    const result = `
+      Line ${lineNumber}
+${JSON.stringify(s, null, 2).replace(/\\n/g, '\n')}
+    `.trim();
+
+    console.log(result);
+    console.log('_'.repeat(process.stdout.columns));
+
+    if (res) {
+      res.type('text/plain');
+      res.status(status).send(result);
+    }
+  }
 }; // debug
 
 /**
@@ -193,10 +217,10 @@ const pretty = (sq) => {
     result = wrapText(result);
   } catch (error) {
     // in case sql-formatter bombs
-    console.log(error);
+    console.warn(error);
     result = sq;
   }
-  debug(`${result};`);
+  console.log(result);
   return result;
 }; // pretty
 
@@ -219,7 +243,7 @@ const getLocation = (res, func) => {
     [location],
     (err, results) => {
       if (err) {
-        res.status(200).send(err);
+        res.send(err);
       } else if (results.rows.length) {
         debug(`Found ${location}`);
         lats = [results.rows[0].lat];
@@ -239,7 +263,7 @@ const getLocation = (res, func) => {
           .then(({ data }) => {
             console.timeEnd(`Looking up ${location}`);
             if (err) {
-              res.status(400).send(err);
+              debug({ trigger: 'Google Maps Geocode', location, err }, res, 400);
             } else {
               try {
                 // eslint-disable-next-line prefer-destructuring
@@ -280,7 +304,7 @@ const getLocation = (res, func) => {
                   func(lats, lons);
                 }
               } catch (ee) {
-                console.error(ee.message);
+                debug(ee.message);
               }
             }
           });
@@ -319,6 +343,7 @@ const sendQuery = (req, res, sq) => {
 
   const process = (rows) => {
     if (!rows.length) {
+      console.warn('No data found');
       res.send('No data found');
       return;
     }
@@ -361,19 +386,19 @@ const sendQuery = (req, res, sq) => {
 
              <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
             `;
-        res.status(200).send(s);
+        res.send(s);
         break;
 
       default:
         if (req.query.explain) {
-          res.status(200).json({
+          res.json({
             query: sq.slice(8).trim(),
             rows,
           });
         } else if (req.callback) {
           req.callback(rows);
         } else {
-          res.status(200).json(rows);
+          res.json(rows);
         }
     }
   }; // process
@@ -384,7 +409,7 @@ const sendQuery = (req, res, sq) => {
 
   pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
     if (err) {
-      console.error(err);
+      debug(err);
     } else if (!req.query.explain && results.rowCount) {
       process(results.rows[0].results);
       pool.query(`update weather.queries set date=now() where query='${qq}'`);
@@ -404,12 +429,9 @@ const sendQuery = (req, res, sq) => {
         sq = `explain ${sq}`;
       }
 
-      pool.query(sq, (err, results) => {
-        if (err) {
-          console.error(sq);
-          console.error(err);
-          console.error('_'.repeat(80));
-          res.status(500).send(err);
+      pool.query(sq, (error, results) => {
+        if (error) {
+          debug({ sq, error }, res, 500);
           return;
         }
 
@@ -425,7 +447,7 @@ const sendQuery = (req, res, sq) => {
 
           pool.query(q, (error) => {
             if (error) {
-              console.error('queries_error', error);
+              debug(error);
             }
           });
         }
@@ -527,7 +549,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
             mainTable += years
               .filter((year) => year !== 'new')
               .map((year) => `
-                select * from (
+                select ${parms} from (
                   select
                     make_timestamp(${year},
                     extract(month from date)::integer, extract(day from date)::integer, extract(hour from date)::integer, 0, 0) as date,
@@ -578,7 +600,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                       ${dateCond}
               `).join(' union all ');
 
-            // res.status(200).send(mainTable);
+            // res.send(mainTable);
           }
 
           if (mrms && years.length) {
@@ -637,7 +659,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
                 ${cond}
             `;
 
-            pretty(sq2);
+            // pretty(sq2);
             return sq2;
           } if (mpe) {
             const mpeTable = `weather.mpe_hourly_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}`;
@@ -675,7 +697,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
         .join(' union all\n');
 
     // if (req.query.predicted == 'true') {
-    //    res.status(200).send(tables.replace(/[\n\r]+/g, '<br>')); return;
+    //    res.send(tables.replace(/[\n\r]+/g, '<br>')); return;
     // }
 
     const order = req.query.order || `1 ${cols.split(/\s*,\s*/).includes('lat') ? ',lat' : ''} ${cols.split(/\s*,\s*/).includes('lon') ? ',lon' : ''}`;
@@ -800,7 +822,6 @@ const runQuery = (req, res, type, start, end, format, daily) => {
       sq = `select * from (${sq}) a limit ${req.query.limit} offset ${req.query.offset}`;
     }
 
-    // console.error(sq);
     sendQuery(req, res, sq);
   }; // query
 
@@ -814,7 +835,9 @@ const runQuery = (req, res, type, start, end, format, daily) => {
       `,
       (err, results) => {
         if (err) {
-          res.status(400).send(err);
+          debug({
+            trigger: 'timezone', lat: lats[0], lon: lons[0], err,
+          }, res, 400);
           return false;
         }
 
@@ -828,6 +851,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
         )
           .then(({ data }) => {
             console.timeEnd('Getting timezone');
+            console.log(data);
             if (data.status === 'ZERO_RESULTS') { // Google API can't determine timezone for some locations over water, such as (28, -76)
               return query(0);
             }
@@ -838,6 +862,18 @@ const runQuery = (req, res, type, start, end, format, daily) => {
             `);
 
             return query(data.rawOffset);
+          })
+          .catch((error) => {
+            debug(
+              {
+                trigger: 'Google API timezone',
+                lat: lats[0],
+                lon: lons[0],
+                error,
+              },
+              res,
+              500,
+            );
           });
 
         return false;
@@ -1003,10 +1039,9 @@ const queryJSON = (req, res, sq) => {
     `,
     (err, results) => {
       if (err) {
-        console.error(err);
-        res.status(500).send(err);
+        debug(err, res, 500);
       } else {
-        res.status(200).json(results.rows);
+        res.json(results.rows);
       }
     },
   );
@@ -1100,9 +1135,9 @@ const mvm = (req, res) => {
 
   pool.query(sq, (err, results) => {
     if (err) {
-      res.status(200).send(`ERROR:<br>${sq.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+      res.send(`ERROR:<br>${sq.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
     } else {
-      res.status(200).send(JSON.stringify(results.rows));
+      res.send(JSON.stringify(results.rows));
     }
   });
 }; // mvm
@@ -1228,7 +1263,7 @@ const nvm = (req, res) => {
               `;
 
       if (err) {
-        res.status(200).send(`ERROR:<br>${sq1.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+        res.send(`ERROR:<br>${sq1.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
         return;
       }
       s += `${data(results)}<hr>`;
@@ -1239,10 +1274,10 @@ const nvm = (req, res) => {
 
       pool.query(sq2, (err, results) => {
         if (err) {
-          res.status(200).send(`ERROR:<br>${sq2.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+          res.send(`ERROR:<br>${sq2.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
         } else {
           s += data(results);
-          res.status(200).send(s);
+          res.send(s);
         }
       });
     });
@@ -1330,7 +1365,7 @@ const nvm2 = (req, res) => {
         `,
         (err, results) => {
           if (err) {
-            res.status(200).send(err);
+            res.send(err);
           } else {
             try {
               let s = `
@@ -1355,7 +1390,7 @@ const nvm2 = (req, res) => {
                 `,
                 (err, results) => {
                   if (err || !results) {
-                    res.status(200).send(err);
+                    res.send(err);
                   } else {
                     try {
                       if (results.rowCount) {
@@ -1381,15 +1416,15 @@ const nvm2 = (req, res) => {
                       `,
                       );
 
-                      res.status(200).send(s);
+                      res.send(s);
                     } catch (e) {
-                      res.status(200).send(e.message);
+                      res.send(e.message);
                     }
                   }
                 },
               );
             } catch (ee) {
-              res.status(200).send(ee.message);
+              res.send(ee.message);
             }
           }
         },
@@ -1404,16 +1439,16 @@ const nvm2 = (req, res) => {
       `select data from weather.nvm2 where lat = ${lat} and lon = ${lon} and year = ${year}`,
       (err, results) => {
         if (err) {
-          res.status(200).send(err);
+          res.send(err);
         } else if (results.rowCount) {
-          res.status(200).send(results.rows[0].data);
+          res.send(results.rows[0].data);
         } else {
           runQuery();
         }
       },
     );
   } catch (ee) {
-    res.status(200).send(ee.message);
+    res.send(ee.message);
   }
 }; // nvm2
 
@@ -1421,7 +1456,7 @@ const nvm2Data = (req, res) => {
   pool.query(
     'select distinct lat, lon, year from weather.nvm2',
     (err, results) => {
-      res.status(200).send(JSON.stringify(results.rows));
+      res.send(JSON.stringify(results.rows));
     },
   );
 }; // nvm2Data
@@ -1440,7 +1475,7 @@ const nvm2Update = (req, res) => {
   `;
 
   pool.query(sq);
-  res.status(200).send(sq);
+  res.send(sq);
 }; // nvm2Update
 
 const nvm2Query = (req, res) => {
@@ -1454,9 +1489,9 @@ const nvm2Query = (req, res) => {
       sq,
       (err, results) => {
         if (err) {
-          res.status(200).send(err);
+          res.send(err);
         } else if (results.rowCount) {
-          res.status(200).send(JSON.stringify(results.rows));
+          res.send(JSON.stringify(results.rows));
         }
       },
     );
@@ -1475,7 +1510,7 @@ const isMissing = (res, parms) => {
   });
 
   if (error.length) {
-    res.status(400).send({ ERROR: `Missing ${error}` });
+    debug({ error: `Missing ${error}` }, res, 400);
     return true;
   }
   return false;
@@ -1494,12 +1529,12 @@ const rosetta = (req, res) => {
 
 const watershed = (req, res) => {
   const query = (sq) => {
-    pretty(sq);
+    // pretty(sq);
     pool.query(
       sq,
-      (err, results) => {
-        if (err) {
-          res.status(500).send(err);
+      (error, results) => {
+        if (error) {
+          debug({ sq, error }, res, 500);
         } else if (results.rows.length) {
           res.send(results.rows.map((row) => {
             delete row.geometry;
@@ -1615,12 +1650,12 @@ const watershed = (req, res) => {
 
 const mlra = (req, res) => {
   const query = (sq) => {
-    pretty(sq);
+    // pretty(sq);
     pool.query(
       sq,
       (err, results) => {
         if (err) {
-          res.status(500).send(err);
+          debug(err, res, 500);
         } else if (results.rows.length) {
           res.send(results.rows.map((row) => {
             delete row.geometry;
@@ -1701,12 +1736,12 @@ const mlra = (req, res) => {
 
 const county = (req, res) => {
   const query = (sq) => {
-    pretty(sq);
+    // pretty(sq);
     pool.query(
       sq,
       (err, results) => {
         if (err) {
-          res.status(500).send(err);
+          debug(err, res, 500);
         } else if (results.rows.length) {
           res.send(results.rows.map((row) => {
             delete row.geometry;
@@ -1778,7 +1813,7 @@ const countyspecies = (req, res) => {
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
+        debug(err, res, 500);
       } else {
         res.send(results.rows.map((row) => row.symbol));
       }
@@ -1803,13 +1838,13 @@ const mlraspecies = (req, res) => {
     WHERE mlra='${mlra}';
   `;
 
-  pretty(sq);
+  // pretty(sq);
 
   pool.query(
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
+        debug(err, res, 500);
       } else {
         res.send(results.rows);
       }
@@ -1833,13 +1868,13 @@ const mlraspecies2 = (req, res) => {
     ORDER BY symbol;
   `;
 
-  pretty(sq);
+  // pretty(sq);
 
   pool.query(
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
+        debug(err, res, 500);
       } else {
         res.send(results.rows);
       }
@@ -1863,7 +1898,7 @@ const mlraerrors = (req, res) => {
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
+        debug(err, res, 500);
       } else {
         res.send(results.rows);
       }
@@ -1875,9 +1910,7 @@ const plants = (req, res) => {
   const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
 
   if (!symbols) {
-    res.status(400).send({
-      error: 'symbol required',
-    });
+    debug({ error: 'symbol required'}, res, 400);
     return;
   }
 
@@ -1887,14 +1920,13 @@ const plants = (req, res) => {
     WHERE LOWER(symbol) IN (${symbols})
   `;
 
-  pretty(sq);
+  // pretty(sq);
 
   pool.query(
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
-        debug(err);
+        debug(err, res, 500);
       } else {
         res.send(results.rows);
       }
@@ -1903,31 +1935,15 @@ const plants = (req, res) => {
 }; // plants
 
 const plants2 = (req, res) => {
-  // const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
-
-  // if (!symbols) {
-  //   res.status(400).send({
-  //     error: 'symbol required',
-  //   });
-  //   return;
-  // }
-
-  // const sq = `
-  //   SELECT *
-  //   FROM plants2
-  //   WHERE LOWER(symbol) IN (${symbols})
-  // `;
-
   const sq = `SELECT * FROM plants2 WHERE alepth_ind is not null`;
 
-  pretty(sq);
+  // pretty(sq);
 
   pool.query(
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
-        debug(err);
+        debug(err, res, 500);
       } else {
         res.send(results.rows);
       }
@@ -1956,7 +1972,7 @@ const frost = (req, res) => {
       sq,
       (err, results) => {
         if (err) {
-          res.status(500).send(err);
+          debug(err, res, 500);
         } else if (results.rows.length) {
           res.send(results.rows[0]);
         } else {
