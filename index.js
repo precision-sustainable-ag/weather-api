@@ -22,6 +22,7 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => { // next is unused but required!
   console.error(err.stack);
   res.status(500).send('Something broke!');
@@ -47,18 +48,28 @@ app.get('/databasesize', db.databasesize); // size of the database
 app.get('/averages', db.initializeVariables, db.getAverages); // 5-year hourly averages
 app.get('/hourly', db.initializeVariables, db.getHourly); // real hourly data
 app.get('/daily', db.initializeVariables, db.getDaily); // daily statistics
-app.get('/GAWeatherStations', db.GAWeatherStations); // Georgia Weather Station data for output in Data Explorer (http://aesl.ces.uga.edu/weatherapp/de)
-app.get('/nvm', db.initializeVariables, db.nvm); // query for discrepancies between MRMS and NLDAS-2 precipitation.  Example: http://weather.aesl.ces.uga.edu/weather/nvm?location=texas.  Likely superceded by nvm2.
+
+// Georgia Weather Station data for output in Data Explorer (http://aesl.ces.uga.edu/weatherapp/de)
+app.get('/GAWeatherStations', db.GAWeatherStations);
+
+// query for discrepancies between MRMS and NLDAS-2 precipitation.  Example: http://weather.aesl.ces.uga.edu/weather/nvm?location=texas.
+// Likely superceded by nvm2.
+app.get('/nvm', db.initializeVariables, db.nvm);
+
 app.get('/nvm2', db.initializeVariables, db.nvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
 app.get('/nvm2Data', db.initializeVariables, db.nvm2Data); // "
 app.get('/nvm2Update', db.nvm2Update); // "
 app.get('/nvm2Query', db.nvm2Query); // "
-app.get('/mvm', db.mvm); // query for inconsistencies between adjacent MRMS locations during 2019.  Example: https://weather.aesl.ces.uga.edu/weather/mvm?lat=39&lon=-76&num=100
+
+// query for inconsistencies between adjacent MRMS locations during 2019.
+// Example: https://weather.covercrop-data.org/mvm?lat=39&lon=-76&num=100
+app.get('/mvm', db.mvm);
+
 app.post('/rosetta', db.rosetta); // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
 app.all('/watershed', db.initializeVariables, db.watershed);
-app.all('/mlra', db.initializeVariables, db.mlra);
-app.all('/county', db.initializeVariables, db.county);
+app.all('/mlra', db.initializeVariables, db.mlraAPI);
+app.all('/county', db.initializeVariables, db.countyAPI);
 app.all('/frost', db.initializeVariables, db.frost);
 app.all('/countyspecies', db.countyspecies);
 app.all('/mlraspecies', db.mlraspecies);
