@@ -13,7 +13,27 @@ let rect;
 let location;
 let options;
 let output;
+let where;
+let mrms; // true if MRMS precip; false if NLDAS precip
+let attr;
+let years;
 let ip;
+
+/**
+ * Creates an array of numbers within a specified range.
+ *
+ * @param {number} start - The start of the range.
+ * @param {number} end - The end of the range (inclusive).
+ * @returns {Array<number>} - The array of numbers within the specified range.
+ */
+const range = (start, end) => {
+  const result = [];
+  for (let i = start; i <= end; i++) {
+    result.push(i);
+  }
+
+  return result;
+}; // range
 
 /**
  * Logs a message along with the line number where the debug function is called.
@@ -489,7 +509,24 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     let sq;
     const cond = where ? ` and (${where})` : '';
     const dateCond = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
-    const parms = 'date,lat,lon,air_temperature,humidity,relative_humidity,pressure,zonal_wind_speed,meridional_wind_speed,wind_speed,longwave_radiation,convective_precipitation,potential_energy,potential_evaporation,shortwave_radiation,precipitation';
+    const parms = [
+      'date',
+      'lat',
+      'lon',
+      'air_temperature',
+      'humidity',
+      'relative_humidity',
+      'pressure',
+      'zonal_wind_speed',
+      'meridional_wind_speed',
+      'wind_speed',
+      'longwave_radiation',
+      'convective_precipitation',
+      'potential_energy',
+      'potential_evaporation',
+      'shortwave_radiation',
+      'precipitation',
+    ];
 
     const tables = rect ? rtables
       .map((table) => unindent(`
@@ -521,15 +558,6 @@ const runQuery = (req, res, type, start, end, format, daily) => {
             `);
 
           if (type === 'nldas_hourly_' && (req.query.predicted === 'true' || options.includes('predicted'))) {
-            let dc = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
-            const years = [];
-
-            for (let i = +start.slice(0, 4); i <= +end.slice(0, 4) + 1; i++) {
-              years.push(i);
-            }
-
-            dc = `date::timestamp + interval '${offset} seconds' > '2099-10-10'`;
-
             let maxdate = '';
             const year = new Date().getFullYear();
 
@@ -546,61 +574,21 @@ const runQuery = (req, res, type, start, end, format, daily) => {
               `;
             }
 
-            mainTable += years
-              .filter((year) => year !== 'new')
-              .map((year) => `
+            mainTable += range(+start.slice(0, 4), +end.slice(0, 4) + 1)
+              .map((y) => `
                 select ${parms} from (
                   select
-                    make_timestamp(${year},
+                    make_timestamp(${y},
                     extract(month from date)::integer, extract(day from date)::integer, extract(hour from date)::integer, 0, 0) as date,
                     lat, lon, air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed, longwave_radiation,
                     convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation,
-                    relative_humidity, wind_speed, precipitation as nldas,
-                    null::real as evp,
-                    null::real as weasd,
-                    null::real as snod,
-                    null::real as albdo,
-                    null::real as tsoil,
-                    null::real as veg,
-                    null::real as snom,
-                    null::real as nswrs,
-                    null::real as nlwrs,
-                    null::real as lhtfl,
-                    null::real as shtfl,
-                    null::real as avsft,
-                    null::real as gflux,
-                    null::real as asnow,
-                    null::real as arain,
-                    null::real as acond,
-                    null::real as ccond,
-                    null::real as lai,
-                    null::real as sbsno,
-                    null::real as evbs,
-                    null::real as evcw,
-                    null::real as dswrf,
-                    null::real as dlwrf,
-                    null::real as trans,
-                    null::real as cnwat,
-                    null::real as snohf,
-                    null::real as bgrun,
-                    null::real as ssrun,
-                    null::real as snowc,
-                    null::real as soilm1,
-                    null::real as soilm2,
-                    null::real as soilm3,
-                    null::real as soilm4,
-                    null::real as soilm5,
-                    null::real as soilm6,
-                    null::real as mstav1,
-                    null::real as mstav2
+                    relative_humidity, wind_speed, precipitation as nldas
                   from weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
                 ) a
                 where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
                       ${maxdate}
                       ${dateCond}
               `).join(' union all ');
-
-            // res.send(mainTable);
           }
 
           if (mrms && years.length) {
@@ -661,30 +649,6 @@ const runQuery = (req, res, type, start, end, format, daily) => {
 
             // pretty(sq2);
             return sq2;
-          } if (mpe) {
-            const mpeTable = `weather.mpe_hourly_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}`;
-
-            return `
-              select ${lat} as rlat, ${lons[i]} as rlon, *
-              from (
-                select a.*, mpe
-                from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))} a
-                left join (
-                  select * from ${mpeTable}
-                  where (lat, lon) in (
-                    select lat, lon
-                    from ${mpeTable}
-                    where abs(lat - ${lat}) < 0.125 and abs(lon - ${lons[i]}) < 0.125
-                    order by sqrt(power(lat - ${lat}, 2) + power(lon - ${lons[i]}, 2))
-                    limit 1
-                  )                                 
-                ) b
-                on a.date = b.date
-              ) alias1
-              where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
-                    date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
-                    ${cond}
-            `;
           }
           return `
             select ${lat} as rlat, ${lons[i]} as rlon, *
@@ -696,7 +660,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
         })
         .join(' union all\n');
 
-    // if (req.query.predicted == 'true') {
+    // if (req.query.predicted === 'true') {
     //    res.send(tables.replace(/[\n\r]+/g, '<br>')); return;
     // }
 
@@ -884,7 +848,12 @@ const runQuery = (req, res, type, start, end, format, daily) => {
   }; // lookup
 
   const clean = (s) => {
-    const t = decodeURI(s).replace(/["()+\-*/<>,= 0-9\.]|doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd|meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd/ig, '');
+    const t = decodeURI(s)
+      .replace(/["()+\-*/<>,= 0-9.]/ig, '')
+      .replace(/doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not/ig, '')
+      .replace(/between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd/ig, '')
+      .replace(/meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|/ig, '')
+      .replace(/potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd/ig, '');
 
     if (t) {
       console.error('*'.repeat(80));
@@ -907,34 +876,64 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     .replace(/\bapcp\b/i, `precipitation${alias ? ' as APCP' : ''}`)
     .replace(/\bdswrf\b/i, `shortwave_radiation${alias ? ' as DSWRF' : ''}`); // fix
 
+  /**
+   * Generates SQL aggregation functions for statistical calculations on a given parameter.
+   *
+   * @param {string} parm - The parameter for which to generate the statistics.
+   * @returns {string} - The SQL aggregation functions for minimum, maximum, and average of the parameter.
+   */
+  const statistics = (parm) => {
+    parm = parm.padEnd(25);
+    return `min(${parm}) as min_${parm}, max(${parm}) as max_${parm}, avg(${parm}) as avg_${parm}`;
+  }; // statistics
+
+  /**
+   * Generates an SQL aggregation function to calculate the sum of a given parameter.
+   *
+   * @param {string} parm - The parameter for which to generate the sum.
+   * @returns {string} - The SQL aggregation function for the sum of the parameter.
+   */
+  const sum = (parm) => {
+    parm = parm.padEnd(25);
+    return `sum(${parm}) as ${parm}`;
+  }; // sum
+
   const getColumns = () => {
     if (daily) {
       if (attr) {
         cols = attr.toLowerCase()
           .replace(/,?gdd/g, '') // included automatically if req.query.gddbase
           .split(',')
-          .map((col) => (/^(lat|lon)$/.test(col) ? col
-            : /mrms|precipitation|radiation|potential/.test(col)
-              ? `sum(${fix(col, false)}) as ${col}`
-              : `min(${fix(col, false)}) as min_${col}, max(${fix(col, false)}) as max_${col}, avg(${fix(col, false)}) as avg_${col}`))
+          .map((col) => {
+            if (/^(lat|lon)$/.test(col)) {
+              return col;
+            }
+
+            if (/mrms|precipitation|radiation|potential/.test(col)) {
+              return `sum(${fix(col, false)}) as ${col}`;
+            }
+
+            return `min(${fix(col, false)}) as min_${col}, max(${fix(col, false)}) as max_${col}, avg(${fix(col, false)}) as avg_${col}`;
+          })
           .join(',');
       } else {
         cols = `
           lat, lon,
-          sum(precipitation)            as precipitation,
-          sum(longwave_radiation)       as longwave_radiation,
-          sum(shortwave_radiation)      as shortwave_radiation,
-          sum(potential_energy)         as potential_energy,
-          sum(potential_evaporation)    as potential_evaporation,
-          sum(convective_precipitation) as convective_precipitation,
-          min(air_temperature)          as min_air_temperature,          max(air_temperature)          as max_air_temperature,          avg(air_temperature)          as avg_air_temperature,
-          min(humidity)                 as min_humidity,                 max(humidity)                 as max_humidity,                 avg(humidity)                 as avg_humidity,
-          min(relative_humidity)        as min_relative_humidity,        max(relative_humidity)        as max_relative_humidity,        avg(relative_humidity)        as avg_relative_humidity,
-          min(pressure)                 as min_pressure,                 max(pressure)                 as max_pressure,                 avg(pressure)                 as avg_pressure,
-          min(zonal_wind_speed)         as min_zonal_wind_speed,         max(zonal_wind_speed)         as max_zonal_wind_speed,         avg(zonal_wind_speed)         as avg_zonal_wind_speed,
-          min(meridional_wind_speed)    as min_meridional_wind_speed,    max(meridional_wind_speed)    as max_meridional_wind_speed,    avg(meridional_wind_speed)    as avg_meridional_wind_speed,
-          min(wind_speed)               as min_wind_speed,               max(wind_speed)               as max_wind_speed,               avg(wind_speed)               as avg_wind_speed
+          ${sum('precipitation')},
+          ${sum('longwave_radiation')},
+          ${sum('shortwave_radiation')},
+          ${sum('potential_energy')},
+          ${sum('potential_evaporation')},
+          ${sum('convective_precipitation')},
+          ${statistics('air_temperature')},
+          ${statistics('humidity')},
+          ${statistics('relative_humidity')},
+          ${statistics('pressure')},
+          ${statistics('zonal_wind_speed')},
+          ${statistics('meridional_wind_speed')},
+          ${statistics('wind_speed')}
         `;
+        console.log(cols);
       }
       const { gddbase } = req.query;
       if (gddbase) {
@@ -942,7 +941,9 @@ const runQuery = (req, res, type, start, end, format, daily) => {
         const maxtemp = req.query.gddmax || 999;
 
         cols += `,
-          greatest(0, (least(${maxtemp}, max(air_temperature)) + greatest(${mintemp}, least(${maxtemp}, min(air_temperature)))) / 2 - ${gddbase}) as gdd
+          greatest(0, (
+            least(${maxtemp}, max(air_temperature)) + greatest(${mintemp}, least(${maxtemp}, min(air_temperature)))) / 2 - ${gddbase}
+          ) as gdd
         `;
       }
     } else {
@@ -955,14 +956,14 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     }
   }; // getColumns
 
-  let attr = (req.query.attributes || req.query.attr || '').replace(/(soil_temperature|water_temperature|dewpoint|vapor_pressure),?/g, '').replace(/,$/, '');
-  let mpe = /\bmpe\b/i.test(attr);
+  attr = (req.query.attributes || req.query.attr || '')
+    .replace(/(soil_temperature|water_temperature|dewpoint|vapor_pressure),?/g, '')
+    .replace(/,$/, '');
   // const year1 = Math.max(+start.slice(0, 4), 2015);
   const year1 = Math.max(+start.slice(0, 4), 2005);
   const year2 = Math.min(+end.slice(0, 4), new Date().getFullYear());
-  let years = [];
   let { group } = req.query;
-  let where = req.query.where
+  where = req.query.where
     ? clean(fix(req.query.where))
       .replace(/month/g, 'extract(month from date)')
     : '';
@@ -974,15 +975,13 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     attr = attr.replace(/, *frost/, '').replace(/, *nldas/, '');
   }
 
-  for (let i = year1; i <= Math.min(year2 + 1, new Date().getFullYear()); i++) {
-    years.push(i);
-  }
+  years = range(year1, Math.min(year2 + 1, new Date().getFullYear()));
 
   if (year2 === new Date().getFullYear()) {
     years.push('new');
   }
 
-  let mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options);
+  mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options);
 
   getColumns();
 
@@ -991,7 +990,7 @@ const runQuery = (req, res, type, start, end, format, daily) => {
   } else {
     lats = (req.query.lat || '').split(',');
     lons = (req.query.lon || '').split(',');
-    if (rect && lats.length == 2) {
+    if (rect && lats.length === 2) {
       minLat = Math.min(...lats);
       maxLat = Math.max(...lats);
       minLon = Math.min(...lons);
