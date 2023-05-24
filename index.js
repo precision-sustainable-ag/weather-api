@@ -78,7 +78,7 @@ app.all('/mlraerrors', db.mlraerrors);
 app.all('/plants', db.plants);
 app.all('/plants2', db.plants2);
 
-app.get('/test', db.test);
+app.get('/test', db.initializeVariables, db.test);
 
 app.listen(80);
 
