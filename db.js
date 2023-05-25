@@ -22,6 +22,8 @@ let years;
 let ip;
 let testing;
 let tests;
+let testRequest;
+let testResponse;
 
 /**
  * Creates an array of numbers within a specified range.
@@ -1030,22 +1032,22 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
   }
 }; // runQuery
 
-const getHourly = (req, res) => {
+const routeHourly = (req = testRequest, res = testResponse) => {
   const start = req.query.start || '2000-01-01';
   const end = req.query.end ? req.query.end + (/:/.test(req.query.end) ? '' : ' 23:59')
     : '2099-12-31 23:59';
 
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD HH24:MI');
-}; // getHourly
+}; // routeHourly
 
-const getDaily = (req, res) => {
+const routeDaily = (req = testRequest, res = testResponse) => {
   const start = req.query.start || '2000-01-01';
   const end = req.query.end ? `${req.query.end} 23:59` : '2099-12-31 23:59';
 
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD', true);
-}; // getDaily
+}; // routeDaily
 
-const getAverages = (req, res) => {
+const routeAverages = (req = testRequest, res = testResponse) => {
   let start = req.query.start || '01-01';
   let end = req.query.end ? `${req.query.end} 23:59` : '12-31 23:59';
 
@@ -1058,7 +1060,7 @@ const getAverages = (req, res) => {
   }
 
   runQuery(req, res, 'ha_', `2099-${start}`, `2099-${end}`, 'MM-DD HH24:MI');
-}; // getAverages
+}; // routeAverages
 
 const queryJSON = (req, res, sq) => {
   pool.query(
@@ -1069,6 +1071,8 @@ const queryJSON = (req, res, sq) => {
     (err, results) => {
       if (err) {
         debug(err, res, 500);
+      } else if (testing) {
+        send(res, 'SUCCESS');
       } else {
         res.json(results.rows);
       }
@@ -1076,19 +1080,19 @@ const queryJSON = (req, res, sq) => {
   );
 }; // queryJSON
 
-const GAWeatherStations = (req, res) => {
+const routeGAWeatherStations = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, 'select * from weather.stations order by County');
-}; // GAWeatherStations
+}; // routeGAWeatherStations
 
-const addresses = (req, res) => {
+const routeAddresses = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, 'select * from weather.addresses order by address');
-}; // addresses
+}; // routeAddresses
 
-const indexes = (req, res) => {
+const routeIndexes = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, 'select * from pg_indexes where tablename not like \'pg%\' order by indexname');
-}; // indexes
+}; // routeIndexes
 
-const tables = (req, res) => {
+const routeTables = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, `
     select table_name as table, reltuples as rows from (
       select * from information_schema.tables
@@ -1099,9 +1103,9 @@ const tables = (req, res) => {
     where reltuples > 0
     order by table_name
   `);
-}; // tables
+}; // routeTables
 
-const counttablesrows = (req, res) => {
+const routeCountTablesRows = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, `
     select
       count(*) as tables,
@@ -1114,36 +1118,37 @@ const counttablesrows = (req, res) => {
     on a.table_name = b.relname
     where reltuples > 0    
   `);
-}; // counttablesrows
+}; // routeCountTablesRows
 
-const countindexes = (req, res) => {
+const routeCountIndexes = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, `
     select count(*) as indexes
     from pg_indexes
     where schemaname = 'weather'
   `);
-}; // countindexes
+}; // routeCountIndexes
 
-const databasesize = (req, res) => {
+const routeDatabasesize = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, `
     select pg_size_pretty(pg_database_size('postgres')) as size
   `);
-}; // databasesize
+}; // routeDatabasesize
 
-const hits = (req, res) => {
+const routeHits = (req = testRequest, res = testResponse) => {
   queryJSON(
     req,
     res,
     `
      select * from weather.hits
-     where query not like '%explain%' and query not like '%nvm%' and
-           (date > current_date - 1 or (ip <> '::ffff:172.18.186.142' and query not like '%25172.18.186%25'))
+     where
+       query not like '%explain%' and query not like '%nvm%' and
+       (date > current_date - 1 or (ip <> '::ffff:172.18.186.142' and query not like '%25172.18.186%25'))
      order by date desc
     `,
   );
-}; // hits
+}; // routeHits
 
-const mvm = (req, res) => {
+const routeMvm = (req = testRequest, res = testResponse) => {
   const sq = `
     select a.sum - b.sum as delta,
            a.lat as alat, a.lon as alon, a.sum as asum,
@@ -1165,13 +1170,15 @@ const mvm = (req, res) => {
   pool.query(sq, (err, results) => {
     if (err) {
       send(res, `ERROR:<br>${sq.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+    } else if (testing) {
+      send(res, 'SUCCESS');
     } else {
       send(res, JSON.stringify(results.rows));
     }
   });
-}; // mvm
+}; // routeMvm
 
-const nvm = (req, res) => {
+const routeNvm = (req = testRequest, res = testResponse) => {
   let mlat;
   let mlon;
   let nlat;
@@ -1315,6 +1322,8 @@ const nvm = (req, res) => {
       pool.query(sq2, (e, results2) => {
         if (e) {
           send(res, `ERROR:<br>${sq2.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+        } else if (testing) {
+          send(res, 'SUCCESS');
         } else {
           s += data(results2);
           send(res, s);
@@ -1340,9 +1349,9 @@ const nvm = (req, res) => {
 
     NVMprocess();
   }
-}; // nvm
+}; // routeNvm
 
-const nvm2 = (req, res) => {
+const routeNvm2 = (req = testRequest, res = testResponse) => {
   const lat = Math.round(req.query.lat);
   const lon = Math.round(req.query.lon);
   const { year } = req.query;
@@ -1475,6 +1484,8 @@ const nvm2 = (req, res) => {
       (err, results) => {
         if (err) {
           send(res, err);
+        } else if (testing) {
+          send(res, 'SUCCESS');
         } else if (results.rowCount) {
           send(res, results.rows[0].data);
         } else {
@@ -1485,18 +1496,24 @@ const nvm2 = (req, res) => {
   } catch (ee) {
     send(res, ee.message);
   }
-}; // nvm2
+}; // routeNvm2
 
-const nvm2Data = (req, res) => {
+const routeNvm2Data = (req = testRequest, res = testResponse) => {
   pool.query(
     'select distinct lat, lon, year from weather.nvm2',
     (err, results) => {
-      send(res, JSON.stringify(results.rows));
+      if (err) {
+        send(res, 'ERROR');
+      } else if (testing) {
+        send(res, 'SUCCESS');
+      } else {
+        send(res, JSON.stringify(results.rows));
+      }
     },
   );
-}; // nvm2Data
+}; // routeNvm2Data
 
-const nvm2Update = (req, res) => {
+const routeNvm2Update = (req, res) => {
   const sq = `
     update weather.nvm2
     set red = ${req.query.red},
@@ -1511,9 +1528,9 @@ const nvm2Update = (req, res) => {
 
   pool.query(sq);
   send(res, sq);
-}; // nvm2Update
+}; // routeNvm2Update
 
-const nvm2Query = (req, res) => {
+const routeNvm2Query = (req = testRequest, res = testResponse) => {
   try {
     const sq = `select lat, lon from weather.nvm2
               where ${req.query.condition.replace(/select|insert|update|drop|delete/ig, '')}
@@ -1525,6 +1542,8 @@ const nvm2Query = (req, res) => {
       (err, results) => {
         if (err) {
           send(res, err);
+        } else if (testing) {
+          send(res, 'SUCCESS');
         } else if (results.rowCount) {
           send(res, JSON.stringify(results.rows));
         }
@@ -1533,9 +1552,9 @@ const nvm2Query = (req, res) => {
   } catch (ee) {
     console.error(ee.message);
   }
-}; // nvm2Query
+}; // routeNvm2Query
 
-const rosetta = (req, res) => {
+const routeRosetta = (req = testRequest, res = testResponse) => {
   axios.post(
     'https://www.handbook60.org/api/v1/rosetta/1',
     {
@@ -1544,9 +1563,9 @@ const rosetta = (req, res) => {
   ).then((data) => {
     send(res, data.data);
   });
-}; // rosetta
+}; // routeRosetta
 
-const watershed = (req, res) => {
+const routeWatershed = (req = testRequest, res = testResponse) => {
   const query = (sq) => {
     // pretty(sq);
     pool.query(
@@ -1664,9 +1683,9 @@ const watershed = (req, res) => {
     maxLon = Math.max(...lons);
     latLon();
   }
-}; // watershed
+}; // routeWatershed
 
-const mlraAPI = (req, res) => {
+const routeMLRA = (req = testRequest, res = testResponse) => {
   const polygon = safeQuery(req, 'polygon');
   const mlra = safeQuery(req, 'mlra');
 
@@ -1748,9 +1767,9 @@ const mlraAPI = (req, res) => {
     maxLon = Math.max(...lons);
     latLon();
   }
-}; // mlraAPI
+}; // routeMLRA
 
-const countyAPI = (req, res) => {
+const routeCounty = (req = testRequest, res = testResponse) => {
   const query = (sq) => {
     // pretty(sq);
     pool.query(
@@ -1811,9 +1830,9 @@ const countyAPI = (req, res) => {
     maxLon = Math.max(...lons);
     latLon();
   }
-}; // countyAPI
+}; // routeCounty
 
-const countyspecies = (req, res) => {
+const routeCountySpecies = (req = testRequest, res = testResponse) => {
   const county = req.query.county || '%';
   const { state } = req.query;
 
@@ -1834,9 +1853,9 @@ const countyspecies = (req, res) => {
       }
     },
   );
-}; // countyspecies
+}; // routeCountySpecies
 
-const mlraspecies = (req, res) => {
+const routeMlraSpecies = (req = testRequest, res = testResponse) => {
   const { mlra } = req.query;
 
   const sq = `
@@ -1865,9 +1884,9 @@ const mlraspecies = (req, res) => {
       }
     },
   );
-}; // mlraspecies
+}; // routeMlraSpecies
 
-const mlraspecies2 = (req, res) => {
+const routeMlraSpecies2 = (req = testRequest, res = testResponse) => {
   const { mlra } = req.query;
 
   const sq = `
@@ -1895,9 +1914,9 @@ const mlraspecies2 = (req, res) => {
       }
     },
   );
-}; // mlraspecies2
+}; // routeMlraSpecies2
 
-const mlraerrors = (req, res) => {
+const routeMLRAErrors = (req = testRequest, res = testResponse) => {
   const sq = `
     select * from (
       select distinct mlrarsym as newmlra from mlra.mlra
@@ -1919,9 +1938,9 @@ const mlraerrors = (req, res) => {
       }
     },
   );
-}; // mlraerrors
+}; // routeMLRAErrors
 
-const plants = (req, res) => {
+const routePlants = (req = testRequest, res = testResponse) => {
   const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
 
   if (!symbols) {
@@ -1947,9 +1966,9 @@ const plants = (req, res) => {
       }
     },
   );
-}; // plants
+}; // routePlants
 
-const plants2 = (req, res) => {
+const routePlants2 = (req = testRequest, res = testResponse) => {
   const sq = `SELECT * FROM plants2 WHERE alepth_ind is not null`;
 
   // pretty(sq);
@@ -1964,9 +1983,9 @@ const plants2 = (req, res) => {
       }
     },
   );
-}; // plants2
+}; // routePlants2
 
-const frost = (req, res) => {
+const routeFrost = (req = testRequest, res = testResponse) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
     const lon = lons ? lons[0] : req.query.lon;
@@ -2002,9 +2021,9 @@ const frost = (req, res) => {
   } else {
     query();
   }
-}; // frost
+}; // routeFrost
 
-async function test(req, res) {
+async function routeTest(req, res) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -2026,57 +2045,93 @@ async function test(req, res) {
     send(res, results);
   } // GoogleMapsAPI
 
-  const request = {
+  testRequest = {
     body: {},
     query: {
-      lat: '39.032056',
-      lon: '-76.873972',
+      lat: '39',
+      lon: '-76',
       mlra: '136',
+      start: '2020-01-01',
+      end: '2020-01-02',
+      limit: 10,
+      offset: 0,
+      num: 100,
+      location: 'texas', // routeNvm
+      year: 2019,
+      condition: 'mvm', // routeNvm2Query
+      state: 'georgia', // routeCountySpecies
+      symbol: 'ABAB,Abac', // routePlants
     },
   };
 
-  const testHourly = () => runQuery(request, res, 'nldas_hourly_', '2020-01-01', '2020-01-02', 'YYYY-MM-DD HH24:MI');
-  const testMlraAPI = () => mlraAPI(request, res);
-  const testCounty = () => countyAPI(request, res);
+  testResponse = res;
 
   testing = true;
-  tests = [testHourly, testMlraAPI, testCounty];
+  tests = [
+    // routeNvm, // slow
+    // routeRosetta, // todo
+    routeAddresses,
+    routeAverages,
+    routeCountIndexes,
+    routeCountTablesRows,
+    routeCounty,
+    routeCountySpecies,
+    routeDaily,
+    routeDatabasesize,
+    routeFrost,
+    routeGAWeatherStations,
+    routeHits,
+    routeHourly,
+    routeIndexes,
+    routeMLRA,
+    routeMLRAErrors,
+    routeMlraSpecies,
+    routeMlraSpecies2,
+    routeMvm,
+    routeNvm2,
+    routeNvm2Data,
+    routeNvm2Query,
+    routePlants,
+    routePlants2,
+    routeTables,
+    routeWatershed,
+  ];
 
   await testGoogleMapsAPI();
-} // test
+} // routeTest
 
 module.exports = {
   initializeVariables: (req, res, next) => {
     init(req);
     next();
   },
-  addresses,
-  getAverages,
-  getHourly,
-  getDaily,
-  GAWeatherStations,
-  hits,
-  indexes,
-  tables,
-  counttablesrows,
-  countindexes,
-  databasesize,
-  mvm,
-  nvm,
-  nvm2,
-  nvm2Data,
-  nvm2Update,
-  nvm2Query,
-  rosetta,
-  watershed,
-  mlraAPI,
-  mlraerrors,
-  countyAPI,
-  countyspecies,
-  mlraspecies,
-  mlraspecies2,
-  plants,
-  plants2,
-  frost,
-  test,
+  routeAddresses,
+  routeAverages,
+  routeCountIndexes,
+  routeCountTablesRows,
+  routeCounty,
+  routeCountySpecies,
+  routeDaily,
+  routeDatabasesize,
+  routeFrost,
+  routeGAWeatherStations,
+  routeHits,
+  routeHourly,
+  routeIndexes,
+  routeMLRA,
+  routeMLRAErrors,
+  routeMlraSpecies,
+  routeMlraSpecies2,
+  routeMvm,
+  routeNvm,
+  routeNvm2,
+  routeNvm2Data,
+  routeNvm2Query,
+  routeNvm2Update,
+  routePlants,
+  routePlants2,
+  routeRosetta,
+  routeTables,
+  routeTest,
+  routeWatershed,
 };

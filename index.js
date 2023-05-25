@@ -38,47 +38,47 @@ const db = require('./db');
 
 app.get('/', (req, res) => res.sendFile(`${__dirname}/public/client/build/index.html`)); // send API
 
-app.get('/addresses', db.addresses); // list of addresses that have been geocoded, for use in Data Explorer
-app.get('/hits', db.hits); // list database queries, for use in Data Explorer
-app.get('/indexes', db.indexes); // list database indexes, for use in Data Explorer
-app.get('/tables', db.tables); // list database tables, for use in Data Explorer
-app.get('/counttablesrows', db.counttablesrows); // number of tables and rows, for use in Data Explorer
-app.get('/countindexes', db.countindexes); // number of indexes, for use in Data Explorer
-app.get('/databasesize', db.databasesize); // size of the database
-app.get('/averages', db.initializeVariables, db.getAverages); // 5-year hourly averages
-app.get('/hourly', db.initializeVariables, db.getHourly); // real hourly data
-app.get('/daily', db.initializeVariables, db.getDaily); // daily statistics
+app.get('/addresses', db.routeAddresses); // list of addresses that have been geocoded, for use in Data Explorer
+app.get('/hits', db.routeHits); // list database queries, for use in Data Explorer
+app.get('/indexes', db.routeIndexes); // list database indexes, for use in Data Explorer
+app.get('/tables', db.routeTables); // list database tables, for use in Data Explorer
+app.get('/counttablesrows', db.routeCountTablesRows); // number of tables and rows, for use in Data Explorer
+app.get('/countindexes', db.routeCountIndexes); // number of indexes, for use in Data Explorer
+app.get('/databasesize', db.routeDatabasesize); // size of the database
+app.get('/averages', db.initializeVariables, db.routeAverages); // 5-year hourly averages
+app.get('/hourly', db.initializeVariables, db.routeHourly); // real hourly data
+app.get('/daily', db.initializeVariables, db.routeDaily); // daily statistics
 
 // Georgia Weather Station data for output in Data Explorer (http://aesl.ces.uga.edu/weatherapp/de)
-app.get('/GAWeatherStations', db.GAWeatherStations);
+app.get('/GAWeatherStations', db.routeGAWeatherStations);
 
-// query for discrepancies between MRMS and NLDAS-2 precipitation.  Example: http://weather.aesl.ces.uga.edu/weather/nvm?location=texas.
+// query for discrepancies between MRMS and NLDAS-2 precipitation.  Example: https://weather.covercrop-data.org/nvm?location=texas.
 // Likely superceded by nvm2.
-app.get('/nvm', db.initializeVariables, db.nvm);
+app.get('/nvm', db.initializeVariables, db.routeNvm);
 
-app.get('/nvm2', db.initializeVariables, db.nvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
-app.get('/nvm2Data', db.initializeVariables, db.nvm2Data); // "
-app.get('/nvm2Update', db.nvm2Update); // "
-app.get('/nvm2Query', db.nvm2Query); // "
+app.get('/nvm2', db.initializeVariables, db.routeNvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
+app.get('/nvm2Data', db.initializeVariables, db.routeNvm2Data); // "
+app.get('/nvm2Update', db.routeNvm2Update); // "
+app.get('/nvm2Query', db.routeNvm2Query); // "
 
 // query for inconsistencies between adjacent MRMS locations during 2019.
 // Example: https://weather.covercrop-data.org/mvm?lat=39&lon=-76&num=100
-app.get('/mvm', db.mvm);
+app.get('/mvm', db.routeMvm);
 
-app.post('/rosetta', db.rosetta); // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
+app.post('/rosetta', db.routeRosetta); // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
-app.all('/watershed', db.initializeVariables, db.watershed);
-app.all('/mlra', db.initializeVariables, db.mlraAPI);
-app.all('/county', db.initializeVariables, db.countyAPI);
-app.all('/frost', db.initializeVariables, db.frost);
-app.all('/countyspecies', db.countyspecies);
-app.all('/mlraspecies', db.mlraspecies);
-app.all('/mlraspecies2', db.mlraspecies2);
-app.all('/mlraerrors', db.mlraerrors);
-app.all('/plants', db.plants);
-app.all('/plants2', db.plants2);
+app.all('/watershed', db.initializeVariables, db.routeWatershed);
+app.all('/mlra', db.initializeVariables, db.routeMLRA);
+app.all('/county', db.initializeVariables, db.routeCounty);
+app.all('/frost', db.initializeVariables, db.routeFrost);
+app.all('/countyspecies', db.routeCountySpecies);
+app.all('/mlraspecies', db.routeMlraSpecies);
+app.all('/mlraspecies2', db.routeMlraSpecies2);
+app.all('/mlraerrors', db.routeMLRAErrors);
+app.all('/plants', db.routePlants);
+app.all('/plants2', db.routePlants2);
 
-app.get('/test', db.initializeVariables, db.test);
+app.get('/test', db.initializeVariables, db.routeTest);
 
 app.listen(80);
 
