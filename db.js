@@ -25,6 +25,25 @@ let tests;
 let testRequest;
 let testResponse;
 
+const parms = [
+  'date',
+  'lat',
+  'lon',
+  'air_temperature',
+  'humidity',
+  'relative_humidity',
+  'pressure',
+  'zonal_wind_speed',
+  'meridional_wind_speed',
+  'wind_speed',
+  'longwave_radiation',
+  'convective_precipitation',
+  'potential_energy',
+  'potential_evaporation',
+  'shortwave_radiation',
+  'precipitation',
+];
+
 /**
  * Creates an array of numbers within a specified range.
  *
@@ -48,15 +67,15 @@ const send = (res, results) => {
     } else {
       res.write(results);
     }
-    res.write(`\n${'_'.repeat(200)}\n`);
+    // res.write(`\n${'_'.repeat(200)}\n`);
 
     if (!tests.length) {
-      res.write('Finished');
+      res.write('\nFinished');
       testing = false;
       res.end();
     } else {
       testing = true;
-      res.write(`${tests[0].name}: `);
+      res.write(`\n${tests[0].name.padEnd(25)}: `);
       tests.shift()();
     }
   } else {
@@ -198,7 +217,7 @@ const safeQuotes = (s, method = 'toString') => {
 /** ____________________________________________________________________________________________________________________________________
  * sql-formatter puts comma-separated items on separate lines.
  *
- * This wraps text at the specified maximum length,
+ * wrapText wraps the text at the specified maximum length,
  * while maintaining the current indentation
  * and preserving comma-separated items on the same line.
  *
@@ -537,25 +556,6 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
     let sq;
     const cond = where ? ` and (${where})` : '';
     const dateCond = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
-    const parms = [
-      'date',
-      'lat',
-      'lon',
-      'air_temperature',
-      'humidity',
-      'relative_humidity',
-      'pressure',
-      'zonal_wind_speed',
-      'meridional_wind_speed',
-      'wind_speed',
-      'longwave_radiation',
-      'convective_precipitation',
-      'potential_energy',
-      'potential_evaporation',
-      'shortwave_radiation',
-      'precipitation',
-    ];
-
     const tables = rect ? rtables
       .map((table) => unindent(`
         select lat as rlat, lon as rlon, *
@@ -604,13 +604,12 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
 
             mainTable += range(+start.slice(0, 4), +end.slice(0, 4) + 1)
               .map((y) => `
-                select ${parms} from (
+                select ${parms}, precipitation as nldas from (
                   select
                     make_timestamp(${y},
                     extract(month from date)::integer, extract(day from date)::integer, extract(hour from date)::integer, 0, 0) as date,
-                    lat, lon, air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed, longwave_radiation,
-                    convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation,
-                    relative_humidity, wind_speed, precipitation as nldas
+                    ${parms.slice(1)},
+                    precipitation as nldas
                   from weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
                 ) a
                 where
@@ -820,7 +819,7 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
     sendQuery(req, res, sq);
   }; // query
 
-  const lookup = () => {
+  const getTimeZone = () => {
     if (options.includes('gmt') || options.includes('utc')) {
       return query(0);
     }
@@ -876,8 +875,13 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
     );
 
     return false;
-  }; // lookup
+  }; // getTimeZone
 
+  /**
+   * Cleans a string by removing specific characters and forbidden keywords.
+   * @param {string} s - The string to clean.
+   * @returns {string} The cleaned string or 'ERROR' if forbidden keywords are found.
+   */
   const clean = (s) => {
     const t = decodeURI(s)
       .replace(/["()+\-*/<>,= 0-9.]/ig, '')
@@ -895,6 +899,12 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
     return s;
   }; // clean
 
+  /**
+   * Fixes column names by replacing specific abbreviations with full column names.
+   * @param {string} col - The column name to fix.
+   * @param {boolean} [alias=false] - Determines if column aliases should be included.
+   * @returns {string} The fixed column name with optional aliases.
+   */
   const fix = (col, alias) => col.replace(/\btmp\b/i, `air_temperature${alias ? ' as TMP' : ''}`)
     .replace(/\bspfh\b/i, `humidity${alias ? ' as SPFH' : ''}`)
     .replace(/\bpres\b/i, `pressure${alias ? ' as PRES' : ''}`)
@@ -929,6 +939,9 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
     return `sum(${parm}) as ${parm}`;
   }; // sum
 
+  /**
+   * Determines the columns to be selected in the database query based on the provided parameters.
+   */
   const getColumns = () => {
     if (daily) {
       if (attr) {
@@ -978,9 +991,7 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
         `;
       }
     } else {
-      cols = attr ? fix(attr, true)
-        : 'lat, lon, air_temperature, humidity, relative_humidity, pressure, zonal_wind_speed, meridional_wind_speed, wind_speed, '
-          + 'longwave_radiation, convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation';
+      cols = attr ? fix(attr, true) : parms.slice(1).join(', ');
 
       if (/averages|daily/.test(req.url)) {
         cols = cols.replace(', frost', '');
@@ -1018,7 +1029,7 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
   getColumns();
 
   if (location) {
-    getLocation(res, lookup);
+    getLocation(res, getTimeZone);
   } else {
     lats = (req.query.lat.toString() || '').split(',');
     lons = (req.query.lon.toString() || '').split(',');
@@ -1028,7 +1039,7 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
       minLon = Math.min(...lons);
       maxLon = Math.max(...lons);
     }
-    lookup();
+    getTimeZone();
   }
 }; // runQuery
 
@@ -1037,6 +1048,8 @@ const routeHourly = (req = testRequest, res = testResponse) => {
   const end = req.query.end ? req.query.end + (/:/.test(req.query.end) ? '' : ' 23:59')
     : '2099-12-31 23:59';
 
+  req.url = req.url || 'hourly'; // in case testing
+
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD HH24:MI');
 }; // routeHourly
 
@@ -1044,12 +1057,16 @@ const routeDaily = (req = testRequest, res = testResponse) => {
   const start = req.query.start || '2000-01-01';
   const end = req.query.end ? `${req.query.end} 23:59` : '2099-12-31 23:59';
 
+  req.url = req.url || 'daily'; // in case testing
+
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD', true);
 }; // routeDaily
 
 const routeAverages = (req = testRequest, res = testResponse) => {
   let start = req.query.start || '01-01';
   let end = req.query.end ? `${req.query.end} 23:59` : '12-31 23:59';
+
+  req.url = req.url || 'averages'; // in case testing
 
   if (start.split('-').length === 3) { // drop year
     start = start.slice(start.indexOf('-') + 1);
@@ -1498,7 +1515,7 @@ const routeNvm2 = (req = testRequest, res = testResponse) => {
   }
 }; // routeNvm2
 
-const routeNvm2Data = (req = testRequest, res = testResponse) => {
+const routeNvm2Data = (req, res = testResponse) => {
   pool.query(
     'select distinct lat, lon, year from weather.nvm2',
     (err, results) => {
@@ -1916,7 +1933,7 @@ const routeMlraSpecies2 = (req = testRequest, res = testResponse) => {
   );
 }; // routeMlraSpecies2
 
-const routeMLRAErrors = (req = testRequest, res = testResponse) => {
+const routeMLRAErrors = (req, res = testResponse) => {
   const sq = `
     select * from (
       select distinct mlrarsym as newmlra from mlra.mlra
@@ -1968,7 +1985,7 @@ const routePlants = (req = testRequest, res = testResponse) => {
   );
 }; // routePlants
 
-const routePlants2 = (req = testRequest, res = testResponse) => {
+const routePlants2 = (req, res = testResponse) => {
   const sq = `SELECT * FROM plants2 WHERE alepth_ind is not null`;
 
   // pretty(sq);
@@ -2064,6 +2081,8 @@ async function routeTest(req, res) {
     },
   };
 
+  // options = 'nomrms';
+
   testResponse = res;
 
   testing = true;
@@ -2082,6 +2101,11 @@ async function routeTest(req, res) {
     routeGAWeatherStations,
     routeHits,
     routeHourly,
+    function routeHourlyPredicted() {
+      const tr = JSON.parse(JSON.stringify(testRequest));
+      tr.query.predicted = 'true';
+      routeHourly(tr);
+    },
     routeIndexes,
     routeMLRA,
     routeMLRAErrors,
