@@ -1,18 +1,6 @@
 const { format } = require('sql-formatter');
-
-process.on('uncaughtException', (err) => {
-  console.error(err);
-  process.exit(1);
-});
-
-const request = require('request');
-
-const { default: axios } = require('axios');
+const axios = require('axios');
 const { pool, googleAPIKey } = require('./pools');
-
-// NLDAS-2 longitude and latitude:
-const xgrid = (n) => (Math.floor(n * 8) / 8).toFixed(3);
-const ygrid = (n) => -(Math.floor(-n * 8) / 8).toFixed(3);
 
 let lats;
 let lons;
@@ -25,16 +13,123 @@ let rect;
 let location;
 let options;
 let output;
+let where;
+let stats;
+let group;
+let mrms; // true if MRMS precip; false if NLDAS precip
+let attr;
+let years;
 let ip;
+let testing;
+let tests;
+let testRequest;
+let testResponse;
 
+const parms = [
+  'date',
+  'lat',
+  'lon',
+  'air_temperature',
+  'humidity',
+  'relative_humidity',
+  'pressure',
+  'zonal_wind_speed',
+  'meridional_wind_speed',
+  'wind_speed',
+  'longwave_radiation',
+  'convective_precipitation',
+  'potential_energy',
+  'potential_evaporation',
+  'shortwave_radiation',
+  'precipitation',
+];
+
+/**
+ * Creates an array of numbers within a specified range.
+ *
+ * @param {number} start - The start of the range.
+ * @param {number} end - The end of the range (inclusive).
+ * @returns {Array<number>} - The array of numbers within the specified range.
+ */
+const range = (start, end) => {
+  const result = [];
+  for (let i = start; i <= end; i++) {
+    result.push(i);
+  }
+
+  return result;
+}; // range
+
+const send = (res, results) => {
+  if (testing) {
+    if (typeof results === 'object') {
+      res.write('SUCCESS');
+    } else {
+      res.write(results);
+    }
+    // res.write(`\n${'_'.repeat(200)}\n`);
+
+    if (!tests.length) {
+      res.write('\nFinished');
+      testing = false;
+      res.end();
+    } else {
+      testing = true;
+      res.write(`\n${tests[0].name.padEnd(25)}: `);
+      tests.shift()();
+    }
+  } else {
+    res.send(results);
+  }
+}; // send
+
+/**
+ * Logs a message along with the line number where the debug function is called.
+ * @param {string} s - The message to log.
+ * @returns {void}
+ */
+const debug = (s, res, status = 200) => {
+  try {
+    throw new Error();
+  } catch (error) {
+    // Extract the stack trace
+    const stackLines = error.stack.split('\n');
+
+    let lineNumber;
+    // Find the line number
+    try {
+      lineNumber = parseInt(stackLines[2].match(/at.*\((.*):(\d+):\d+\)/)[2], 10);
+    } catch (err) {
+      lineNumber = '';
+    }
+
+    const result = `
+      Line ${lineNumber}
+${JSON.stringify(s, null, 2).replace(/\\n/g, '\n')}
+    `.trim();
+
+    console.log(result);
+    console.log('_'.repeat(process.stdout.columns));
+
+    if (res && !testing) {
+      res.type('text/plain');
+      res.status(status).send(result);
+    } else if (res && testing) {
+      send(res, `ERROR\n${result}\n`);
+    }
+  }
+}; // debug
+
+/**
+ * Initializes various parameters based on the given request object.
+ *
+ * @param {Object} req - The request object.
+ * @returns {undefined}
+ */
 const init = (req) => {
-  ip = req.ip
-       || (req.headers['x-forwarded-for'] || '').split(',').pop()
-       || req.connection.remoteAddress
-       || req.socket.remoteAddress
-       || req.connection.socket.remoteAddress;
+  ip = (req.headers['x-forwarded-for'] || '').split(',').pop() || req.socket.remoteAddress;
 
-  output = req.query.explain ? 'json' : req.query.output || 'json';
+  output = req.query.explain ? 'json' : req.query.output ?? 'json';
 
   lats = null;
   lons = null;
@@ -45,9 +140,171 @@ const init = (req) => {
   maxLon = null;
   location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
   options = (req.query.options || '').toLowerCase().split(',');
-  rect = options.includes('rect') && (location || (req.query.lat || '').split(',').length == 2);
+  rect = options.includes('rect') && (location || (req.query.lat || '').split(',').length === 2);
+
+  debug({
+    lats,
+    lons,
+    cols,
+    minLat,
+    maxLat,
+    minLon,
+    maxLon,
+    rect,
+    location,
+    options,
+    output,
+    ip,
+  });
 }; // init
 
+/** ____________________________________________________________________________________________________________________________________
+ * Round latitude and longitude values to the nearest NLDAS-2 grid coordinates used in the database.
+ *
+ * @param {number} n - The latitude or longitude value to be rounded.
+ * @returns {string} The rounded NLDAS-2 grid coordinate as a string with three decimal places.
+ */
+const NLDASlat = (n) => -(Math.floor(-n * 8) / 8).toFixed(3);
+const NLDASlon = (n) => (Math.floor(n * 8) / 8).toFixed(3);
+
+/** ____________________________________________________________________________________________________________________________________
+ * Rounds an MRMS lat or lon to two decimal places using a midpoint rounding strategy.
+ *
+ * @param {number} n - The number to round.
+ * @returns {string} A string representation of the rounded number.
+ */
+const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
+
+/** ____________________________________________________________________________________________________________________________________
+ * Sanitizes a string for safe use in an SQL query.
+ *
+ * @param {string} s - The string to sanitize.
+ * @returns {string} - The sanitized string.
+ */
+const sanitize = (s) => (
+  (s || '')
+    .replace(/\b(select|insert|update|drop|delete|truncate|create|alter|grant|revoke)\b/ig, '')
+    .replace(/'/g, `''`)
+); // sanitize
+
+/** ____________________________________________________________________________________________________________________________________
+ * Sanitizes a query parameter by converting it to a safe SQL string.
+ * Works for both POST and GET.
+ *
+ * @param {object} req - The request object from Express.js.
+ * @param {string} parm - The name of the query parameter to sanitize.
+ * @returns {string} A sanitized SQL string.
+ */
+const safeQuery = (req, parm) => (
+  sanitize(req.body[parm] || req.query[parm])
+); // safeQuery
+
+/** ____________________________________________________________________________________________________________________________________
+ * Convert a comma-separated string to an array of safe SQL-quoted strings.
+ *
+ * @param {string} s - The comma-separated string to convert.
+ * @param {string} [method='toString'] - The method to call on each array element to convert to a string.
+ * @returns {string|null} A comma-separated string of safe SQL-quoted strings, or null if input is falsy.
+ */
+const safeQuotes = (s, method = 'toString') => {
+  if (!s) {
+    return null;
+  }
+
+  return s.split(',').map((s2) => `'${s2[method]().replace(/'/g, `''`)}'`).join(',');
+}; // safeQuotes
+
+/** ____________________________________________________________________________________________________________________________________
+ * sql-formatter puts comma-separated items on separate lines.
+ *
+ * wrapText wraps the text at the specified maximum length,
+ * while maintaining the current indentation
+ * and preserving comma-separated items on the same line.
+ *
+ * @param {string} text The text to wrap.
+ * @param {number} [maxLength=process.stdout.columns] The maximum line length.
+ * @returns {string} The wrapped text.
+ */
+const wrapText = (text, maxLength = process.stdout.columns) => {
+  const lines = text.split('\n');
+
+  lines.forEach((line, index) => {
+    if (line.length > maxLength) {
+      const terms = [];
+      let paren = 0;
+      if (line.trim()[0] === ')') {
+        paren = 1;
+      }
+      let s = '';
+      [...line].forEach((c) => {
+        s += c;
+        if (c === '(') paren += 1;
+        else if (c === ')') paren -= 1;
+        else if (c === ',' && paren === 0) {
+          terms.push(s);
+          s = '';
+        }
+      });
+      terms.push(s);
+
+      const indent = line.match(/ +/)?.[0] || '';
+      const ml = maxLength - indent;
+      s = '';
+      const wrapped = [];
+      terms.forEach((term) => {
+        if ((s + term).length > ml) {
+          wrapped.push(indent + s.trim());
+          s = indent;
+        }
+
+        s += term;
+      });
+      wrapped.push(indent + s.trim());
+      lines[index] = wrapped.join('\n');
+    }
+  });
+
+  return lines.join('\n');
+}; // wrapText
+
+/** ____________________________________________________________________________________________________________________________________
+ * Formats and prints a SQL query to the console.
+ *
+ * @param {string} sq - The SQL query to format and print.
+ * @returns {string} The formatted SQL query.
+ */
+// eslint-disable-next-line no-unused-vars
+const pretty = (sq) => {
+  let result;
+  try {
+    result = format(
+      sq,
+      {
+        language: 'postgresql',
+      },
+    )
+      .replace(/,\s*\n\s*/g, ', ');
+
+    result = wrapText(result);
+  } catch (error) {
+    // in case sql-formatter bombs
+    console.warn(error);
+    result = sq;
+  }
+  console.log(result);
+  return result;
+}; // pretty
+
+/** ____________________________________________________________________________________________________________________________________
+ * Gets the latitude and longitude coordinates of a location using the Google Maps API or the database.
+ * (New locations are added to the database.)
+ * If `location` is a valid ZIP code, it will be automatically converted to "zip <code>".
+ * If `rect` is `true`, also calculates the bounding box (minLat, maxLat, minLon, maxLon) for the location.
+ * If `func` is provided, it will be called with the resulting latitude and longitude arrays.
+ *
+ * @param {Object} res - Express response object.
+ * @param {Function} func - Optional callback function to receive the resulting latitude and longitude arrays.
+ */
 const getLocation = (res, func) => {
   if (+location) {
     location = `zip ${location}`;
@@ -57,9 +314,9 @@ const getLocation = (res, func) => {
     [location],
     (err, results) => {
       if (err) {
-        res.status(200).send(err);
+        send(res, err);
       } else if (results.rows.length) {
-        console.log(`Found ${location}`);
+        debug(`Found ${location}`);
         lats = [results.rows[0].lat];
         lons = [results.rows[0].lon];
         if (rect) {
@@ -73,30 +330,30 @@ const getLocation = (res, func) => {
         }
       } else {
         console.time(`Looking up ${location}`);
-        request(
-          {
-            url: `https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`,
-            json: true,
-            // headers: {referer: '128.192.142.200'}
-          },
-          (err, resp, body) => {
+        axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`)
+          .then(({ data }) => {
             console.timeEnd(`Looking up ${location}`);
             if (err) {
-              res.status(200).send(err);
+              debug({ trigger: 'Google Maps Geocode', location, err }, res, 400);
             } else {
               try {
-                const latlon = [];
-                let lat;
-                let lon;
-                const lat1 = body.results[0].geometry.viewport.northeast.lat;
-                const lon1 = body.results[0].geometry.viewport.northeast.lng;
-                const lat2 = body.results[0].geometry.viewport.southwest.lat;
-                const lon2 = body.results[0].geometry.viewport.southwest.lng;
+                // eslint-disable-next-line prefer-destructuring
+                const lat = data.results[0].geometry.location.lat;
+                const lon = data.results[0].geometry.location.lng;
+                const lat1 = data.results[0].geometry.viewport.northeast.lat;
+                const lon1 = data.results[0].geometry.viewport.northeast.lng;
+                const lat2 = data.results[0].geometry.viewport.southwest.lat;
+                const lon2 = data.results[0].geometry.viewport.southwest.lng;
 
-                for (const i in body.results[0].geometry.location) { // why can't I simply do body.results[0].geometry.location.lat ???
-                  latlon.push(body.results[0].geometry.location[i]);
-                }
-                [lat, lon] = latlon;
+                debug({
+                  location,
+                  lat,
+                  lon,
+                  lat1,
+                  lon1,
+                  lat2,
+                  lon2,
+                });
 
                 lats = [lat];
                 lons = [lon];
@@ -118,53 +375,64 @@ const getLocation = (res, func) => {
                   func(lats, lons);
                 }
               } catch (ee) {
-                console.error(ee.message);
+                debug(ee.message);
               }
             }
-          },
-        );
+          });
       }
     },
   );
 }; // getLocation
 
-const f = (s) => {
+/** ____________________________________________________________________________________________________________________________________
+ * Removes the leading whitespace indentation from a string.
+ *
+ * @param {string} s - The input string.
+ * @returns {string} - The string without leading whitespace indentation.
+ */
+const unindent = (s) => {
   const ind = ' '.repeat(s.search(/[^\s]/) - 1);
   const rep = s.replace(new RegExp(ind, 'g'), '');
 
   return rep;
-}; // f
+}; // unindent
 
+/** ____________________________________________________________________________________________________________________________________
+ * Processes a query and sends the results to the client in the requested format: csv, html, or json (default).
+ * Saves the query to the "hits" table, along with date, IP, and runtime.  This can be avoided using the "nosave" parameter.
+ * Saves the results to the "queries" table for faster retrieval of repeat queries. Deletes any older than 30 days.
+ * If the "explain" parameter exists, sends EXPLAIN details rather than executing the query.
+ *
+ * @function
+ * @param {Object} req - The HTTP request object.
+ * @param {Object} res - The HTTP response object.
+ * @param {string} sq - The SQL query to execute.
+ * @returns {undefined}
+ */
 const sendQuery = (req, res, sq) => {
-  let formatted;
-
-  try {
-    formatted = format(sq.replace(/::\w+/g, ''), {
-      language: 'postgresql',
-    });
-  } catch (ee) {
-    formatted = sq;
-  }
+  // pretty(sq);
 
   const process = (rows) => {
     if (!rows.length) {
-      res.send('No data found');
+      console.warn('No data found');
+      send(res, 'No data found');
       return;
     }
 
-    // prevent duplicate rows.  screws up LIMIT unfortunately
-    let lastJSON;
-    rows = rows.filter((row) => lastJSON != (lastJSON = JSON.stringify(row)));
+    // prevent duplicate rows. screws up LIMIT unfortunately. hopefully unnecessary
+    //   let lastJSON;
+    //   rows = rows.filter((row) => lastJSON !== (lastJSON = JSON.stringify(row)));
 
+    let s;
     switch (output ? output.toLowerCase() : 'json') {
       case 'csv':
         s = `${Object.keys(rows[0]).toString()}\n${
-          rows.map((r) => Object.keys(r).map((v, i, a) => r[v])).join('\n')}`;
+          rows.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
         // rows.map(r => Object.values(r).toString()).join('<br>');
 
         res.set('Content-Type', 'text/csv');
         res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
-        res.send(s);
+        send(res, s);
         break;
 
       case 'html':
@@ -183,25 +451,27 @@ const sendQuery = (req, res, sq) => {
                  <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
                </thead>
                <tbody>
-                 <tr>${rows.map((r) => `<td>${Object.keys(r).map((v, i, a) => r[v]).join('<td>')}`).join('<tr>')}</tr>
+                 <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
                </tbody>
              </table>
 
              <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
             `;
-        res.status(200).send(s);
+        send(res, s);
         break;
 
       default:
         if (req.query.explain) {
-          res.status(200).json({
+          res.json({
             query: sq.slice(8).trim(),
             rows,
           });
         } else if (req.callback) {
           req.callback(rows);
+        } else if (testing) {
+          send(res, 'SUCCESS');
         } else {
-          res.status(200).json(rows);
+          res.json(rows);
         }
     }
   }; // process
@@ -212,7 +482,7 @@ const sendQuery = (req, res, sq) => {
 
   pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
     if (err) {
-      console.error(err);
+      debug(err);
     } else if (!req.query.explain && results.rowCount) {
       process(results.rows[0].results);
       pool.query(`update weather.queries set date=now() where query='${qq}'`);
@@ -232,12 +502,9 @@ const sendQuery = (req, res, sq) => {
         sq = `explain ${sq}`;
       }
 
-      pool.query(sq, (err, results) => {
-        if (err) {
-          console.error(sq);
-          console.error(err);
-          console.error('_'.repeat(80));
-          res.status(500).send(err);
+      pool.query(sq, (error, results2) => {
+        if (error) {
+          debug({ sq, error }, res, 500);
           return;
         }
 
@@ -248,33 +515,25 @@ const sendQuery = (req, res, sq) => {
             || (req.query.end && new Date() - new Date(req.query.end) > 86400000)
           )
         ) {
-          const jr = JSON.stringify(results.rows);
-          const q = `insert into weather.queries (date, url, query, results) values (now(), '${req.originalUrl}', '${qq}', '${jr}')`;
-
-          pool.query(q, (err, results) => {
-            if (err) {
-              console.error('queries_error', err);
-            }
-          });
+          const jr = JSON.stringify(results2.rows);
+          pool.query(`insert into weather.queries (date, url, query, results) values (now(), '${req.originalUrl}', '${qq}', '${jr}')`);
         }
 
         if (!req.query.nosave) {
           const time = new Date() - startTime;
-          const hits = `insert into weather.hits
-                      (date, ip, query, ms)
-                      values (now(), '${ip}', '${req.url}', ${time})
-                     `;
+          const hits = `
+            insert into weather.hits (date, ip, query, ms)
+            values (now(), '${ip}', '${req.url}', ${time})
+          `;
           pool.query(hits);
         }
-        process(results.rows);
+        process(results2.rows);
       });
     }
   });
 }; // sendQuery
 
-const mround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
-
-const runQuery = (req, res, type, start, end, format, daily) => {
+const runQuery = (req, res, type, start, end, format2, daily) => {
   const query = (offset) => {
     let byx;
     let byy;
@@ -282,13 +541,13 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     const latlons = [];
 
     if (rect) {
-      byy = Math.max(0.125, 0.125 * (maxLat - minLat | 0));
-      byx = Math.max(0.125, 0.125 * (maxLon - minLon | 0));
+      byy = Math.max(0.125, 0.125 * Math.floor(maxLat - minLat));
+      byx = Math.max(0.125, 0.125 * Math.floor(maxLon - minLon));
 
       for (let y = minLat; y <= maxLat; y += byy) {
         for (let x = minLon; x <= maxLon; x += byx) {
-          rtables[`weather.${type}${Math.trunc(ygrid(y))}_${-Math.trunc(xgrid(x))}`] = true;
-          latlons.push(`'${+ygrid(y)}${+xgrid(x)}'`);
+          rtables[`weather.${type}${Math.trunc(NLDASlat(y))}_${-Math.trunc(NLDASlon(x))}`] = true;
+          latlons.push(`'${+NLDASlat(y)}${+NLDASlon(x)}'`);
         }
       }
       rtables = Object.keys(rtables);
@@ -298,232 +557,162 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     const cond = where ? ` and (${where})` : '';
     const dateCond = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
     const tables = rect ? rtables
-      .map((table, i) => f(`
-                               select lat as rlat, lon as rlon, *
-                               from (
-                                 ${years.map(
-    (year) => (type == 'ha_' ? `select * from ${table}` : `select * from ${table}_${year}`),
-  ).join(' union all ')
-}
-                               ) a
-                               where lat::text || lon in (${latlons}) and
-                                     date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
-                                     ${cond}
-                              `))
+      .map((table) => unindent(`
+        select lat as rlat, lon as rlon, *
+        from (
+          ${years.map((year) => (type === 'ha_' ? `select * from ${table}` : `select * from ${table}_${year}`)).join(' union all ')}
+        ) a
+        where lat::text || lon in (${latlons}) and
+              date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
+              ${cond}
+      `))
       .join(' union all\n')
       : lats
         .map((lat, i) => {
-          let mainTable = type == 'nldas_hourly_'
+          let mainTable = type === 'nldas_hourly_'
             ? years.map(
-              (year) => f(`
-                                                      select *, precipitation as nldas
-                                                      from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}_${year}
-                                                      where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
-                                                            ${dateCond}
-                                                  `),
+              (year) => unindent(`
+                select ${parms}, precipitation as nldas
+                from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
+                where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                      ${dateCond}
+              `),
             ).join(' union all ')
-            : f(`
-                                                  select *
-                                                  from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}
-                                                  where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
-                                                        ${dateCond}
-                                                 `);
+            : unindent(`
+              select *
+              from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
+              where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                    ${dateCond}
+            `);
 
-          if (type == 'nldas_hourly_' && (req.query.predicted == 'true' || options.includes('predicted'))) {
-            let dc = `date::timestamp + interval '${offset} seconds' between '${start}'::timestamp and '${end}'::timestamp`;
-            const years = [];
-
-            for (let i = +start.slice(0, 4); i <= +end.slice(0, 4) + 1; i++) {
-              years.push(i);
-            }
-
-            dc = `date::timestamp + interval '${offset} seconds' > '2099-10-10'`;
-
+          if (type === 'nldas_hourly_' && (req.query.predicted === 'true' || options.includes('predicted'))) {
             let maxdate = '';
             const year = new Date().getFullYear();
 
             if (mainTable) {
               mainTable += ' union all ';
-              maxdate = ` date > (
-                                              select max(date) from (
-                                                select date from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}_new union all
-                                                select date from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}_${year}
-                                              ) a
-                                            )
-                                            and
-                                          `;
+              maxdate = `
+                date > (
+                  select max(date) from (
+                    select date from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new union all
+                    select date from weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
+                  ) a
+                )
+                and
+              `;
             }
 
-            mainTable
-                                += years
-                .filter((year) => year !== 'new')
-                .map((year) => `
-                  select * from (
-                    select
-                      make_timestamp(${year},
-                      extract(month from date)::integer, extract(day from date)::integer, extract(hour from date)::integer, 0, 0) as date,
-                      lat, lon, air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed, longwave_radiation,
-                      convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation,
-                      null::boolean as frost, relative_humidity, wind_speed, precipitation as nldas,
-                      null::real as evp,
-                      null::real as weasd,
-                      null::real as snod,
-                      null::real as albdo,
-                      null::real as tsoil,
-                      null::real as veg,
-                      null::real as snom,
-                      null::real as nswrs,
-                      null::real as nlwrs,
-                      null::real as lhtfl,
-                      null::real as shtfl,
-                      null::real as avsft,
-                      null::real as gflux,
-                      null::real as asnow,
-                      null::real as arain,
-                      null::real as acond,
-                      null::real as ccond,
-                      null::real as lai,
-                      null::real as sbsno,
-                      null::real as evbs,
-                      null::real as evcw,
-                      null::real as dswrf,
-                      null::real as dlwrf,
-                      null::real as trans,
-                      null::real as cnwat,
-                      null::real as snohf,
-                      null::real as bgrun,
-                      null::real as ssrun,
-                      null::real as snowc,
-                      null::real as soilm1,
-                      null::real as soilm2,
-                      null::real as soilm3,
-                      null::real as soilm4,
-                      null::real as soilm5,
-                      null::real as soilm6,
-                      null::real as mstav1,
-                      null::real as mstav2
-                    from weather.ha_${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}
-                  ) a
-                  where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
-                        ${maxdate}
-                        ${dateCond}
-                `).join(' union all ');
-
-            // res.status(200).send(mainTable);
+            mainTable += range(+start.slice(0, 4), +end.slice(0, 4) + 1)
+              .map((y) => `
+                select ${parms}, precipitation as nldas from (
+                  select
+                    make_timestamp(${y},
+                    extract(month from date)::integer, extract(day from date)::integer, extract(hour from date)::integer, 0, 0) as date,
+                    ${parms.slice(1)},
+                    precipitation as nldas
+                  from weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
+                ) a
+                where
+                  lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                  ${maxdate}
+                  ${dateCond}
+              `).join(' union all ');
           }
 
           if (mrms && years.length) {
-            let mrmsTable;
-
-            mrmsTable = `
-                                (${years.map((year) => `
-                                    select * from weather.mrms_${Math.trunc(mround(lat))}_${-Math.trunc(mround(lons[i]))}_${year}
-                                    where lat = ${mround(lat)} and lon = ${mround(lons[i])} and ${dateCond}
-                                  `).join(' union all ')
+            const mrmsTable = `
+              (${years.map((year) => `
+                  select * from weather.mrms_${Math.trunc(MRMSround(lat))}_${-Math.trunc(MRMSround(lons[i]))}_${year}
+                  where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
+                `).join(' union all ')
 }
-  
-                                  union all
-  
-                                  select * from weather.mrms_${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}_new
-                                  where lat = ${mround(lat)} and lon = ${mround(lons[i])} and ${dateCond}
-  
-                                  union all
-  
-                                  select b.date, lat, lon, precipitation from weather.mrmsmissing a
-                                  left join (${mainTable}) b
-                                  on a.date = b.date
-                                  where lat=${ygrid(lat)} and lon=${xgrid(lons[i])}
-                                ) m
-                              `;
+                union all
+
+                select * from weather.mrms_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new
+                where lat = ${MRMSround(lat)} and lon = ${MRMSround(lons[i])} and ${dateCond}
+
+                union all
+
+                select b.date, lat, lon, precipitation from weather.mrmsmissing a
+                left join (${mainTable}) b
+                on a.date = b.date
+                where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])}
+              ) m
+            `;
 
             // originally select distinct:
-            return `
-                                select ${lat} as rlat, ${lons[i]} as rlon, *
-                                from (
-                                  select coalesce(a.date, b.date) as date,
-                                         coalesce(a.lat, b.lat) as lat,
-                                         coalesce(a.lon, b.lon) as lon,
-                                         air_temperature,
-                                         humidity,
-                                         relative_humidity,
-                                         pressure,
-                                         zonal_wind_speed,
-                                         meridional_wind_speed,
-                                         wind_speed,
-                                         longwave_radiation,
-                                         convective_precipitation,
-                                         potential_energy,
-                                         potential_evaporation,
-                                         shortwave_radiation,
-                                         coalesce(b.precipitation, 0) as precipitation,
-                                         nldas,
-                                         null as frost
-                                  from (
-                                    ${mainTable}
-                                  ) a
-                                  full join (
-                                    select * from ${mrmsTable}
-                                  ) b
-                                  on a.date = b.date
-                                ) alias1
-                                where ${dateCond}
-                                      ${cond}
-                              `;
-          } if (mpe) {
-            const mpeTable = `weather.mpe_hourly_${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))}`;
+            const sq2 = `
+              SELECT ${lat} AS rlat, ${lons[i]} AS rlon, *
+              FROM (
+                SELECT 
+                  COALESCE(a.date, b.date) AS date,
+                  COALESCE(a.lat, b.lat) AS lat,
+                  COALESCE(a.lon, b.lon) AS lon,
+                  air_temperature,
+                  humidity,
+                  relative_humidity,
+                  pressure,
+                  zonal_wind_speed,
+                  meridional_wind_speed,
+                  wind_speed,
+                  longwave_radiation,
+                  convective_precipitation,
+                  potential_energy,
+                  potential_evaporation,
+                  shortwave_radiation,
+                  coalesce(b.precipitation, 0) AS precipitation,
+                  nldas
+                FROM (
+                  ${mainTable}
+                ) a
+                FULL JOIN (
+                  SELECT * FROM ${mrmsTable}
+                ) b
+                ON a.date = b.date
+              ) alias1
+              WHERE
+                ${dateCond}
+                ${cond}
+            `;
 
-            return `select ${lat} as rlat, ${lons[i]} as rlon, *
-                                      from (
-                                        select a.*, mpe
-                                        from weather.${type}${Math.trunc(ygrid(lat))}_${-Math.trunc(xgrid(lons[i]))} a
-                                        left join (
-                                          select * from ${mpeTable}
-                                          where (lat, lon) in (
-                                            select lat, lon
-                                            from ${mpeTable}
-                                            where abs(lat - ${lat}) < 0.125 and abs(lon - ${lons[i]}) < 0.125
-                                            order by sqrt(power(lat - ${lat}, 2) + power(lon - ${lons[i]}, 2))
-                                            limit 1
-                                          )                                 
-                                        ) b
-                                        on a.date = b.date
-                                      ) alias1
-                                      where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
-                                            date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
-                                            ${cond}
-                                     `;
+            // pretty(sq2);
+            return sq2;
           }
-          return `select ${lat} as rlat, ${lons[i]} as rlon, *
-                                      from (${mainTable}) a
-                                      where lat=${ygrid(lat)} and lon=${xgrid(lons[i])} and
-                                            date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
-                                            ${cond}
-                                     `;
+          return `
+            select ${lat} as rlat, ${lons[i]} as rlon, *
+            from (${mainTable}) a
+            where lat=${NLDASlat(lat)} and lon=${NLDASlon(lons[i])} and
+                  date::timestamp + interval '${offset} seconds' between '${start}' and '${end}'
+                  ${cond}
+          `;
         })
         .join(' union all\n');
 
-    // if (req.query.predicted == 'true') {
-    //    res.status(200).send(tables.replace(/[\n\r]+/g, '<br>')); return;
+    // if (req.query.predicted === 'true') {
+    //    send(res, tables.replace(/[\n\r]+/g, '<br>')); return;
     // }
 
-    const order = req.query.order || `1 ${cols.split(/\s*,\s*/).includes('lat') ? ',lat' : ''} ${cols.split(/\s*,\s*/).includes('lon') ? ',lon' : ''}`;
+    const order = req.query.order
+      || `1 ${cols.split(/\s*,\s*/).includes('lat') ? ',lat' : ''} ${cols.split(/\s*,\s*/).includes('lon') ? ',lon' : ''}`;
 
     if (daily) {
-      sq = `select to_char(date::timestamp + interval '${offset} seconds', '${format}') as date,
-                   ${cols.replace(/\blat\b/, 'rlat as lat').replace(/\blon\b/, 'rlon as lon')}
-            from (
-              select date as GMT, *
-              from (${tables}) tables
-            ) a
-            group by to_char(date::timestamp + interval '${offset} seconds', '${format}'), rlat, rlon
-            order by ${order}
-           `;
+      sq = `
+        select to_char(date::timestamp + interval '${offset} seconds', '${format2}') as date,
+                ${cols.replace(/\blat\b/, 'rlat as lat').replace(/\blon\b/, 'rlon as lon')}
+        from (
+          select date as GMT, *
+          from (${tables}) tables
+        ) a
+        group by to_char(date::timestamp + interval '${offset} seconds', '${format2}'), rlat, rlon
+        order by ${order}
+      `;
     } else {
       let other = '';
-      const zgy = `replace(extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months'), '5', '6') as growingyear, `;
-      const gy = `(extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months')))::text || '-' ||
-                 (extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months')) + 1)::text
-                 as growingyear, `;
+      const gy = `
+        (extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months')))::text || '-' ||
+        (extract(year from (date::timestamp + interval '${offset} seconds' - interval '5 months')) + 1)::text
+        as growingyear, 
+      `;
 
       if (/\bdoy\b/.test(req.query.stats)) {
         other += `extract(doy from date::timestamp + interval '${offset} seconds') as doy, `;
@@ -549,135 +738,157 @@ const runQuery = (req, res, type, start, end, format, daily) => {
           .replace(/\bgrowingyear\b/g, gy);
       }
 
-      sq = `select ${other} to_char(date::timestamp + interval '${offset} seconds', '${format}') as date,
-                   ${cols.replace(/\blat\b/, 'rlat as lat').replace(/\blon\b/, 'rlon as lon')}
-            from (
-              select date as GMT, *
-              from (${tables}) tables
-            ) a
-            order by ${order}
-           `;
+      sq = `
+        select
+          ${other} to_char(date::timestamp + interval '${offset} seconds', '${format2}') as date,
+          ${cols.replace(/\blat\b/, 'rlat as lat').replace(/\blon\b/, 'rlon as lon')}
+        from (
+          select date as GMT, *
+          from (${tables}) tables
+        ) a
+        order by ${order}
+      `;
     }
 
     if (stats) {
-      sq = `select ${group ? `${group}, ` : ''} ${stats}
-            from (
-              ${sq}
-            ) alias
-            ${group ? `group by ${group}` : ''}
-           `;
+      sq = `
+        select ${group ? `${group}, ` : ''} ${stats}
+        from (
+          ${sq}
+        ) alias
+        ${group ? `group by ${group}` : ''}
+      `;
     }
 
     if (req.query.gaws) {
       attr = (req.query.attr || '').split(',');
-      sq = f(`
-             select *
-             from (
-               ${sq}
-             ) a
-             left join (
-               select ${attr.includes('air_temperature')
-    ? `min_air_temperature as ws_min_air_temperature,
-                           max_air_temperature as ws_max_air_temperature,
-                           avg_air_temperature as ws_avg_air_temperature,`
-    : ''
-}
-                      ${attr.includes('soil_temperature')
-    ? `min_soil_temperature_10cm as ws_min_soil_temperature,
-                           max_soil_temperature_10cm as ws_max_soil_temperature,
-                           avg_soil_temperature_10cm as ws_avg_soil_temperature,`
-    : ''
-}
-                      ${attr.includes('soil_temperature')
-    ? `min_water_temp as ws_min_water_temperature,
-                           max_water_temp as ws_max_water_temperature,
-                           avg_water_temp as ws_avg_water_temperature,`
-    : ''
-}
-                      ${attr.includes('pressure')
-    ? `min_atmospheric_pressure as ws_min_pressure,
-                           max_atmospheric_pressure as ws_max_pressure,
-                           avg_atmospheric_pressure as ws_avg_pressure,`
-    : ''
-}
-                      ${attr.includes('relative_humidity')
-    ? `min_humidity / 100 as ws_min_relative_humidity,
-                           max_humidity / 100 as ws_max_relative_humidity,
-                           avg_humidity / 100 as ws_avg_relative_humidity,`
-    : ''
-}
-                      ${attr.includes('dewpoint')
-    ? `min_dewpoint as ws_min_dewpoint,
-                           max_dewpoint as ws_max_dewpoint,
-                           avg_dewpoint as ws_avg_dewpoint,`
-    : ''
-}
-                      ${attr.includes('vapor_pressure')
-    ? `min_vapor_pressure as ws_min_vapor_pressure,
-                           max_vapor_pressure as ws_max_vapor_pressure,
-                           avg_vapor_pressure as ws_avg_vapor_pressure,`
-    : ''
-}
-                      date
-               from weather.stationdata
-               where site=${req.query.gaws}
-             ) b
-             on a.date::date = b.date::date
-           `);
+      sq = unindent(`
+        select *
+        from (
+          ${sq}
+        ) a
+        left join (
+          select
+            ${attr.includes('air_temperature') ? `
+              min_air_temperature as ws_min_air_temperature,
+              max_air_temperature as ws_max_air_temperature,
+              avg_air_temperature as ws_avg_air_temperature,
+            ` : ''}
+            ${attr.includes('soil_temperature') ? `
+              min_soil_temperature_10cm as ws_min_soil_temperature,
+              max_soil_temperature_10cm as ws_max_soil_temperature,
+              avg_soil_temperature_10cm as ws_avg_soil_temperature,
+            ` : ''}
+            ${attr.includes('soil_temperature') ? `
+              min_water_temp as ws_min_water_temperature,
+              max_water_temp as ws_max_water_temperature,
+              avg_water_temp as ws_avg_water_temperature,
+            ` : ''}
+            ${attr.includes('pressure') ? `
+              min_atmospheric_pressure as ws_min_pressure,
+              max_atmospheric_pressure as ws_max_pressure,
+              avg_atmospheric_pressure as ws_avg_pressure,
+            ` : ''}
+            ${attr.includes('relative_humidity') ? `
+              min_humidity / 100 as ws_min_relative_humidity,
+              max_humidity / 100 as ws_max_relative_humidity,
+              avg_humidity / 100 as ws_avg_relative_humidity,
+            ` : ''}
+            ${attr.includes('dewpoint') ? `
+              min_dewpoint as ws_min_dewpoint,
+              max_dewpoint as ws_max_dewpoint,
+              avg_dewpoint as ws_avg_dewpoint,
+            ` : ''}
+            ${attr.includes('vapor_pressure') ? `
+              min_vapor_pressure as ws_min_vapor_pressure,
+              max_vapor_pressure as ws_max_vapor_pressure,
+              avg_vapor_pressure as ws_avg_vapor_pressure,
+            ` : ''}
+            date
+          from weather.stationdata
+          where site=${req.query.gaws}
+        ) b
+        on a.date::date = b.date::date
+      `);
     }
 
     if (req.query.limit) {
       sq = `select * from (${sq}) a limit ${req.query.limit} offset ${req.query.offset}`;
     }
 
-    // console.error(sq);
     sendQuery(req, res, sq);
   }; // query
 
-  const lookup = () => {
+  const getTimeZone = () => {
     if (options.includes('gmt') || options.includes('utc')) {
       return query(0);
     }
     pool.query(
       `select * from weather.timezone
-         where lat=${ygrid(lats[0])} and lon=${xgrid(lons[0])}
-        `,
+       where lat=${NLDASlat(lats[0])} and lon=${NLDASlon(lons[0])}
+      `,
       (err, results) => {
-        try {
-          if (err) {
-            res.status(200).send(err);
-          } else if (results.rows.length) {
-            return query(results.rows[0].rawoffset);
-          } else {
-            console.time('Getting timezone');
-            request(
-              {
-                url: `https://maps.googleapis.com/maps/api/timezone/json?location=${ygrid(lats[0])},${xgrid(lons[0])}&timestamp=0&key=${googleAPIKey}`,
-                json: true,
-              },
-              (err, resp, body) => {
-                console.timeEnd('Getting timezone');
-                try {
-                  pool.query(`insert into weather.timezone
-                                (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
-                                values (${ygrid(lats[0])}, ${xgrid(lons[0])}, ${body.dstOffset}, ${body.rawOffset}, '${body.timeZoneId}', '${body.timeZoneName}')
-                               `);
-                  return query(body.rawOffset);
-                } catch (ee) {
-                  res.status(200).send('error');
-                }
-              },
-            );
-          }
-        } catch (ee) {
-          console.error(`lookup error: ${ee.message}`);
+        if (err) {
+          debug({
+            trigger: 'timezone', lat: lats[0], lon: lons[0], err,
+          }, res, 400);
+          return false;
         }
+
+        if (results.rows.length) {
+          return query(results.rows[0].rawoffset);
+        }
+
+        console.time('Getting timezone');
+        axios.get(
+          `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(lats[0])},${NLDASlon(lons[0])}&timestamp=0&key=${googleAPIKey}`,
+        )
+          .then(({ data }) => {
+            console.timeEnd('Getting timezone');
+            console.log(data);
+            if (data.status === 'ZERO_RESULTS') { // Google API can't determine timezone for some locations over water, such as (28, -76)
+              return query(0);
+            }
+
+            pool.query(`
+              insert into weather.timezone (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
+              values (${NLDASlat(lats[0])}, ${NLDASlon(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}')
+            `);
+
+            return query(data.rawOffset);
+          })
+          .catch((error) => {
+            debug(
+              {
+                trigger: 'Google API timezone',
+                lat: lats[0],
+                lon: lons[0],
+                error,
+              },
+              res,
+              500,
+            );
+          });
+
+        return false;
       },
     );
-  }; // lookup
 
+    return false;
+  }; // getTimeZone
+
+  /**
+   * Cleans a string by removing specific characters and forbidden keywords.
+   * @param {string} s - The string to clean.
+   * @returns {string} The cleaned string or 'ERROR' if forbidden keywords are found.
+   */
   const clean = (s) => {
-    const t = decodeURI(s).replace(/["()+\-*/<>,= 0-9\.]|doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd|meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|frost|gdd/ig, '');
+    const t = decodeURI(s)
+      .replace(/["()+\-*/<>,= 0-9.]/ig, '')
+      .replace(/doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not/ig, '')
+      .replace(/between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd/ig, '')
+      .replace(/meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|/ig, '')
+      .replace(/potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd/ig, '');
 
     if (t) {
       console.error('*'.repeat(80));
@@ -688,6 +899,12 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     return s;
   }; // clean
 
+  /**
+   * Fixes column names by replacing specific abbreviations with full column names.
+   * @param {string} col - The column name to fix.
+   * @param {boolean} [alias=false] - Determines if column aliases should be included.
+   * @returns {string} The fixed column name with optional aliases.
+   */
   const fix = (col, alias) => col.replace(/\btmp\b/i, `air_temperature${alias ? ' as TMP' : ''}`)
     .replace(/\bspfh\b/i, `humidity${alias ? ' as SPFH' : ''}`)
     .replace(/\bpres\b/i, `pressure${alias ? ' as PRES' : ''}`)
@@ -700,33 +917,67 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     .replace(/\bapcp\b/i, `precipitation${alias ? ' as APCP' : ''}`)
     .replace(/\bdswrf\b/i, `shortwave_radiation${alias ? ' as DSWRF' : ''}`); // fix
 
+  /**
+   * Generates SQL aggregation functions for statistical calculations on a given parameter.
+   *
+   * @param {string} parm - The parameter for which to generate the statistics.
+   * @returns {string} - The SQL aggregation functions for minimum, maximum, and average of the parameter.
+   */
+  const statistics = (parm) => {
+    parm = parm.padEnd(25);
+    return `min(${parm}) as min_${parm}, max(${parm}) as max_${parm}, avg(${parm}) as avg_${parm}`;
+  }; // statistics
+
+  /**
+   * Generates an SQL aggregation function to calculate the sum of a given parameter.
+   *
+   * @param {string} parm - The parameter for which to generate the sum.
+   * @returns {string} - The SQL aggregation function for the sum of the parameter.
+   */
+  const sum = (parm) => {
+    parm = parm.padEnd(25);
+    return `sum(${parm}) as ${parm}`;
+  }; // sum
+
+  /**
+   * Determines the columns to be selected in the database query based on the provided parameters.
+   */
   const getColumns = () => {
     if (daily) {
       if (attr) {
         cols = attr.toLowerCase()
           .replace(/,?gdd/g, '') // included automatically if req.query.gddbase
           .split(',')
-          .map((col) => (/^(lat|lon)$/.test(col) ? col
-            : /mrms|precipitation|radiation|potential/.test(col)
-              ? `sum(${fix(col, false)}) as ${col}`
-              : `min(${fix(col, false)}) as min_${col}, max(${fix(col, false)}) as max_${col}, avg(${fix(col, false)}) as avg_${col}`))
+          .map((col) => {
+            if (/^(lat|lon)$/.test(col)) {
+              return col;
+            }
+
+            if (/mrms|precipitation|radiation|potential/.test(col)) {
+              return `sum(${fix(col, false)}) as ${col}`;
+            }
+
+            return `min(${fix(col, false)}) as min_${col}, max(${fix(col, false)}) as max_${col}, avg(${fix(col, false)}) as avg_${col}`;
+          })
           .join(',');
       } else {
-        cols = `lat, lon,
-                sum(precipitation)            as precipitation,
-                sum(longwave_radiation)       as longwave_radiation,
-                sum(shortwave_radiation)      as shortwave_radiation,
-                sum(potential_energy)         as potential_energy,
-                sum(potential_evaporation)    as potential_evaporation,
-                sum(convective_precipitation) as convective_precipitation,
-                min(air_temperature)          as min_air_temperature,          max(air_temperature)          as max_air_temperature,          avg(air_temperature)          as avg_air_temperature,
-                min(humidity)                 as min_humidity,                 max(humidity)                 as max_humidity,                 avg(humidity)                 as avg_humidity,
-                min(relative_humidity)        as min_relative_humidity,        max(relative_humidity)        as max_relative_humidity,        avg(relative_humidity)        as avg_relative_humidity,
-                min(pressure)                 as min_pressure,                 max(pressure)                 as max_pressure,                 avg(pressure)                 as avg_pressure,
-                min(zonal_wind_speed)         as min_zonal_wind_speed,         max(zonal_wind_speed)         as max_zonal_wind_speed,         avg(zonal_wind_speed)         as avg_zonal_wind_speed,
-                min(meridional_wind_speed)    as min_meridional_wind_speed,    max(meridional_wind_speed)    as max_meridional_wind_speed,    avg(meridional_wind_speed)    as avg_meridional_wind_speed,
-                min(wind_speed)               as min_wind_speed,               max(wind_speed)               as max_wind_speed,               avg(wind_speed)               as avg_wind_speed
-               `;
+        cols = `
+          lat, lon,
+          ${sum('precipitation')},
+          ${sum('longwave_radiation')},
+          ${sum('shortwave_radiation')},
+          ${sum('potential_energy')},
+          ${sum('potential_evaporation')},
+          ${sum('convective_precipitation')},
+          ${statistics('air_temperature')},
+          ${statistics('humidity')},
+          ${statistics('relative_humidity')},
+          ${statistics('pressure')},
+          ${statistics('zonal_wind_speed')},
+          ${statistics('meridional_wind_speed')},
+          ${statistics('wind_speed')}
+        `;
+        console.log(cols);
       }
       const { gddbase } = req.query;
       if (gddbase) {
@@ -734,12 +985,13 @@ const runQuery = (req, res, type, start, end, format, daily) => {
         const maxtemp = req.query.gddmax || 999;
 
         cols += `,
-          greatest(0, (least(${maxtemp}, max(air_temperature)) + greatest(${mintemp}, least(${maxtemp}, min(air_temperature)))) / 2 - ${gddbase}) as gdd
+          greatest(0, (
+            least(${maxtemp}, max(air_temperature)) + greatest(${mintemp}, least(${maxtemp}, min(air_temperature)))) / 2 - ${gddbase}
+          ) as gdd
         `;
       }
     } else {
-      cols = attr ? fix(attr, true)
-        : 'lat, lon, air_temperature, humidity, relative_humidity, pressure, zonal_wind_speed, meridional_wind_speed, wind_speed, longwave_radiation, convective_precipitation, potential_energy, potential_evaporation, precipitation, shortwave_radiation, frost';
+      cols = attr ? fix(attr, true) : parms.slice(1).join(', ');
 
       if (/averages|daily/.test(req.url)) {
         cols = cols.replace(', frost', '');
@@ -747,19 +999,18 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     }
   }; // getColumns
 
-  let attr = (req.query.attributes || req.query.attr || '').replace(/(soil_temperature|water_temperature|dewpoint|vapor_pressure),?/g, '').replace(/,$/, '');
-  let mpe = /\bmpe\b/i.test(attr);
-  let mrms = /hourly|daily/.test(req.url) && !/nomrms/.test(options);
+  attr = (req.query.attributes || req.query.attr || '')
+    .replace(/(soil_temperature|water_temperature|dewpoint|vapor_pressure),?/g, '')
+    .replace(/,$/, '');
   // const year1 = Math.max(+start.slice(0, 4), 2015);
   const year1 = Math.max(+start.slice(0, 4), 2005);
   const year2 = Math.min(+end.slice(0, 4), new Date().getFullYear());
-  let years = [];
-  let { group } = req.query;
-  let where = req.query.where
+  group = req.query.group;
+  where = req.query.where
     ? clean(fix(req.query.where))
       .replace(/month/g, 'extract(month from date)')
     : '';
-  let stats = req.query.stats
+  stats = req.query.stats
     ? clean(fix(req.query.stats.replace(/[^,]+/g, (s) => `${s} as "${s}"`)))
     : '';
 
@@ -767,64 +1018,66 @@ const runQuery = (req, res, type, start, end, format, daily) => {
     attr = attr.replace(/, *frost/, '').replace(/, *nldas/, '');
   }
 
-  for (let i = year1; i <= Math.min(year2 + 1, new Date().getFullYear()); i++) {
-    years.push(i);
-  }
+  years = range(year1, Math.min(year2 + 1, new Date().getFullYear()));
 
-  if (year2 == new Date().getFullYear()) {
+  if (year2 === new Date().getFullYear()) {
     years.push('new');
   }
+
+  mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options);
 
   getColumns();
 
   if (location) {
-    getLocation(res, lookup);
+    getLocation(res, getTimeZone);
   } else {
-    lats = (req.query.lat || '').split(',');
-    lons = (req.query.lon || '').split(',');
-    if (rect && lats.length == 2) {
+    lats = (req.query.lat.toString() || '').split(',');
+    lons = (req.query.lon.toString() || '').split(',');
+    if (rect && lats.length === 2) {
       minLat = Math.min(...lats);
       maxLat = Math.max(...lats);
       minLon = Math.min(...lons);
       maxLon = Math.max(...lons);
     }
-    lookup();
+    getTimeZone();
   }
 }; // runQuery
 
-const getHourly = (req, res) => {
+const routeHourly = (req = testRequest, res = testResponse) => {
   const start = req.query.start || '2000-01-01';
   const end = req.query.end ? req.query.end + (/:/.test(req.query.end) ? '' : ' 23:59')
     : '2099-12-31 23:59';
 
-  init(req);
-  runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD HH24:MI');
-}; // getHourly
+  req.url = req.url || 'hourly'; // in case testing
 
-const getDaily = (req, res) => {
+  runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD HH24:MI');
+}; // routeHourly
+
+const routeDaily = (req = testRequest, res = testResponse) => {
   const start = req.query.start || '2000-01-01';
   const end = req.query.end ? `${req.query.end} 23:59` : '2099-12-31 23:59';
 
-  init(req);
+  req.url = req.url || 'daily'; // in case testing
 
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD', true);
-}; // getDaily
+}; // routeDaily
 
-const getAverages = (req, res) => {
+const routeAverages = (req = testRequest, res = testResponse) => {
   let start = req.query.start || '01-01';
   let end = req.query.end ? `${req.query.end} 23:59` : '12-31 23:59';
 
-  init(req);
-  if (start.split('-').length == 3) { // drop year
+  req.url = req.url || 'averages'; // in case testing
+
+  if (start.split('-').length === 3) { // drop year
     start = start.slice(start.indexOf('-') + 1);
   }
 
-  if (end.split('-').length == 3) { // drop year
+  if (end.split('-').length === 3) { // drop year
     end = end.slice(end.indexOf('-') + 1);
   }
 
   runQuery(req, res, 'ha_', `2099-${start}`, `2099-${end}`, 'MM-DD HH24:MI');
-}; // getAverages
+}; // routeAverages
 
 const queryJSON = (req, res, sq) => {
   pool.query(
@@ -834,28 +1087,29 @@ const queryJSON = (req, res, sq) => {
     `,
     (err, results) => {
       if (err) {
-        console.error(err);
-        res.status(500).send(err);
+        debug(err, res, 500);
+      } else if (testing) {
+        send(res, 'SUCCESS');
       } else {
-        res.status(200).json(results.rows);
+        res.json(results.rows);
       }
     },
   );
 }; // queryJSON
 
-const GAWeatherStations = (req, res) => {
+const routeGAWeatherStations = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, 'select * from weather.stations order by County');
-}; // GAWeatherStations
+}; // routeGAWeatherStations
 
-const addresses = (req, res) => {
+const routeAddresses = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, 'select * from weather.addresses order by address');
-}; // addresses
+}; // routeAddresses
 
-const indexes = (req, res) => {
+const routeIndexes = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, 'select * from pg_indexes where tablename not like \'pg%\' order by indexname');
-}; // indexes
+}; // routeIndexes
 
-const tables = (req, res) => {
+const routeTables = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, `
     select table_name as table, reltuples as rows from (
       select * from information_schema.tables
@@ -866,9 +1120,9 @@ const tables = (req, res) => {
     where reltuples > 0
     order by table_name
   `);
-}; // tables
+}; // routeTables
 
-const counttablesrows = (req, res) => {
+const routeCountTablesRows = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, `
     select
       count(*) as tables,
@@ -881,36 +1135,37 @@ const counttablesrows = (req, res) => {
     on a.table_name = b.relname
     where reltuples > 0    
   `);
-}; // counttablesrows
+}; // routeCountTablesRows
 
-const countindexes = (req, res) => {
+const routeCountIndexes = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, `
     select count(*) as indexes
     from pg_indexes
     where schemaname = 'weather'
   `);
-}; // countindexes
+}; // routeCountIndexes
 
-const databasesize = (req, res) => {
+const routeDatabasesize = (req = testRequest, res = testResponse) => {
   queryJSON(req, res, `
     select pg_size_pretty(pg_database_size('postgres')) as size
   `);
-}; // databasesize
+}; // routeDatabasesize
 
-const hits = (req, res) => {
+const routeHits = (req = testRequest, res = testResponse) => {
   queryJSON(
     req,
     res,
     `
      select * from weather.hits
-     where query not like '%explain%' and query not like '%nvm%' and
-           (date > current_date - 1 or (ip <> '::ffff:172.18.186.142' and query not like '%25172.18.186%25'))
+     where
+       query not like '%explain%' and query not like '%nvm%' and
+       (date > current_date - 1 or (ip <> '::ffff:172.18.186.142' and query not like '%25172.18.186%25'))
      order by date desc
     `,
   );
-}; // hits
+}; // routeHits
 
-const mvm = (req, res) => {
+const routeMvm = (req = testRequest, res = testResponse) => {
   const sq = `
     select a.sum - b.sum as delta,
            a.lat as alat, a.lon as alon, a.sum as asum,
@@ -931,14 +1186,21 @@ const mvm = (req, res) => {
 
   pool.query(sq, (err, results) => {
     if (err) {
-      res.status(200).send(`ERROR:<br>${sq.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+      send(res, `ERROR:<br>${sq.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+    } else if (testing) {
+      send(res, 'SUCCESS');
     } else {
-      res.status(200).send(JSON.stringify(results.rows));
+      send(res, JSON.stringify(results.rows));
     }
   });
-}; // mvm
+}; // routeMvm
 
-const nvm = (req, res) => {
+const routeNvm = (req = testRequest, res = testResponse) => {
+  let mlat;
+  let mlon;
+  let nlat;
+  let nlon;
+
   const NVMprocess = () => {
     const sq1 = `select b.year as "Year", coalesce(round(a.total), 0) as "MRMS<br>precipitation", round(b.totalz) as "NLDAS<br>precipitation" from (
                 select to_char(date, 'yyyy') as year, sum(precipitation) as total from (
@@ -1024,42 +1286,48 @@ const nvm = (req, res) => {
               order by 1
              `;
 
-    if (req.query.explain) {
-      sql = `explain ${sql}`;
-    }
-
     pool.query(sq1, (err, results) => {
-      const data = (results) => `<table id="Data">
-           <thead>
-             <tr><th>${Object.keys(results.rows[0]).join('<th>')}<th>RPD</tr>
-           </thead>
-           <tbody>
-             <tr>${
-  results.rows.map((r) => {
-    const m = r['MRMS<br>precipitation'];
-    const n = r['NLDAS<br>precipitation'];
-    const rpd = Math.round(Math.abs(m - n) / ((m + n) / 2) * 100) || 0;
-    const style = Math.abs(m - n) > 50.8 && rpd > 50 ? 'background: red; color: white; font-weight: bold;'
-      : Math.abs(m - n) > 50.8 && rpd > 35 ? 'background: orange'
-        : Math.abs(m - n) > 50.8 && rpd > 20 ? 'background: yellow'
-          : '';
+      const data = (results2) => {
+        const rows = results2.rows.map((r) => {
+          const m = r['MRMS<br>precipitation'];
+          const n = r['NLDAS<br>precipitation'];
+          const rpd = Math.round((Math.abs(m - n) / ((m + n) / 2)) * 100) || 0;
 
-    return `<td>${
-      Object.keys(r).map((v) => r[v]).join('<td>')
-    }<td style="${style}">${rpd}`;
-  }).join('<tr>')
-}
-             </tr>
-           </tbody>
-         </table>
+          let style = '';
+          if (Math.abs(m - n) > 50.8) {
+            if (rpd > 50) {
+              style = 'background: red; color: white; font-weight: bold;';
+            } else if (rpd > 35) {
+              style = 'background: orange;';
+            } else if (rpd > 20) {
+              style = 'background: yellow;';
+            }
+          }
+
+          return `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}<td style="${style}">${rpd}`;
+        }).join('<tr>');
+
+        return `
+          <table id="Data">
+            <thead>
+              <tr><th>${Object.keys(results2.rows[0]).join('<th>')}<th>RPD</tr>
+            </thead>
+            <tbody>
+              <tr>
+                ${rows}
+              </tr>
+            </tbody>
+          </table>
         `;
+      }; // data
 
-      let s = `<link rel="stylesheet" href="/css/weather.css">
-               <style>th {width: 10em;}</style>
-              `;
+      let s = `
+        <link rel="stylesheet" href="/css/weather.css">
+        <style>th {width: 10em;}</style>
+      `;
 
       if (err) {
-        res.status(200).send(`ERROR:<br>${sq1.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+        send(res, `ERROR:<br>${sq1.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
         return;
       }
       s += `${data(results)}<hr>`;
@@ -1068,46 +1336,45 @@ const nvm = (req, res) => {
         sq2 = `explain ${sq2}`;
       }
 
-      pool.query(sq2, (err, results) => {
-        if (err) {
-          res.status(200).send(`ERROR:<br>${sq2.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+      pool.query(sq2, (e, results2) => {
+        if (e) {
+          send(res, `ERROR:<br>${sq2.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+        } else if (testing) {
+          send(res, 'SUCCESS');
         } else {
-          s += data(results);
-          res.status(200).send(s);
+          s += data(results2);
+          send(res, s);
         }
       });
     });
   }; // NVMprocess
 
-  let mlat;
-  let mlon;
-  let nlat;
-  let nlon;
-
-  init(req);
-
   if (location) {
-    getLocation(res, (lats, lons) => {
-      mlat = mround(lats);
-      mlon = mround(lons);
-      nlat = ygrid(lats);
-      nlon = xgrid(lons);
+    getLocation(res, (rlats, rlons) => {
+      mlat = MRMSround(rlats);
+      mlon = MRMSround(rlons);
+      nlat = NLDASlat(rlats);
+      nlon = NLDASlon(rlons);
 
       NVMprocess();
     });
   } else {
-    mlat = mround(req.query.lat);
-    mlon = mround(req.query.lon);
-    nlat = ygrid(req.query.lat);
-    nlon = xgrid(req.query.lon);
+    mlat = MRMSround(req.query.lat);
+    mlon = MRMSround(req.query.lon);
+    nlat = NLDASlat(req.query.lat);
+    nlon = NLDASlon(req.query.lon);
 
     NVMprocess();
   }
-}; // nvm
+}; // routeNvm
 
-const nvm2 = (req, res) => {
+const routeNvm2 = (req = testRequest, res = testResponse) => {
+  const lat = Math.round(req.query.lat);
+  const lon = Math.round(req.query.lon);
+  const { year } = req.query;
+
   try {
-    const runQuery = () => {
+    const runNvmQuery = () => {
       const sq = `select n.date, n.lat, n.lon, nldas, coalesce(mrms, 0) as mrms from (
                   select date, lat, lon, precipitation as nldas from weather.nldas_hourly_${lat}_${-lon}_${year}
                   where (lat, lon) in (
@@ -1163,107 +1430,107 @@ const nvm2 = (req, res) => {
         `,
         (err, results) => {
           if (err) {
-            res.status(200).send(err);
+            send(res, err);
           } else {
             try {
-              s = `<link rel="stylesheet" href="css/weather.css">
-                   <link rel="stylesheet" href="//aesl.ces.uga.edu/weatherapp/src/nvm2.css">
-                   <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
-                   <script src="https://aesl.ces.uga.edu/scripts/jqLibrary.js"></script>
-                   <script src="https://aesl.ces.uga.edu/weatherapp/src/nvm2.js"></script>
-                   <script>let monthly = ${JSON.stringify(results.rows)};</script>
-                   <div id="Data"></div>
-                  `;
+              let s = `
+                <link rel="stylesheet" href="css/weather.css">
+                <link rel="stylesheet" href="//aesl.ces.uga.edu/weatherapp/src/nvm2.css">
+                <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
+                <script src="https://aesl.ces.uga.edu/scripts/jqLibrary.js"></script>
+                <script src="https://aesl.ces.uga.edu/weatherapp/src/nvm2.js"></script>
+                <script>let monthly = ${JSON.stringify(results.rows)};</script>
+                <div id="Data"></div>
+               `;
 
               pool.query(
-                `select to_char(date, 'yyyy-mm-dd HH:00') as "Date", lat as "Lat", lon as "Lon",
-                        round(nldas) as "NLDAS",
-                        round(mrms)  as "MRMS",
-                        round(mrms - nldas) as "&Delta;"
+                `select
+                   to_char(date, 'yyyy-mm-dd HH:00') as "Date", lat as "Lat", lon as "Lon",
+                   round(nldas) as "NLDAS",
+                   round(mrms)  as "MRMS",
+                   round(mrms - nldas) as "&Delta;"
                  from (
                    ${sq}
                  ) alias
                  where abs(mrms - nldas) > 13
                 `,
-                (err, results) => {
-                  if (err || !results) {
-                    res.status(200).send(err);
+                (e, results2) => {
+                  if (e || !results2) {
+                    send(res, e);
                   } else {
                     try {
-                      if (results.rowCount) {
-                        s += `<hr>
-                             <table id="Flags">
-                               <thead>
-                                 <tr><th>${Object.keys(results.rows[0]).join('<th>')}
-                               </thead>
-                               <tbody>
-                                 <tr>${
-  results.rows.map((r) => Object.keys(r).map((v) => `<td>${r[v]}`).join('')).join('<tr>')
-}
-                                 </tr>
-                               </tbody>
-                             </table>
-                             <hr>
-                            `;
+                      if (results2.rowCount) {
+                        s += `
+                          <hr>
+                          <table id="Flags">
+                            <thead>
+                              <tr><th>${Object.keys(results2.rows[0]).join('<th>')}
+                            </thead>
+                            <tbody>
+                              <tr>
+                                ${results2.rows.map((r) => Object.keys(r).map((v) => `<td>${r[v]}`).join('')).join('<tr>')}
+                              </tr>
+                            </tbody>
+                          </table>
+                          <hr>
+                        `;
                       }
 
-                      pool.query(
-                        `insert into weather.nvm2 (lat, lon, year, data)
-                       values (${lat}, ${lon}, ${year}, '${s.replace(/ /g, ' ').trim()}')
-                      `,
-                      );
+                      pool.query(`
+                        insert into weather.nvm2 (lat, lon, year, data)
+                        values (${lat}, ${lon}, ${year}, '${s.replace(/ /g, ' ').trim()}')
+                      `);
 
-                      res.status(200).send(s);
-                    } catch (e) {
-                      res.status(200).send(e.message);
+                      send(res, s);
+                    } catch (error) {
+                      send(res, error.message);
                     }
                   }
                 },
               );
             } catch (ee) {
-              res.status(200).send(ee.message);
+              send(res, ee.message);
             }
           }
         },
       );
-    }; // runQuery
-
-    let lat = Math.round(req.query.lat);
-    let lon = Math.round(req.query.lon);
-    let { year } = req.query;
-    let s;
-
-    init(req);
+    }; // runNvmQuery
 
     pool.query(
       `select data from weather.nvm2 where lat = ${lat} and lon = ${lon} and year = ${year}`,
       (err, results) => {
         if (err) {
-          res.status(200).send(err);
+          send(res, err);
+        } else if (testing) {
+          send(res, 'SUCCESS');
         } else if (results.rowCount) {
-          res.status(200).send(results.rows[0].data);
+          send(res, results.rows[0].data);
         } else {
-          runQuery();
+          runNvmQuery();
         }
       },
     );
   } catch (ee) {
-    res.status(200).send(ee.message);
+    send(res, ee.message);
   }
-}; // nvm2
+}; // routeNvm2
 
-const nvm2Data = (req, res) => {
-  init(req);
-
+const routeNvm2Data = (req, res = testResponse) => {
   pool.query(
     'select distinct lat, lon, year from weather.nvm2',
     (err, results) => {
-      res.status(200).send(JSON.stringify(results.rows));
+      if (err) {
+        send(res, 'ERROR');
+      } else if (testing) {
+        send(res, 'SUCCESS');
+      } else {
+        send(res, JSON.stringify(results.rows));
+      }
     },
   );
-}; // nvm2Data
+}; // routeNvm2Data
 
-const nvm2Update = (req, res) => {
+const routeNvm2Update = (req, res) => {
   const sq = `
     update weather.nvm2
     set red = ${req.query.red},
@@ -1277,10 +1544,10 @@ const nvm2Update = (req, res) => {
   `;
 
   pool.query(sq);
-  res.status(200).send(sq);
-}; // nvm2Update
+  send(res, sq);
+}; // routeNvm2Update
 
-const nvm2Query = (req, res) => {
+const routeNvm2Query = (req = testRequest, res = testResponse) => {
   try {
     const sq = `select lat, lon from weather.nvm2
               where ${req.query.condition.replace(/select|insert|update|drop|delete/ig, '')}
@@ -1291,63 +1558,57 @@ const nvm2Query = (req, res) => {
       sq,
       (err, results) => {
         if (err) {
-          res.status(200).send(err);
+          send(res, err);
+        } else if (testing) {
+          send(res, 'SUCCESS');
         } else if (results.rowCount) {
-          res.status(200).send(JSON.stringify(results.rows));
+          send(res, JSON.stringify(results.rows));
         }
       },
     );
   } catch (ee) {
     console.error(ee.message);
   }
-}; // nvm2Query
+}; // routeNvm2Query
 
-const isMissing = (res, parms) => {
-  const error = [];
-
-  Object.keys(parms).forEach((key) => {
-    if (!parms[key]) {
-      error.push(key);
-    }
-  });
-
-  if (error.length) {
-    res.status(400).send({ ERROR: `Missing ${error}` });
-    return true;
-  }
-  return false;
-}; // isMissing
-
-const rosetta = (req, res) => {
+const routeRosetta = (req = testRequest, res = testResponse) => {
   axios.post(
     'https://www.handbook60.org/api/v1/rosetta/1',
     {
       soildata: req.body.soildata,
     },
   ).then((data) => {
-    res.send(data.data);
+    send(res, data.data);
   });
-}; // rosetta
+}; // routeRosetta
 
-const watershed = (req, res) => {
+const routeWatershed = (req = testRequest, res = testResponse) => {
   const query = (sq) => {
-    console.log(sq);
+    // pretty(sq);
     pool.query(
       sq,
-      (err, results) => {
-        if (err) {
-          res.status(500).send(err);
+      (error, results) => {
+        if (error) {
+          debug({ sq, error }, res, 500);
         } else if (results.rows.length) {
-          res.send(results.rows.map((row) => {
+          send(res, results.rows.map((row) => {
             delete row.geometry;
             return row;
           }));
         } else {
-          res.send({});
+          send(res, {});
         }
       },
     );
   }; // query
+
+  let attributes = req.query.attributes?.split(',')
+    .map((s) => (
+      s.trim()
+        .replace(/^name$/, 'huc12.name')
+        .replace(/huc(\d+)name/, (_, s2) => `huc${s2}.name as huc${s2}name`)
+        .replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
+    ));
 
   const latLon = () => {
     query(
@@ -1364,26 +1625,39 @@ const watershed = (req, res) => {
     );
   }; // latLon
 
-  init(req);
-
-  let attributes = req.query.attributes?.split(',')
-    .map((attr) => (
-      attr
-        .trim()
-        .replace(/^name$/, 'huc12.name')
-        .replace(/huc(\d+)name/, (_, s) => `huc${s}.name as huc${s}name`)
-        .replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
-    ));
-
   const { polygon } = req.query;
 
   const { state } = req.query;
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area, (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray, ST_AsText(geometry) as polygon';
+      attributes = `
+        huc12, huc12.name,
+        huc10, huc10.name as huc10name,
+        huc8, huc8.name as huc8name,
+        huc6, huc6.name as huc6name,
+        huc4, huc4.name as huc4name,
+        huc2, huc2.name as huc2name,
+        tnmid, metasourceid, sourcedatadesc, sourceoriginator, sourcefeatureid,
+        loaddate, referencegnis_ids, areaacres, areasqkm, states, hutype, humod,
+        tohuc, noncontributingareaacres, noncontributingareasqkm, globalid,
+        shape_Length, shape_Area,
+        (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,
+        ST_AsText(geometry) as polygon
+      `;
     } else {
-      attributes = 'huc12, huc12.name, huc10, huc10.name as huc10name, huc8, huc8.name as huc8name, huc6, huc6.name as huc6name, huc4, huc4.name as huc4name, huc2, huc2.name as huc2name,tnmid,metasourceid,sourcedatadesc,sourceoriginator,sourcefeatureid,loaddate,referencegnis_ids,areaacres,areasqkm,states,hutype,humod,tohuc,noncontributingareaacres,noncontributingareasqkm,globalid,shape_Length,shape_Area';
+      attributes = `
+        huc12, huc12.name,
+        huc10, huc10.name as huc10name,
+        huc8, huc8.name as huc8name,
+        huc6, huc6.name as huc6name,
+        huc4, huc4.name as huc4name,
+        huc2, huc2.name as huc2name,
+        tnmid, metasourceid, sourcedatadesc, sourceoriginator, sourcefeatureid,
+        loaddate, referencegnis_ids, areaacres, areasqkm, states, hutype, humod,
+        tohuc, noncontributingareaacres, noncontributingareasqkm, globalid,
+        shape_Length, shape_Area
+      `;
     }
   }
 
@@ -1426,23 +1700,31 @@ const watershed = (req, res) => {
     maxLon = Math.max(...lons);
     latLon();
   }
-}; // watershed
+}; // routeWatershed
 
-const mlra = (req, res) => {
+const routeMLRA = (req = testRequest, res = testResponse) => {
+  const polygon = safeQuery(req, 'polygon');
+  const mlra = safeQuery(req, 'mlra');
+
+  let attributes = req.query.attributes?.split(',')
+    .map((s) => (
+      s.trim().replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
+    ));
+
   const query = (sq) => {
-    console.log(sq);
+    // pretty(sq);
     pool.query(
       sq,
       (err, results) => {
         if (err) {
-          res.status(500).send(err);
+          debug(err, res, 500);
         } else if (results.rows.length) {
-          res.send(results.rows.map((row) => {
+          send(res, results.rows.map((row) => {
             delete row.geometry;
             return row;
           }));
         } else {
-          res.send({});
+          send(res, {});
         }
       },
     );
@@ -1479,23 +1761,15 @@ const mlra = (req, res) => {
     }
   }; // latLon
 
-  init(req);
-
-  let attributes = req.query.attributes?.split(',')
-    .map((attr) => (
-      attr
-        .trim()
-        .replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
-    ));
-
-  const { polygon } = req.query;
-  const { mlra } = req.query;
-
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'id,name,mlrarsym,lrrsym,lrrname,(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray, ST_AsText(geometry) as polygon';
+      attributes = `
+        id, name, mlrarsym, lrrsym, lrrname,
+        (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,
+        ST_AsText(geometry) as polygon
+      `;
     } else {
-      attributes = 'id,name,mlrarsym,lrrsym,lrrname';
+      attributes = 'id, name, mlrarsym, lrrsym, lrrname';
     }
   }
 
@@ -1510,27 +1784,33 @@ const mlra = (req, res) => {
     maxLon = Math.max(...lons);
     latLon();
   }
-}; // mlra
+}; // routeMLRA
 
-const county = (req, res) => {
+const routeCounty = (req = testRequest, res = testResponse) => {
   const query = (sq) => {
-    console.log(sq);
+    // pretty(sq);
     pool.query(
       sq,
       (err, results) => {
         if (err) {
-          res.status(500).send(err);
+          debug(err, res, 500);
         } else if (results.rows.length) {
-          res.send(results.rows.map((row) => {
+          send(res, results.rows.map((row) => {
             delete row.geometry;
             return row;
           }));
         } else {
-          res.send({});
+          send(res, {});
         }
       },
     );
   }; // query
+
+  let attributes = req.query.attributes?.split(',')
+    .map((s) => (
+      s.trim()
+        .replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
+    ));
 
   const latLon = () => {
     query(
@@ -1542,22 +1822,17 @@ const county = (req, res) => {
     );
   }; // latLon
 
-  init(req);
-
-  let attributes = req.query.attributes?.split(',')
-    .map((attr) => (
-      attr
-        .trim()
-        .replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
-    ));
-
   const { polygon } = req.query;
 
   if (!attributes) {
     if (polygon === 'true') {
-      attributes = 'county,state,state_code,countyfips,statefips,(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon';
+      attributes = `
+        county, state, state_code, countyfips, statefips,
+        (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,
+        ST_AsText(geometry) as polygon
+      `;
     } else {
-      attributes = 'county,state,state_code,countyfips,statefips';
+      attributes = 'county, state, state_code, countyfips, statefips';
     }
   }
 
@@ -1572,9 +1847,9 @@ const county = (req, res) => {
     maxLon = Math.max(...lons);
     latLon();
   }
-}; // county
+}; // routeCounty
 
-const countyspecies = (req, res) => {
+const routeCountySpecies = (req = testRequest, res = testResponse) => {
   const county = req.query.county || '%';
   const { state } = req.query;
 
@@ -1589,15 +1864,15 @@ const countyspecies = (req, res) => {
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
+        debug(err, res, 500);
       } else {
-        res.send(results.rows.map((row) => row.symbol));
+        send(res, results.rows.map((row) => row.symbol));
       }
     },
   );
-}; // countyspecies
+}; // routeCountySpecies
 
-const mlraspecies = (req, res) => {
+const routeMlraSpecies = (req = testRequest, res = testResponse) => {
   const { mlra } = req.query;
 
   const sq = `
@@ -1606,25 +1881,89 @@ const mlraspecies = (req, res) => {
       FROM mlra_species
     ) a
     INNER JOIN plants b
-    on plant_symbol=symbol
+    ON plant_symbol=symbol
+    INNER JOIN plants2 c
+    ON plant_symbol=c.symbol
+    LEFT JOIN plantfamily d
+    on family=d.family_name
     WHERE mlra='${mlra}';
+  `;
+
+  // pretty(sq);
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        debug(err, res, 500);
+      } else {
+        send(res, results.rows);
+      }
+    },
+  );
+}; // routeMlraSpecies
+
+const routeMlraSpecies2 = (req = testRequest, res = testResponse) => {
+  const { mlra } = req.query;
+
+  const sq = `
+    SELECT distinct * FROM (
+      SELECT plant_symbol, mlra
+      FROM mlra_species
+    ) a
+    INNER JOIN plants3 b
+    ON plant_symbol=symbol
+    LEFT JOIN plantfamily d
+    on value=d.family_name
+    WHERE mlra='${mlra}'
+    ORDER BY symbol;
+  `;
+
+  // pretty(sq);
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        debug(err, res, 500);
+      } else {
+        send(res, results.rows);
+      }
+    },
+  );
+}; // routeMlraSpecies2
+
+const routeMLRAErrors = (req, res = testResponse) => {
+  const sq = `
+    select * from (
+      select distinct mlrarsym as newmlra from mlra.mlra
+    ) a
+    full join (
+      select distinct mlra as oldmlra from mlra_lrr
+    ) b
+    on newmlra=oldmlra
+    where newmlra is null or oldmlra is null
   `;
 
   pool.query(
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
+        debug(err, res, 500);
       } else {
-        res.send(results.rows);
+        send(res, results.rows);
       }
     },
   );
-}; // mlraspecies
+}; // routeMLRAErrors
 
-const plants = (req, res) => {
-  console.log('here');
-  const symbols = req.query.symbol.split(',').map((s) => `'${s.toLowerCase()}'`);
+const routePlants = (req = testRequest, res = testResponse) => {
+  const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
+
+  if (!symbols) {
+    debug({ error: 'symbol required' }, res, 400);
+    return;
+  }
 
   const sq = `
     SELECT *
@@ -1632,21 +1971,38 @@ const plants = (req, res) => {
     WHERE LOWER(symbol) IN (${symbols})
   `;
 
-  console.log(sq);
+  // pretty(sq);
 
   pool.query(
     sq,
     (err, results) => {
       if (err) {
-        res.status(500).send(err);
+        debug(err, res, 500);
       } else {
-        res.send(results.rows);
+        send(res, results.rows);
       }
     },
   );
-}; // plants
+}; // routePlants
 
-const frost = (req, res) => {
+const routePlants2 = (req, res = testResponse) => {
+  const sq = `SELECT * FROM plants2 WHERE alepth_ind is not null`;
+
+  // pretty(sq);
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        debug(err, res, 500);
+      } else {
+        send(res, results.rows);
+      }
+    },
+  );
+}; // routePlants2
+
+const routeFrost = (req = testRequest, res = testResponse) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
     const lon = lons ? lons[0] : req.query.lon;
@@ -1667,49 +2023,139 @@ const frost = (req, res) => {
       sq,
       (err, results) => {
         if (err) {
-          res.status(500).send(err);
+          debug(err, res, 500);
         } else if (results.rows.length) {
-          res.send(results.rows[0]);
+          send(res, results.rows[0]);
         } else {
-          res.send({});
+          send(res, {});
         }
       },
     );
   }; // query
-
-  init(req);
 
   if (location) {
     getLocation(req, query);
   } else {
     query();
   }
-}; // frost
+}; // routeFrost
+
+async function routeTest(req, res) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.flushHeaders();
+
+  async function testGoogleMapsAPI() {
+    const { data } = await axios.get(
+      `https://maps.googleapis.com/maps/api/timezone/json?location=35.43,-95&timestamp=0&key=${googleAPIKey}`,
+    );
+
+    let results = `Google Maps API: ${JSON.stringify(data)}`;
+
+    if (data.status !== 'OK') {
+      results = `FAILED: ${results}`;
+    }
+    console.log(results);
+    send(res, results);
+  } // GoogleMapsAPI
+
+  testRequest = {
+    body: {},
+    query: {
+      lat: '39',
+      lon: '-76',
+      mlra: '136',
+      start: '2020-01-01',
+      end: '2020-01-02',
+      limit: 10,
+      offset: 0,
+      num: 100,
+      location: 'texas', // routeNvm
+      year: 2019,
+      condition: 'mvm', // routeNvm2Query
+      state: 'georgia', // routeCountySpecies
+      symbol: 'ABAB,Abac', // routePlants
+    },
+  };
+
+  // options = 'nomrms';
+
+  testResponse = res;
+
+  testing = true;
+  tests = [
+    // routeNvm, // slow
+    // routeRosetta, // todo
+    routeAddresses,
+    routeAverages,
+    routeCountIndexes,
+    routeCountTablesRows,
+    routeCounty,
+    routeCountySpecies,
+    routeDaily,
+    routeDatabasesize,
+    routeFrost,
+    routeGAWeatherStations,
+    routeHits,
+    routeHourly,
+    function routeHourlyPredicted() {
+      const tr = JSON.parse(JSON.stringify(testRequest));
+      tr.query.predicted = 'true';
+      routeHourly(tr);
+    },
+    routeIndexes,
+    routeMLRA,
+    routeMLRAErrors,
+    routeMlraSpecies,
+    routeMlraSpecies2,
+    routeMvm,
+    routeNvm2,
+    routeNvm2Data,
+    routeNvm2Query,
+    routePlants,
+    routePlants2,
+    routeTables,
+    routeWatershed,
+  ];
+
+  await testGoogleMapsAPI();
+} // routeTest
 
 module.exports = {
-  addresses,
-  getAverages,
-  getHourly,
-  getDaily,
-  GAWeatherStations,
-  hits,
-  indexes,
-  tables,
-  counttablesrows,
-  countindexes,
-  databasesize,
-  mvm,
-  nvm,
-  nvm2,
-  nvm2Data,
-  nvm2Update,
-  nvm2Query,
-  rosetta,
-  watershed,
-  mlra,
-  county,
-  countyspecies,
-  mlraspecies,
-  plants,
-  frost,
+  initializeVariables: (req, res, next) => {
+    init(req);
+    next();
+  },
+  routeAddresses,
+  routeAverages,
+  routeCountIndexes,
+  routeCountTablesRows,
+  routeCounty,
+  routeCountySpecies,
+  routeDaily,
+  routeDatabasesize,
+  routeFrost,
+  routeGAWeatherStations,
+  routeHits,
+  routeHourly,
+  routeIndexes,
+  routeMLRA,
+  routeMLRAErrors,
+  routeMlraSpecies,
+  routeMlraSpecies2,
+  routeMvm,
+  routeNvm,
+  routeNvm2,
+  routeNvm2Data,
+  routeNvm2Query,
+  routeNvm2Update,
+  routePlants,
+  routePlants2,
+  routeRosetta,
+  routeTables,
+  routeTest,
+  routeWatershed,
 };
