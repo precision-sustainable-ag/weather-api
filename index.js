@@ -78,6 +78,8 @@ app.all('/mlraerrors', db.routeMLRAErrors);
 app.all('/plants', db.routePlants);
 app.all('/plants2', db.routePlants2);
 
+app.all('/yearlytemperature', db.initializeVariables, db.routeYearlyTemperature);
+
 app.get('/test', db.initializeVariables, db.routeTest);
 
 app.listen(80);
