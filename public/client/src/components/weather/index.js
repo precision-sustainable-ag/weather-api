@@ -1,11 +1,8 @@
-import { set } from '../../store/store';
-import { useDispatch } from 'react-redux';
 import { Columns } from '../columns';
 import { Notes } from '../notes';
 
 export const Weather = () => {
   const path = window.location.origin.replace(/:300\d/, '');
-  const dispatch = useDispatch();
   return (
     <div id="Weather">
       <h3>Weather Data</h3>

@@ -14,7 +14,7 @@ export const Examples = () => {
       <ul>
         <li><a href="#weather">Weather examples</a></li>
         <li><a href="#frost">Frost examples</a></li>
-        <li><a href="#temperature">Temperature examples</a></li>
+        <li><a href="#yearly">Yearly examples</a></li>
       </ul>
       <hr />
       <section id="weather">
@@ -46,13 +46,13 @@ export const Examples = () => {
         </ol>
       </section>
  
-      <section id="temperature">
-        <h3>Temperature Examples</h3>
+      <section id="yearly">
+        <h3>Yearly Examples</h3>
         <ol>
-          {example('Show min/max air temperature for 2018, latitude 39.032056 and longitude -76.873972', 'yearlytemperature?lat=39.032056&lon=-76.873972&year=2018')}
-          {example('Show min/max air temperature for 2018 - 2020', 'yearlytemperature?lat=39.032056&lon=-76.873972&year=2018-2020')}
-          {example('Show historical min/max air temperature', 'yearlytemperature?lat=39.032056&lon=-76.873972')}
-          {example('Show historical min/max air temperature for Athens GA', 'yearlytemperature?location=athens%20ga')}
+          {example('Show air temperature and precipitation data for 2018, at latitude 39.032056 and longitude -76.873972', 'yearly?lat=39.032056&lon=-76.873972&year=2018')}
+          {example('Show data for 2018 - 2020, same lat/lon', 'yearly?lat=39.032056&lon=-76.873972&year=2018-2020')}
+          {example('Show historical data, same lat/lon', 'yearly?lat=39.032056&lon=-76.873972')}
+          {example('Show historical data for Athens GA', 'yearly?location=athens%20ga')}
         </ol>
       </section>
      </div>

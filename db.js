@@ -2083,42 +2083,47 @@ const routeFrost = (req = testRequest, res = testResponse) => {
 }; // routeFrost
 
 /**
- * Route handler for fetching yearly temperature data.
+ * Route handler for fetching yearly temperature and precipitation data.
  *
  * @param {Object} req - The request object.
  * @param {Object} res - The response object.
  * @returns {void}
  *
  * The tables were created as below.
- * Run at the beginning of each year, changing the year (currently 2022).
- * Also change the Math.min code to the new year.
- *  DO $$
- *  DECLARE
- *      ztable_name TEXT;
- *      yearly_table_name TEXT;
- *  BEGIN
- *      FOR ztable_name IN
- *          SELECT table_name
- *          FROM information_schema.tables
- *          WHERE table_name LIKE 'nldas_hourly_%2022' AND table_schema = 'weather'
- *          ORDER BY table_name
- *      LOOP
- *          yearly_table_name := 'yearly_temp_' || substring(ztable_name, 14);
+ * Run at the beginning of each year, changing the year to the previous year (currently 2022).
+ * Also change y2 to the previous year.
  *
- *          EXECUTE 'DROP TABLE IF EXISTS weather.' || yearly_table_name;
+ * DO $$
+ * DECLARE
+ *     tb TEXT;
+ *     yearly_table_name TEXT;
+ * BEGIN
+ *     FOR tb IN
+ *         SELECT table_name
+ *         FROM information_schema.tables
+ *         WHERE table_name LIKE 'nldas_hourly_%2022' AND table_schema = 'weather'
+ *         ORDER BY table_name
+ *     LOOP
+ *         yearly_table_name := 'yearly_' || substring(tb, 14);
  *
- *          EXECUTE '
- *              CREATE TABLE weather.' || yearly_table_name || ' AS
- *              SELECT lat, lon, min(a.air_temperature) AS min_air_temperature, max(a.air_temperature) AS max_air_temperature
- *              FROM weather.' || ztable_name || ' AS a
- *              GROUP BY lat, lon';
+ *         EXECUTE 'DROP TABLE IF EXISTS weather.' || yearly_table_name;
  *
- *          RAISE NOTICE 'Created table: weather.%', yearly_table_name;
- *          PERFORM pg_sleep(1);
- *      END LOOP;
- *  END $$;
- */
-const routeYearlyTemperature = (req = testRequest, res = testResponse) => {
+ *         EXECUTE '
+ *             CREATE TABLE weather.' || yearly_table_name || ' AS
+ *             SELECT
+ *               lat, lon,
+ *               min(a.air_temperature) AS min_air_temperature,
+ *               max(a.air_temperature) AS max_air_temperature,
+ *               sum(a.precipitation) as sum_precipitation
+ *             FROM weather.' || tb || ' AS a
+ *             GROUP BY lat, lon';
+ *
+ *         RAISE NOTICE 'Created table: weather.%', yearly_table_name;
+ *         PERFORM pg_sleep(1);
+ *     END LOOP;
+ * END $$;
+*/
+const routeYearly = (req = testRequest, res = testResponse) => {
   const query = () => {
     /**
      * Destructuring request query parameters.
@@ -2148,11 +2153,12 @@ const routeYearlyTemperature = (req = testRequest, res = testResponse) => {
         ${year1}${year2 !== year1 ? ` || '-' || ${year2}` : ''} as year,
         ${lat} as lat, ${lon} as lon,
         min(min_air_temperature) AS min_air_temperature,
-        max(max_air_temperature) AS max_air_temperature
+        max(max_air_temperature) AS max_air_temperature,
+        avg(sum_precipitation) AS avg_precipitation
       FROM (
         ${range(year1, year2).map((y) => `
             SELECT * FROM
-            weather.yearly_temp_${Math.trunc(NLDASlat(lat))}_${Math.trunc(-NLDASlon(lon))}_${y}
+            weather.yearly_${Math.trunc(NLDASlat(lat))}_${Math.trunc(-NLDASlon(lon))}_${y}
             WHERE lat=${NLDASlat(lat)} and lon=${NLDASlon(lon)}
           `).join(`
             UNION ALL
@@ -2181,7 +2187,7 @@ const routeYearlyTemperature = (req = testRequest, res = testResponse) => {
   } else {
     query();
   }
-}; // routeYearlyTemperature
+}; // routeYearly
 
 async function routeTest(req, res) {
   res.setHeader('Content-Type', 'text/event-stream');
@@ -2262,7 +2268,7 @@ async function routeTest(req, res) {
     routePlants2,
     routeTables,
     routeWatershed,
-    routeYearlyTemperature,
+    routeYearly,
   ];
 
   await testGoogleMapsAPI();
@@ -2302,5 +2308,5 @@ module.exports = {
   routeTables,
   routeTest,
   routeWatershed,
-  routeYearlyTemperature,
+  routeYearly,
 };

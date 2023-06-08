@@ -1,5 +1,3 @@
-import { example } from '../../store/store';
-
 import './styles.scss';
 
 export const Frost = () => {
