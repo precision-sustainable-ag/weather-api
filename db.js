@@ -2139,26 +2139,21 @@ const routeYearlyTemperature = (req = testRequest, res = testResponse) => {
     year1 = clamp(year1, y1, y2);
     year2 = clamp(year2 || year1, y1, y2);
 
-    const lat = NLDASlat(lats?.[0] || req.query.lat);
-    const lon = NLDASlat(lons?.[0] || req.query.lon);
+    const lat = lats?.[0] || req.query.lat;
+    const lon = lons?.[0] || req.query.lon;
 
-    console.log({lat, lon});
-
-    /**
-     * SQL query for fetching yearly temperature data.
-     * @type {string}
-     */
+    // SQL query for fetching yearly temperature data.
     const sq = `
       SELECT
         ${year1}${year2 !== year1 ? ` || '-' || ${year2}` : ''} as year,
-        lat, lon,
+        ${lat} as lat, ${lon} as lon,
         min(min_air_temperature) AS min_air_temperature,
         max(max_air_temperature) AS max_air_temperature
       FROM (
         ${range(year1, year2).map((y) => `
             SELECT * FROM
-            weather.yearly_temp_${Math.trunc(lat)}_${Math.trunc(-lon)}_${y}
-            WHERE lat=${lat} and lon=${lon}
+            weather.yearly_temp_${Math.trunc(NLDASlat(lat))}_${Math.trunc(-NLDASlon(lon))}_${y}
+            WHERE lat=${NLDASlat(lat)} and lon=${NLDASlon(lon)}
           `).join(`
             UNION ALL
           `)}
