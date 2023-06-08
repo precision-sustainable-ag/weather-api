@@ -89,6 +89,10 @@ const send = (res, results) => {
       tests.shift()();
     }
   } else if (output === 'html') {
+    if (!Array.isArray(results)) {
+      results = [results];
+    }
+
     res.send(`
       <link rel="stylesheet" href="/css/dbGraph.css">
       <link rel="stylesheet" href="/css/weather.css">
@@ -105,6 +109,10 @@ const send = (res, results) => {
       </table>
     `);
   } else if (output === 'csv') {
+    if (!Array.isArray(results)) {
+      results = [results];
+    }
+
     const s = `${Object.keys(results[0]).toString()}\n${
       results.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
 
@@ -469,28 +477,29 @@ const sendQuery = (req, res, sq) => {
         break;
 
       case 'html':
-        s = `<script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
-             <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
-             <script src="https://aesl.ces.uga.edu/scripts/jqlibrary.js"></script>
-             <script src="https://aesl.ces.uga.edu/scripts/dbGraph.js"></script>
+        s = `
+          <script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/jqlibrary.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/dbGraph.js"></script>
 
-             <link rel="stylesheet" href="/css/dbGraph.css">
-             <link rel="stylesheet" href="/css/weather.css">
+          <link rel="stylesheet" href="/css/dbGraph.css">
+          <link rel="stylesheet" href="/css/weather.css">
 
-             <div id="Graph"></div>
+          <div id="Graph"></div>
 
-             <table id="Data">
-               <thead>
-                 <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
-               </thead>
-               <tbody>
-                 <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
-               </tbody>
-             </table>
+          <table id="Data">
+            <thead>
+              <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
+            </thead>
+            <tbody>
+              <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
+            </tbody>
+          </table>
 
-             <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
-            `;
-        send(res, s);
+          <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
+        `;
+        res.send(s);
         break;
 
       default:
@@ -2121,11 +2130,11 @@ const routeYearlyTemperature = (req = testRequest, res = testResponse) => {
      */
 
     const y1 = 2018;
-    const y2 = 2021;
+    const y2 = 2022;
 
     const year = req.query.year || `${y1}-${y2}`;
 
-    let [year1, year2] = year.split('-');
+    let [year1, year2] = year.toString().split('-');
 
     year1 = clamp(year1, y1, y2);
     year2 = clamp(year2 || year1, y1, y2);
