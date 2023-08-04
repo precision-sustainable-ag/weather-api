@@ -11,12 +11,12 @@ resources:
 variables:
 
   # Container registry service connection established during pipeline creation
-  dockerRegistryServiceConnection: '65477274-36b3-4da5-bd07-df44e8486831'
+  dockerRegistryServiceConnection: '8a55dedd-ebb7-4219-b4c2-c17332c5e29c'
   imageRepository: 'weatherapi'
   containerRegistry: 'containerregistry4pd7i.azurecr.io'
   dockerfilePath: '**/Dockerfile'
   tag: '$(Build.BuildId)'
-  imagePullSecret: 'containerregistry4pd7i10669c25-auth'
+  imagePullSecret: 'containerregistry4pd7i1418dd87-auth'
 
   # Agent VM image name
   vmImageName: 'ubuntu-latest'
@@ -34,7 +34,7 @@ stages:
       vmImage: $(vmImageName)
     steps:
     - script: |
-        echo "$(DB)|$(DB_TYPE)|$(DB_PASS)" >> /home/vsts/work/1/s/.env
+        echo "Weather|$(DB_USER)|$(DB_PASS)" >> /home/vsts/work/1/s/.env
         echo "GoogleAPI|$(GOOGLE_API_KEY)" >> /home/vsts/work/1/s/.env
         cat /home/vsts/work/1/s/.env
       displayName: "Create .env"
@@ -61,7 +61,7 @@ stages:
     displayName: Deploy
     pool:
       vmImage: $(vmImageName)
-    environment: 'precisionsustainableagweatherapi-5806.production'
+    environment: 'precisionsustainableagweatherapi-1156.production'
     strategy:
       runOnce:
         deploy:
@@ -91,7 +91,7 @@ stages:
     pool:
       vmImage: $(vmImageName)
 
-    environment: 'precisionsustainableagweatherapi-5806.$(k8sNamespaceForPR)'
+    environment: 'precisionsustainableagweatherapi-1156.$(k8sNamespaceForPR)'
     strategy:
       runOnce:
         deploy:
