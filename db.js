@@ -473,7 +473,7 @@ const sendQuery = (req, res, sq) => {
 
         res.set('Content-Type', 'text/csv');
         res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
-        send(res, s);
+        res.send(s);
         break;
 
       case 'html':
