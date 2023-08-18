@@ -14,6 +14,7 @@ export const Examples = () => {
       <ul>
         <li><a href="#weather">Weather examples</a></li>
         <li><a href="#frost">Frost examples</a></li>
+        <li><a href="#yearly">Yearly examples</a></li>
       </ul>
       <hr />
       <section id="weather">
@@ -44,6 +45,16 @@ export const Examples = () => {
           {example('Show frost data for latitude 39.032056 and longitude -76.873972', 'frost?lat=39.032056&lon=-76.873972')}
         </ol>
       </section>
-    </div>
+ 
+      <section id="yearly">
+        <h3>Yearly Examples</h3>
+        <ol>
+          {example('Show air temperature and precipitation data for 2018, at latitude 39.032056 and longitude -76.873972', 'yearly?lat=39.032056&lon=-76.873972&year=2018')}
+          {example('Show data for 2018 - 2020, same lat/lon', 'yearly?lat=39.032056&lon=-76.873972&year=2018-2020')}
+          {example('Show historical data, same lat/lon', 'yearly?lat=39.032056&lon=-76.873972')}
+          {example('Show historical data for Athens GA', 'yearly?location=athens%20ga')}
+        </ol>
+      </section>
+     </div>
   )
 }

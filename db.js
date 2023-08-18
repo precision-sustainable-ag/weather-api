@@ -45,6 +45,16 @@ const parms = [
 ];
 
 /**
+ * Restricts a number to a specified range.
+ *
+ * @param {number} value - The number to be clamped.
+ * @param {number} min - The minimum value of the range.
+ * @param {number} max - The maximum value of the range.
+ * @returns {number} The clamped value.
+ */
+const clamp = (value, min, max) => Math.min(Math.max(+value, min), max);
+
+/**
  * Creates an array of numbers within a specified range.
  *
  * @param {number} start - The start of the range.
@@ -78,6 +88,37 @@ const send = (res, results) => {
       res.write(`\n${tests[0].name.padEnd(25)}: `);
       tests.shift()();
     }
+  } else if (output === 'html') {
+    if (!Array.isArray(results)) {
+      results = [results];
+    }
+
+    res.send(`
+      <link rel="stylesheet" href="/css/dbGraph.css">
+      <link rel="stylesheet" href="/css/weather.css">
+
+      <div id="Graph"></div>
+
+      <table id="Data">
+        <thead>
+          <tr><th>${Object.keys(results[0]).join('<th>')}</tr>
+        </thead>
+        <tbody>
+          <tr>${results.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
+        </tbody>
+      </table>
+    `);
+  } else if (output === 'csv') {
+    if (!Array.isArray(results)) {
+      results = [results];
+    }
+
+    const s = `${Object.keys(results[0]).toString()}\n${
+      results.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
+
+    res.set('Content-Type', 'text/csv');
+    res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.csv`);
+    res.send(s);
   } else {
     res.send(results);
   }
@@ -432,32 +473,33 @@ const sendQuery = (req, res, sq) => {
 
         res.set('Content-Type', 'text/csv');
         res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
-        send(res, s);
+        res.send(s);
         break;
 
       case 'html':
-        s = `<script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
-             <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
-             <script src="https://aesl.ces.uga.edu/scripts/jqlibrary.js"></script>
-             <script src="https://aesl.ces.uga.edu/scripts/dbGraph.js"></script>
+        s = `
+          <script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/jqlibrary.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/dbGraph.js"></script>
 
-             <link rel="stylesheet" href="/css/dbGraph.css">
-             <link rel="stylesheet" href="/css/weather.css">
+          <link rel="stylesheet" href="/css/dbGraph.css">
+          <link rel="stylesheet" href="/css/weather.css">
 
-             <div id="Graph"></div>
+          <div id="Graph"></div>
 
-             <table id="Data">
-               <thead>
-                 <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
-               </thead>
-               <tbody>
-                 <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
-               </tbody>
-             </table>
+          <table id="Data">
+            <thead>
+              <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
+            </thead>
+            <tbody>
+              <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
+            </tbody>
+          </table>
 
-             <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
-            `;
-        send(res, s);
+          <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
+        `;
+        res.send(s);
         break;
 
       default:
@@ -2040,6 +2082,113 @@ const routeFrost = (req = testRequest, res = testResponse) => {
   }
 }; // routeFrost
 
+/**
+ * Route handler for fetching yearly temperature and precipitation data.
+ *
+ * @param {Object} req - The request object.
+ * @param {Object} res - The response object.
+ * @returns {void}
+ *
+ * The tables were created as below.
+ * Run at the beginning of each year, changing the year to the previous year (currently 2022).
+ * Also change y2 to the previous year.
+ *
+ * DO $$
+ * DECLARE
+ *     tb TEXT;
+ *     yearly_table_name TEXT;
+ * BEGIN
+ *     FOR tb IN
+ *         SELECT table_name
+ *         FROM information_schema.tables
+ *         WHERE table_name LIKE 'nldas_hourly_%2022' AND table_schema = 'weather'
+ *         ORDER BY table_name
+ *     LOOP
+ *         yearly_table_name := 'yearly_' || substring(tb, 14);
+ *
+ *         EXECUTE 'DROP TABLE IF EXISTS weather.' || yearly_table_name;
+ *
+ *         EXECUTE '
+ *             CREATE TABLE weather.' || yearly_table_name || ' AS
+ *             SELECT
+ *               lat, lon,
+ *               min(a.air_temperature) AS min_air_temperature,
+ *               max(a.air_temperature) AS max_air_temperature,
+ *               sum(a.precipitation) as sum_precipitation
+ *             FROM weather.' || tb || ' AS a
+ *             GROUP BY lat, lon';
+ *
+ *         RAISE NOTICE 'Created table: weather.%', yearly_table_name;
+ *         PERFORM pg_sleep(1);
+ *     END LOOP;
+ * END $$;
+*/
+const routeYearly = (req = testRequest, res = testResponse) => {
+  const query = () => {
+    /**
+     * Destructuring request query parameters.
+     * @type {number} year - The year.
+     * @type {number} year1 - The starting year (default: year).
+     * @type {number} year2 - The ending year (default: year or year1).
+     * @type {number} lat - The latitude.
+     * @type {number} lon - The longitude.
+     */
+
+    const y1 = 2018;
+    const y2 = 2022;
+
+    const year = req.query.year || `${y1}-${y2}`;
+
+    let [year1, year2] = year.toString().split('-');
+
+    year1 = clamp(year1, y1, y2);
+    year2 = clamp(year2 || year1, y1, y2);
+
+    const lat = lats?.[0] || req.query.lat;
+    const lon = lons?.[0] || req.query.lon;
+
+    // SQL query for fetching yearly temperature data.
+    const sq = `
+      SELECT
+        ${year1}${year2 !== year1 ? ` || '-' || ${year2}` : ''} as year,
+        ${lat} as lat, ${lon} as lon,
+        min(min_air_temperature) AS min_air_temperature,
+        max(max_air_temperature) AS max_air_temperature,
+        avg(sum_precipitation) AS avg_precipitation
+      FROM (
+        ${range(year1, year2).map((y) => `
+            SELECT * FROM
+            weather.yearly_${Math.trunc(NLDASlat(lat))}_${Math.trunc(-NLDASlon(lon))}_${y}
+            WHERE lat=${NLDASlat(lat)} and lon=${NLDASlon(lon)}
+          `).join(`
+            UNION ALL
+          `)}
+      ) a
+      GROUP BY lat, lon;
+    `;
+
+    console.log(sq);
+
+    // Executing the SQL query.
+    pool.query(
+      sq,
+      (err, results) => {
+        if (err) {
+          debug(err, res, 500);
+        } else {
+          send(res, results.rows);
+        }
+      },
+    );
+  }; // query
+
+  if (location) {
+    getLocation(req, query);
+  } else {
+    query();
+  }
+}; // routeYearly
+
 async function routeTest(req, res) {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -2074,7 +2223,7 @@ async function routeTest(req, res) {
       offset: 0,
       num: 100,
       location: 'texas', // routeNvm
-      year: 2019,
+      year: 2018,
       condition: 'mvm', // routeNvm2Query
       state: 'georgia', // routeCountySpecies
       symbol: 'ABAB,Abac', // routePlants
@@ -2119,6 +2268,7 @@ async function routeTest(req, res) {
     routePlants2,
     routeTables,
     routeWatershed,
+    routeYearly,
   ];
 
   await testGoogleMapsAPI();
@@ -2158,4 +2308,5 @@ module.exports = {
   routeTables,
   routeTest,
   routeWatershed,
+  routeYearly,
 };

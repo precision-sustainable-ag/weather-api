@@ -7,6 +7,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { get, set } from './store/store';
 import { Weather } from './components/weather';
 import { Frost } from './components/frost';
+import { Yearly } from './components/yearly';
 import { Examples } from './components/examples';
 import { Database } from './components/database';
 
@@ -22,6 +23,7 @@ function App() {
   const screens = {
     Weather,
     Frost,
+    Yearly,
     Examples,
   }
 

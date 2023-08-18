@@ -1,5 +1,3 @@
-import { example } from '../../store/store';
-
 import './styles.scss';
 
 export const Frost = () => {
@@ -29,7 +27,7 @@ export const Frost = () => {
               <br />
               or
               <br />
-              {path}/frost?location<i>location</i>
+              {path}/frost?location=<i>location</i>
             </td>
           </tr>
           <tr>
