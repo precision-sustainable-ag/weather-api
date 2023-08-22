@@ -5,6 +5,7 @@ RUN npm install
 
 WORKDIR /public/client
 RUN npm install
+RUN npm run build
 
 WORKDIR /
 
