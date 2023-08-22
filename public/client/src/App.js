@@ -33,7 +33,6 @@ function App() {
 
   return (
     <>
-      Testing
       <nav 
         onClick={(e) => {
           if (e.target.tagName === 'BUTTON') {
