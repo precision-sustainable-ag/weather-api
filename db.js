@@ -1,5 +1,6 @@
 const { format } = require('sql-formatter');
 const axios = require('axios');
+const myip = require('ip');
 const { pool, googleAPIKey } = require('./pools');
 
 let lats;
@@ -2202,7 +2203,7 @@ async function routeTest(req, res) {
       `https://maps.googleapis.com/maps/api/timezone/json?location=35.43,-95&timestamp=0&key=${googleAPIKey}`,
     );
 
-    let results = `Google Maps API: ${JSON.stringify(data)}`;
+    let results = `IP: ${myip.address()}\nGoogle Maps API: ${JSON.stringify(data)}`;
 
     if (data.status !== 'OK') {
       results = `FAILED: ${results}`;
