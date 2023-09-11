@@ -2206,7 +2206,7 @@ async function routeTest(req, res) {
       `https://maps.googleapis.com/maps/api/timezone/json?location=35.43,-95&timestamp=0&key=${googleAPIKey}`,
     );
 
-    let results = `IP: ${myip.address()}  or  ${ip2}\nGoogle Maps API: ${JSON.stringify(data)}`;
+    let results = `IP: ${myip.address()}  or  ${ip2}\nGoogle Maps API: ${JSON.stringify(data)}\n${googleAPIKey}`;
 
     if (data.status !== 'OK') {
       results = `FAILED: ${results}`;
