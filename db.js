@@ -2199,11 +2199,14 @@ async function routeTest(req, res) {
   res.flushHeaders();
 
   async function testGoogleMapsAPI() {
+    const response = await axios.get('https://api64.ipify.org/?format=json');
+    const ip2 = response.data.ip;
+
     const { data } = await axios.get(
       `https://maps.googleapis.com/maps/api/timezone/json?location=35.43,-95&timestamp=0&key=${googleAPIKey}`,
     );
 
-    let results = `IP: ${myip.address()}\nGoogle Maps API: ${JSON.stringify(data)}`;
+    let results = `IP: ${myip.address()}  or  ${ip2}\nGoogle Maps API: ${JSON.stringify(data)}`;
 
     if (data.status !== 'OK') {
       results = `FAILED: ${results}`;
