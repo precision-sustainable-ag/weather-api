@@ -35,7 +35,7 @@ stages:
     steps:
     - script: |
         echo "Weather|$(DB_USER)|$(DB_PASS)" >> /home/vsts/work/1/s/.env
-        echo "GoogleAPI|$(GOOGLE_API_KEY)" >> /home/vsts/work/1/s/.env
+        echo "GoogleAPI||$(GOOGLE_API_KEY)" >> /home/vsts/work/1/s/.env
         cat /home/vsts/work/1/s/.env
       displayName: "Create .env"
     - task: Docker@2
