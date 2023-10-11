@@ -2067,7 +2067,8 @@ const routePlantsStructure = (req = testRequest, res = testResponse) => {
     SELECT table_name, column_name, data_type
     FROM information_schema.columns
     WHERE ${table ? `table_name = '${table}' AND ` : ''}
-      table_schema = 'plants3';
+      table_schema = 'plants3'
+    ORDER BY table_name, ordinal_position;
   `;
 
   simpleQuery(sq, res);
