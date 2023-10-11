@@ -77,7 +77,7 @@ app.all('/mlraspecies2', db.routeMlraSpecies2);
 app.all('/mlraerrors', db.routeMLRAErrors);
 app.all('/plants', db.routePlants);
 app.all('/plants2', db.routePlants2);
-app.all('/plantsstructure', db.routePlantsStructure);
+app.all('/plantsstructure', db.initializeVariables, db.routePlantsStructure);
 
 app.all('/yearly', db.initializeVariables, db.routeYearly);
 
