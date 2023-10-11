@@ -2074,6 +2074,16 @@ const routePlantsStructure = (req = testRequest, res = testResponse) => {
   simpleQuery(sq, res);
 }; // routePlantsStructure
 
+const routePlantsRecords = (req = testRequest, res = testResponse) => {
+  const sq = `
+    SELECT relname as "table", seq_tup_read AS rows
+    FROM pg_stat_user_tables
+    WHERE schemaname = 'plants3';
+  `;
+
+  simpleQuery(sq, res);
+}; // routePlantsRecords
+
 const routeFrost = (req = testRequest, res = testResponse) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
@@ -2299,6 +2309,7 @@ async function routeTest(req, res) {
     routeNvm2Query,
     routePlants,
     routePlants2,
+    routePlantsRecords,
     routePlantsStructure,
     routeTables,
     routeWatershed,
@@ -2338,6 +2349,7 @@ module.exports = {
   routeNvm2Update,
   routePlants,
   routePlants2,
+  routePlantsRecords,
   routePlantsStructure,
   routeRosetta,
   routeTables,
