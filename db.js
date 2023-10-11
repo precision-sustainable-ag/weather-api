@@ -2052,7 +2052,7 @@ const simpleQuery = (sq, res) => {
       if (err) {
         debug(err, res, 500);
       } else if (results.rows.length) {
-        send(res, results.rows[0]);
+        send(res, results.rows);
       } else {
         send(res, {});
       }
