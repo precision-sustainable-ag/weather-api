@@ -2045,6 +2045,34 @@ const routePlants2 = (req, res = testResponse) => {
   );
 }; // routePlants2
 
+const simpleQuery = (sq, res) => {
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        debug(err, res, 500);
+      } else if (results.rows.length) {
+        send(res, results.rows[0]);
+      } else {
+        send(res, {});
+      }
+    },
+  );
+}; // simpleQuery
+
+const routePlantsStructure = (req = testRequest, res = testResponse) => {
+  const { table } = req.query;
+
+  const sq = `
+    SELECT table_name, column_name, data_type
+    FROM information_schema.columns
+    WHERE ${table ? `table_name = '${table}' AND ` : ''}
+      table_schema = 'plants3';
+  `;
+
+  simpleQuery(sq, res);
+}; // routePlantsStructure
+
 const routeFrost = (req = testRequest, res = testResponse) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
@@ -2270,6 +2298,7 @@ async function routeTest(req, res) {
     routeNvm2Query,
     routePlants,
     routePlants2,
+    routePlantsStructure,
     routeTables,
     routeWatershed,
     routeYearly,
@@ -2308,6 +2337,7 @@ module.exports = {
   routeNvm2Update,
   routePlants,
   routePlants2,
+  routePlantsStructure,
   routeRosetta,
   routeTables,
   routeTest,
