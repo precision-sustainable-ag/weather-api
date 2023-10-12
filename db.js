@@ -2045,10 +2045,20 @@ const routePlants2 = (req, res = testResponse) => {
   );
 }; // routePlants2
 
-const simpleQuery = (sq, res) => {
+const simpleQuery = (sq, res, hideUnused) => {
   pool.query(
     sq,
     (err, results) => {
+      if (hideUnused) {
+        const used = new Set();
+        results.rows.forEach((row) => {
+          Object.keys(row).filter((key) => row[key] !== null && row[key] !== '').forEach((key) => used.add(key));
+        });
+        results.rows.forEach((row) => {
+          Object.keys(row).filter((key) => !used.has(key)).forEach((key) => delete row[key]);
+        });
+      }
+
       if (err) {
         debug(err, res, 500);
       } else if (results.rows.length) {
@@ -2109,7 +2119,7 @@ const routePlantsRecords = (req = testRequest, res = testResponse) => {
 const routePlantsTable = (req = testRequest, res = testResponse) => {
   const sq = `select * from plants3.${req.query.table}`;
 
-  simpleQuery(sq, res);
+  simpleQuery(sq, res, true);
 }; // routePlantsTable
 
 const routeFrost = (req = testRequest, res = testResponse) => {
