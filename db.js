@@ -2076,7 +2076,11 @@ const routePlantsStructure = (req = testRequest, res = testResponse) => {
 
 const routePlantsRecords = (req = testRequest, res = testResponse) => {
   const sq = `
-    SELECT relname as "table", seq_tup_read AS rows
+    SELECT
+      relname as "table",
+      seq_tup_read AS rows,
+      pg_total_relation_size(schemaname || '.' || relname) as size,
+      pg_size_pretty(pg_total_relation_size(schemaname || '.' || relname)) AS prettysize
     FROM pg_stat_user_tables
     WHERE schemaname = 'plants3';
   `;
