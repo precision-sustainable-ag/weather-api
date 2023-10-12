@@ -2106,6 +2106,12 @@ const routePlantsRecords = (req = testRequest, res = testResponse) => {
   simpleQuery(sq, res);
 }; // routePlantsRecords
 
+const routePlantsTable = (req = testRequest, res = testResponse) => {
+  const sq = `select * from plants3.${req.query.table}`;
+
+  simpleQuery(sq, res);
+}; // routePlantsTable
+
 const routeFrost = (req = testRequest, res = testResponse) => {
   const query = () => {
     const lat = lats ? lats[0] : req.query.lat;
@@ -2373,6 +2379,7 @@ module.exports = {
   routePlants2,
   routePlantsRecords,
   routePlantsStructure,
+  routePlantsTable,
   routeRosetta,
   routeTables,
   routeTest,
