@@ -78,6 +78,7 @@ app.all('/mlraerrors', db.routeMLRAErrors);
 app.all('/plants', db.routePlants);
 app.all('/plants2', db.routePlants2);
 app.all('/plantsrecords', db.initializeVariables, db.routePlantsRecords);
+app.all('/plantscharacteristics', db.initializeVariables, db.routePlantsCharacteristics);
 app.all('/plantsstructure', db.initializeVariables, db.routePlantsStructure);
 app.all('/plantstable', db.initializeVariables, db.routePlantsTable);
 app.all('/plantsemptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);

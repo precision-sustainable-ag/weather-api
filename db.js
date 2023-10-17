@@ -2167,6 +2167,191 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
   send(res, empty);
 }; // routePlantsEmptyColumns
 
+const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
+  const sq = `
+    select * from (
+      select
+        p.plant_symbol,
+        plant_master_id,
+        coalesce(m.cultivar_name, g.cultivar_name, r.cultivar_name, s.cultivar_name) as cultivar,
+        full_scientific_name_without_author,
+        primary_vernacular,
+        plant_duration_name,
+        plant_nativity_type,
+        plant_nativity_description,
+        cover_crop,
+        active_growth_period,
+        after_harvest_regrowth_rate,
+        bloat_potential,
+        c_n_ratio,
+        coppice_potential_ind,
+        fall_conspicuous_ind,
+        fire_resistant_ind,
+        color_name,
+        flower_conspicuous_ind,
+        fall,
+        winter,
+        fruit_seed_conspicuous_ind,
+        growth_form_name,
+        growth_rate,
+        height_max_at_base_age,
+        height_at_maturity,
+        known_allelopath_ind,
+        leaf_retention_ind,
+        lifespan_name,
+        low_growing_grass_ind,
+        nitrogen_fixation_potential,
+        resprout_ability_ind,
+        shape_orientation_name,
+        toxicity_name,
+    
+        coarse_texture_soil_adaptable_ind,
+        medium_texture_soil_adaptable_ind,
+        fine_texture_soil_adaptable_ind,
+        anaerobic_tolerance,
+        caco3_tolerance,
+        cold_stratification_required_ind,
+        drought_tolerance,
+        fire_tolerance,
+        hedge_tolerance,
+        moisture_usage,
+        soil_ph_tolerance_min,
+        soil_ph_tolerance_max,
+        precipitation_tolerance_min, 
+        precipitation_tolerance_max,
+        salinity_tolerance,
+        shade_tolerance_name,
+        temperature_tolerance_min,
+    
+        bloom_period,
+        fruit_seed_period_start,
+        fruit_seed_period_end,
+        fruit_seed_persistence_ind,
+        seed_per_pound,
+        seed_spread_rate,
+        seedling_vigor,
+        vegetative_spread_rate,
+    
+        berry_nut_seed_product_ind,
+        fodder_product_ind,
+        palatability_browse,
+        palatability_graze,
+        palatability_human_ind,
+        protein_potential
+      from plants3.plant_master_tbl p
+      left join plants3.plant_classifications_tbl using (plant_master_id)
+      left join plants3.plant_duration using (plant_master_id)
+      left join plants3.d_plant_duration using (plant_duration_id)
+      left join plants3.plant_morphology_physiology m using (plant_master_id)
+      left join plants3.plant_growth_requirements g using (plant_master_id, cultivar_name)
+      left join plants3.plant_reproduction r using (plant_master_id, cultivar_name)
+      left join plants3.plant_suitability_use s using (plant_master_id, cultivar_name)
+      left join (
+        select distinct plant_nativity_type, plant_nativity_description, plant_master_id
+        from plants3.plant_location_characteristic
+        left join plants3.plant_location using (plant_location_id)
+        left join plants3.d_plant_nativity using (plant_nativity_id)
+        where country_identifier = 5
+      ) nativity using (plant_master_id)
+      left join (
+        select season_name as active_growth_period, * from plants3.d_season
+      ) ags on m.active_growth_period_id = ags.season_id
+      left join (
+        select rate_name as after_harvest_regrowth_rate, * from plants3.d_rate
+      ) ah on m.after_harvest_regrowth_rate_id = ah.rate_id
+      left join (
+        select extent_name as bloat_potential, * from plants3.d_extent
+      ) e on m.bloat_potential_id = e.extent_id
+      left join (
+        select extent_name as c_n_ratio, * from plants3.d_extent
+      ) cn on m.c_n_ratio_id = cn.extent_id
+      left join plants3.d_color c on m.flower_color_id = c.color_id
+      left join (
+        select foliage_porosity_name as fall, * from plants3.d_foliage_porosity
+      ) f on m.summer_foliage_porosity_id=f.foliage_porosity_id
+      left join (
+        select foliage_porosity_name as winter, * from plants3.d_foliage_porosity
+      ) w on m.winter_foliage_porosity_id=w.foliage_porosity_id
+      left join plants3.d_growth_form gf on m.growth_form_id=gf.growth_form_id
+      left join (
+        select rate_name as growth_rate, * from plants3.d_rate
+      ) gr on m.growth_rate_id=gr.rate_id
+      left join plants3.d_lifespan using (lifespan_id)
+      left join (
+        select extent_name as nitrogen_fixation_potential, * from plants3.d_extent
+      ) nf on m.nitrogen_fixation_potential_id = nf.extent_id
+      left join plants3.d_shape_orientation q on m.shape_orientation_id=q.shape_orientation_id
+      left join plants3.d_toxicity using (toxicity_id)
+    
+      left join (
+        select extent_name as anaerobic_tolerance, * from plants3.d_extent
+      ) at on g.anaerobic_tolerance_id=at.extent_id
+      left join (
+        select extent_name as caco3_tolerance, * from plants3.d_extent
+      ) ct on g.caco3_tolerance_id=ct.extent_id
+      left join (
+        select extent_name as drought_tolerance, * from plants3.d_extent
+      ) dt on g.drought_tolerance_id=dt.extent_id
+      left join (
+        select extent_name as fire_tolerance, * from plants3.d_extent
+      ) ft on g.fire_tolerance_id=ft.extent_id
+      left join (
+        select extent_name as hedge_tolerance, * from plants3.d_extent
+      ) ht on g.hedge_tolerance_id=ht.extent_id
+      left join (
+        select extent_name as moisture_usage, * from plants3.d_extent
+      ) mu on g.moisture_usage_id=mu.extent_id
+      left join (
+        select extent_name as salinity_tolerance, * from plants3.d_extent
+      ) st on g.salinity_tolerance_id=st.extent_id
+      left join plants3.d_shade_tolerance using (shade_tolerance_id)
+    
+      left join (
+        select season_name as bloom_period, * from plants3.d_season
+      ) bp on r.bloom_period_id=bp.season_id
+      left join (
+        select season_name as fruit_seed_period_start, * from plants3.d_season
+      ) fs on r.fruit_seed_period_start_id=fs.season_id
+      left join (
+        select season_name as fruit_seed_period_end, * from plants3.d_season
+      ) fe on r.fruit_seed_period_end_id=fe.season_id
+      left join (
+        select rate_name as seed_spread_rate, * from plants3.d_rate
+      ) sr on r.seed_spread_rate_id=sr.rate_id
+      left join (
+        select extent_name as seedling_vigor, * from plants3.d_extent
+      ) sv on r.seedling_vigor_id=sv.extent_id
+      left join (
+        select rate_name as vegetative_spread_rate, * from plants3.d_rate
+      ) vr on r.vegetative_spread_rate_id=vr.rate_id
+    
+      left join (
+        select extent_name as palatability_browse, * from plants3.d_extent
+      ) pb on s.palatability_browse_id=pb.extent_id
+      left join (
+        select extent_name as palatability_graze, * from plants3.d_extent
+      ) pg on s.palatability_graze_id=pg.extent_id
+      left join (
+        select extent_name as protein_potential, * from plants3.d_extent
+      ) pp on s.protein_potential_id=pp.extent_id
+    ) alias
+    where concat(
+      active_growth_period, after_harvest_regrowth_rate, bloat_potential, c_n_ratio, coppice_potential_ind, fall_conspicuous_ind,
+      fire_resistant_ind, color_name, flower_conspicuous_ind, fall, winter, fruit_seed_conspicuous_ind, growth_form_name, growth_rate,
+      height_max_at_base_age, height_at_maturity, known_allelopath_ind, leaf_retention_ind, lifespan_name, low_growing_grass_ind,
+      nitrogen_fixation_potential, resprout_ability_ind, shape_orientation_name, toxicity_name, coarse_texture_soil_adaptable_ind,
+      medium_texture_soil_adaptable_ind, fine_texture_soil_adaptable_ind, anaerobic_tolerance, caco3_tolerance, cold_stratification_required_ind,
+      drought_tolerance, fire_tolerance, hedge_tolerance, moisture_usage, soil_ph_tolerance_min, soil_ph_tolerance_max, precipitation_tolerance_min,
+      precipitation_tolerance_max, salinity_tolerance, shade_tolerance_name, temperature_tolerance_min, bloom_period, fruit_seed_period_start,
+      fruit_seed_period_end, fruit_seed_persistence_ind, seed_per_pound, seed_spread_rate, seedling_vigor, vegetative_spread_rate,
+      berry_nut_seed_product_ind, fodder_product_ind, palatability_browse, palatability_graze, palatability_human_ind, protein_potential
+    ) > ''
+    order by 1, 2, 3
+  `;
+
+  simpleQuery(sq, res, true);
+}; // routePlantsCharacteristics
+
 const routePlantsTable = (req = testRequest, res = testResponse) => {
   const sq = `select * from plants3.${req.query.table}`;
 
@@ -2438,6 +2623,7 @@ module.exports = {
   routeNvm2Update,
   routePlants,
   routePlants2,
+  routePlantsCharacteristics,
   routePlantsEmptyColumns,
   routePlantsRecords,
   routePlantsStructure,
