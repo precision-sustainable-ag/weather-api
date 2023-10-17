@@ -2242,9 +2242,15 @@ const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
       from plants3.plant_master_tbl p
       left join plants3.plant_classifications_tbl using (plant_master_id)
       left join plants3.plant_duration using (plant_master_id)
-      left join plants3.plant_growth_habit using (plant_master_id)
-      left join plants3.d_plant_growth_habit using (plant_growth_habit_id)
       left join plants3.d_plant_duration using (plant_duration_id)
+      left join (
+        select
+          array_to_string(array_agg(plant_growth_habit_name order by plant_growth_habit_name), ', ') as plant_growth_habit_name,
+          plant_master_id
+        from plants3.plant_growth_habit 
+        left join plants3.d_plant_growth_habit using (plant_growth_habit_id)
+        group by plant_master_id
+      ) pgh using (plant_master_id)
       left join plants3.plant_morphology_physiology m using (plant_master_id)
       left join plants3.plant_growth_requirements g using (plant_master_id, cultivar_name)
       left join plants3.plant_reproduction r using (plant_master_id, cultivar_name)
