@@ -2179,6 +2179,7 @@ const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
         plant_duration_name,
         plant_nativity_type,
         plant_nativity_description,
+        plant_growth_habit_name,
         cover_crop,
         active_growth_period,
         after_harvest_regrowth_rate,
@@ -2241,6 +2242,8 @@ const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
       from plants3.plant_master_tbl p
       left join plants3.plant_classifications_tbl using (plant_master_id)
       left join plants3.plant_duration using (plant_master_id)
+      left join plants3.plant_growth_habit using (plant_master_id)
+      left join plants3.d_plant_growth_habit using (plant_growth_habit_id)
       left join plants3.d_plant_duration using (plant_duration_id)
       left join plants3.plant_morphology_physiology m using (plant_master_id)
       left join plants3.plant_growth_requirements g using (plant_master_id, cultivar_name)
