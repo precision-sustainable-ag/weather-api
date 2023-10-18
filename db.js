@@ -2181,27 +2181,27 @@ const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
         plant_nativity_description,
         plant_growth_habit_name,
         cover_crop,
-        active_growth_period,
-        after_harvest_regrowth_rate,
-        bloat_potential,
-        c_n_ratio,
+        active_growth_period.season_name as active_growth_period,
+        after_harvest_regrowth_rate.rate_name as after_harvest_regrowth_rate,
+        bloat_potential.extent_name as bloat_potential,
+        c_n_ratio.extent_name as c_n_ratio,
         coppice_potential_ind,
         fall_conspicuous_ind,
         fire_resistant_ind,
         color_name,
         flower_conspicuous_ind,
-        fall,
-        winter,
+        fall.foliage_porosity_name as fall,
+        winter.foliage_porosity_name as winter,
         fruit_seed_conspicuous_ind,
         growth_form_name,
-        growth_rate,
+        growth_rate.rate_name as growth_rate,
         height_max_at_base_age,
         height_at_maturity,
         known_allelopath_ind,
         leaf_retention_ind,
         lifespan_name,
         low_growing_grass_ind,
-        nitrogen_fixation_potential,
+        nitrogen_fixation_potential.extent_name as nitrogen_fixation_potential,
         resprout_ability_ind,
         shape_orientation_name,
         toxicity_name,
@@ -2209,36 +2209,36 @@ const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
         coarse_texture_soil_adaptable_ind,
         medium_texture_soil_adaptable_ind,
         fine_texture_soil_adaptable_ind,
-        anaerobic_tolerance,
-        caco3_tolerance,
+        anaerobic_tolerance.extent_name as anaerobic_tolerance,
+        caco3_tolerance.extent_name as caco3_tolerance,
         cold_stratification_required_ind,
-        drought_tolerance,
-        fire_tolerance,
-        hedge_tolerance,
-        moisture_usage,
+        drought_tolerance.extent_name as drought_tolerance,
+        fire_tolerance.extent_name as fire_tolerance,
+        hedge_tolerance.extent_name as hedge_tolerance,
+        moisture_usage.extent_name as moisture_usage,
         soil_ph_tolerance_min,
         soil_ph_tolerance_max,
         precipitation_tolerance_min, 
         precipitation_tolerance_max,
-        salinity_tolerance,
+        salinity_tolerance.extent_name as salinity_tolerance,
         shade_tolerance_name,
         temperature_tolerance_min,
     
-        bloom_period,
-        fruit_seed_period_start,
-        fruit_seed_period_end,
+        bloom_period.season_name as bloom_period,
+        fruit_seed_period_start.season_name as fruit_seed_period_start,
+        fruit_seed_period_end.season_name as fruit_seed_period_end,
         fruit_seed_persistence_ind,
         seed_per_pound,
-        seed_spread_rate,
-        seedling_vigor,
-        vegetative_spread_rate,
+        seed_spread_rate.rate_name as seed_spread_rate,
+        seedling_vigor.extent_name as seedling_vigor,
+        vegetative_spread_rate.rate_name as vegetative_spread_rate,
     
         berry_nut_seed_product_ind,
         fodder_product_ind,
-        palatability_browse,
-        palatability_graze,
+        palatability_browse.extent_name as palatability_browse,
+        palatability_graze.extent_name as palatability_graze,
         palatability_human_ind,
-        protein_potential
+        protein_potential.extent_name as protein_potential
       from plants3.plant_master_tbl p
       left join plants3.plant_classifications_tbl using (plant_master_id)
       left join plants3.plant_duration using (plant_master_id)
@@ -2262,98 +2262,52 @@ const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
         left join plants3.d_plant_nativity using (plant_nativity_id)
         where country_identifier = 5
       ) nativity using (plant_master_id)
-      left join (
-        select season_name as active_growth_period, * from plants3.d_season
-      ) ags on m.active_growth_period_id = ags.season_id
-      left join (
-        select rate_name as after_harvest_regrowth_rate, * from plants3.d_rate
-      ) ah on m.after_harvest_regrowth_rate_id = ah.rate_id
-      left join (
-        select extent_name as bloat_potential, * from plants3.d_extent
-      ) e on m.bloat_potential_id = e.extent_id
-      left join (
-        select extent_name as c_n_ratio, * from plants3.d_extent
-      ) cn on m.c_n_ratio_id = cn.extent_id
+      left join plants3.d_season active_growth_period on m.active_growth_period_id=active_growth_period.season_id
+      left join plants3.d_rate after_harvest_regrowth_rate on m.after_harvest_regrowth_rate_id=after_harvest_regrowth_rate.rate_id
+      left join plants3.d_extent bloat_potential on m.bloat_potential_id=bloat_potential.extent_id
+      left join plants3.d_extent c_n_ratio on m.c_n_ratio_id=c_n_ratio.extent_id
       left join plants3.d_color c on m.flower_color_id = c.color_id
-      left join (
-        select foliage_porosity_name as fall, * from plants3.d_foliage_porosity
-      ) f on m.summer_foliage_porosity_id=f.foliage_porosity_id
-      left join (
-        select foliage_porosity_name as winter, * from plants3.d_foliage_porosity
-      ) w on m.winter_foliage_porosity_id=w.foliage_porosity_id
+      left join plants3.d_foliage_porosity fall on m.summer_foliage_porosity_id=fall.foliage_porosity_id
+      left join plants3.d_foliage_porosity winter on m.winter_foliage_porosity_id=winter.foliage_porosity_id
       left join plants3.d_growth_form gf on m.growth_form_id=gf.growth_form_id
-      left join (
-        select rate_name as growth_rate, * from plants3.d_rate
-      ) gr on m.growth_rate_id=gr.rate_id
+      left join plants3.d_rate growth_rate on m.growth_rate_id=growth_rate.rate_id
       left join plants3.d_lifespan using (lifespan_id)
-      left join (
-        select extent_name as nitrogen_fixation_potential, * from plants3.d_extent
-      ) nf on m.nitrogen_fixation_potential_id = nf.extent_id
+      left join plants3.d_extent nitrogen_fixation_potential on m.nitrogen_fixation_potential_id=nitrogen_fixation_potential.extent_id
       left join plants3.d_shape_orientation q on m.shape_orientation_id=q.shape_orientation_id
       left join plants3.d_toxicity using (toxicity_id)
-    
-      left join (
-        select extent_name as anaerobic_tolerance, * from plants3.d_extent
-      ) at on g.anaerobic_tolerance_id=at.extent_id
-      left join (
-        select extent_name as caco3_tolerance, * from plants3.d_extent
-      ) ct on g.caco3_tolerance_id=ct.extent_id
-      left join (
-        select extent_name as drought_tolerance, * from plants3.d_extent
-      ) dt on g.drought_tolerance_id=dt.extent_id
-      left join (
-        select extent_name as fire_tolerance, * from plants3.d_extent
-      ) ft on g.fire_tolerance_id=ft.extent_id
-      left join (
-        select extent_name as hedge_tolerance, * from plants3.d_extent
-      ) ht on g.hedge_tolerance_id=ht.extent_id
-      left join (
-        select extent_name as moisture_usage, * from plants3.d_extent
-      ) mu on g.moisture_usage_id=mu.extent_id
-      left join (
-        select extent_name as salinity_tolerance, * from plants3.d_extent
-      ) st on g.salinity_tolerance_id=st.extent_id
+      left join plants3.d_extent anaerobic_tolerance on g.anaerobic_tolerance_id=anaerobic_tolerance.extent_id
+      left join plants3.d_extent caco3_tolerance on g.caco3_tolerance_id=caco3_tolerance.extent_id
+      left join plants3.d_extent drought_tolerance on g.drought_tolerance_id=drought_tolerance.extent_id
+      left join plants3.d_extent fire_tolerance on g.fire_tolerance_id=fire_tolerance.extent_id
+      left join plants3.d_extent hedge_tolerance on g.hedge_tolerance_id=hedge_tolerance.extent_id
+      left join plants3.d_extent moisture_usage on g.moisture_usage_id = moisture_usage.extent_id
+      left join plants3.d_extent salinity_tolerance on g.salinity_tolerance_id = salinity_tolerance.extent_id
       left join plants3.d_shade_tolerance using (shade_tolerance_id)
     
-      left join (
-        select season_name as bloom_period, * from plants3.d_season
-      ) bp on r.bloom_period_id=bp.season_id
-      left join (
-        select season_name as fruit_seed_period_start, * from plants3.d_season
-      ) fs on r.fruit_seed_period_start_id=fs.season_id
-      left join (
-        select season_name as fruit_seed_period_end, * from plants3.d_season
-      ) fe on r.fruit_seed_period_end_id=fe.season_id
-      left join (
-        select rate_name as seed_spread_rate, * from plants3.d_rate
-      ) sr on r.seed_spread_rate_id=sr.rate_id
-      left join (
-        select extent_name as seedling_vigor, * from plants3.d_extent
-      ) sv on r.seedling_vigor_id=sv.extent_id
-      left join (
-        select rate_name as vegetative_spread_rate, * from plants3.d_rate
-      ) vr on r.vegetative_spread_rate_id=vr.rate_id
+      left join plants3.d_season bloom_period on r.bloom_period_id=bloom_period.season_id
+      left join plants3.d_season fruit_seed_period_start on r.fruit_seed_period_start_id=fruit_seed_period_start.season_id
+      left join plants3.d_season fruit_seed_period_end on r.fruit_seed_period_end_id=fruit_seed_period_end.season_id
+      left join plants3.d_rate seed_spread_rate on r.seed_spread_rate_id=seed_spread_rate.rate_id
+      left join plants3.d_extent seedling_vigor on r.seedling_vigor_id = seedling_vigor.extent_id
+      left join plants3.d_rate vegetative_spread_rate on r.vegetative_spread_rate_id=vegetative_spread_rate.rate_id
     
-      left join (
-        select extent_name as palatability_browse, * from plants3.d_extent
-      ) pb on s.palatability_browse_id=pb.extent_id
-      left join (
-        select extent_name as palatability_graze, * from plants3.d_extent
-      ) pg on s.palatability_graze_id=pg.extent_id
-      left join (
-        select extent_name as protein_potential, * from plants3.d_extent
-      ) pp on s.protein_potential_id=pp.extent_id
+      left join plants3.d_extent palatability_browse on s.palatability_browse_id = palatability_browse.extent_id
+      left join plants3.d_extent palatability_graze on s.palatability_graze_id = palatability_graze.extent_id
+      left join plants3.d_extent protein_potential on s.protein_potential_id = protein_potential.extent_id
     ) alias
-    where concat(
-      active_growth_period, after_harvest_regrowth_rate, bloat_potential, c_n_ratio, coppice_potential_ind, fall_conspicuous_ind,
-      fire_resistant_ind, color_name, flower_conspicuous_ind, fall, winter, fruit_seed_conspicuous_ind, growth_form_name, growth_rate,
-      height_max_at_base_age, height_at_maturity, known_allelopath_ind, leaf_retention_ind, lifespan_name, low_growing_grass_ind,
-      nitrogen_fixation_potential, resprout_ability_ind, shape_orientation_name, toxicity_name, coarse_texture_soil_adaptable_ind,
-      medium_texture_soil_adaptable_ind, fine_texture_soil_adaptable_ind, anaerobic_tolerance, caco3_tolerance, cold_stratification_required_ind,
-      drought_tolerance, fire_tolerance, hedge_tolerance, moisture_usage, soil_ph_tolerance_min, soil_ph_tolerance_max, precipitation_tolerance_min,
-      precipitation_tolerance_max, salinity_tolerance, shade_tolerance_name, temperature_tolerance_min, bloom_period, fruit_seed_period_start,
-      fruit_seed_period_end, fruit_seed_persistence_ind, seed_per_pound, seed_spread_rate, seedling_vigor, vegetative_spread_rate,
-      berry_nut_seed_product_ind, fodder_product_ind, palatability_browse, palatability_graze, palatability_human_ind, protein_potential
+    where coalesce(
+      active_growth_period::text, after_harvest_regrowth_rate::text, bloat_potential::text, c_n_ratio::text, coppice_potential_ind::text,
+      fall_conspicuous_ind::text, fire_resistant_ind::text, color_name::text, flower_conspicuous_ind::text, fall::text, winter::text,
+      fruit_seed_conspicuous_ind::text, growth_form_name::text, growth_rate::text, height_max_at_base_age::text, height_at_maturity::text,
+      known_allelopath_ind::text, leaf_retention_ind::text, lifespan_name::text, low_growing_grass_ind::text, nitrogen_fixation_potential::text,
+      resprout_ability_ind::text, shape_orientation_name::text, toxicity_name::text, coarse_texture_soil_adaptable_ind::text,
+      medium_texture_soil_adaptable_ind::text, fine_texture_soil_adaptable_ind::text, anaerobic_tolerance::text, caco3_tolerance::text,
+      cold_stratification_required_ind::text, drought_tolerance::text, fire_tolerance::text, hedge_tolerance::text, moisture_usage::text,
+      soil_ph_tolerance_min::text, soil_ph_tolerance_max::text, precipitation_tolerance_min::text, precipitation_tolerance_max::text,
+      salinity_tolerance::text, shade_tolerance_name::text, temperature_tolerance_min::text, bloom_period::text, fruit_seed_period_start::text,
+      fruit_seed_period_end::text, fruit_seed_persistence_ind::text, seed_per_pound::text, seed_spread_rate::text, seedling_vigor::text,
+      vegetative_spread_rate::text, berry_nut_seed_product_ind::text, fodder_product_ind::text, palatability_browse::text, palatability_graze::text,
+      palatability_human_ind::text, protein_potential::text
     ) > ''
     order by 1, 2, 3
   `;
