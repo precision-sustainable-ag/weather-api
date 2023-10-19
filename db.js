@@ -2167,7 +2167,7 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
   send(res, empty);
 }; // routePlantsEmptyColumns
 
-const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
+const routePlantsCharacteristics = async (req = testRequest, res = testResponse) => {
   const sq = `
     select * from (
       select
@@ -2310,9 +2310,41 @@ const routePlantsCharacteristics = (req = testRequest, res = testResponse) => {
       palatability_human_ind::text, protein_potential::text
     ) > ''
     order by 1, 2, 3
-  `;
+    `;
 
-  simpleQuery(sq, res, true);
+  // const q = sq.replace(/'/g, '');
+
+  const characteristics = await pool.query(`select results from weather.queries where query = 'plantscharacteristics'`);
+  if (characteristics.rows.length) {
+    console.log('cached');
+    send(res, characteristics.rows[0].results);
+    return;
+  }
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        debug(err, res, 500);
+      } else if (results.rows.length) {
+        send(res, results.rows);
+        pool.query(
+          `
+            insert into weather.queries (date, url, query, results)
+            values (now(), '${req.originalUrl}', 'plantscharacteristics', $1)
+          `,
+          [JSON.stringify(results.rows)],
+          (err2) => {
+            if (err2) {
+              console.error(err2);
+            }
+          },
+        );
+      } else {
+        send(res, {});
+      }
+    },
+  );
 }; // routePlantsCharacteristics
 
 const routePlantsTable = (req = testRequest, res = testResponse) => {
