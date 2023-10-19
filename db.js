@@ -2070,6 +2070,29 @@ const simpleQuery = (sq, res, hideUnused) => {
   );
 }; // simpleQuery
 
+const routeMlraSymbols = (req = testRequest, res = testResponse) => {
+  const { mlra } = req.query;
+
+  const sq = `
+    SELECT distinct plant_symbol
+    FROM mlra_species
+    WHERE mlra='${mlra}'
+  `;
+
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        debug(err, res, 500);
+      } else if (results.rows.length) {
+        send(res, results.rows.map((row) => row.plant_symbol));
+      } else {
+        send(res, []);
+      }
+    },
+  );
+}; // routeMlraSpecies3
+
 const routePlantsStructure = (req = testRequest, res = testResponse) => {
   const { table } = req.query;
 
@@ -2610,6 +2633,7 @@ module.exports = {
   routeMLRAErrors,
   routeMlraSpecies,
   routeMlraSpecies2,
+  routeMlraSymbols,
   routeMvm,
   routeNvm,
   routeNvm2,
