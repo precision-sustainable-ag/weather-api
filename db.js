@@ -2070,29 +2070,6 @@ const simpleQuery = (sq, res, hideUnused) => {
   );
 }; // simpleQuery
 
-const routeMlraSymbols = (req = testRequest, res = testResponse) => {
-  const { mlra } = req.query;
-
-  const sq = `
-    SELECT distinct plant_symbol
-    FROM mlra_species
-    WHERE mlra='${mlra}'
-  `;
-
-  pool.query(
-    sq,
-    (err, results) => {
-      if (err) {
-        debug(err, res, 500);
-      } else if (results.rows.length) {
-        send(res, results.rows.map((row) => row.plant_symbol));
-      } else {
-        send(res, []);
-      }
-    },
-  );
-}; // routeMlraSpecies3
-
 const routePlantsStructure = (req = testRequest, res = testResponse) => {
   const { table } = req.query;
 
@@ -2337,7 +2314,19 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
 
   // const q = sq.replace(/'/g, '');
 
-  const characteristics = await pool.query(`select results from weather.queries where query = 'plantscharacteristics'`);
+  let symbols = [];
+
+  const mlra = req.query.mlra || '';
+  if (mlra) {
+    symbols = await pool.query(`
+      SELECT distinct plant_symbol
+      FROM mlra_species
+      WHERE mlra='${mlra}'
+    `);
+    symbols = symbols.rows.map((row) => row.plant_symbol);
+  }
+
+  const characteristics = await pool.query(`select results from weather.queries where query = 'plantscharacteristics${mlra}'`);
   if (characteristics.rows.length) {
     console.log('cached');
     send(res, characteristics.rows[0].results);
@@ -2350,13 +2339,20 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
       if (err) {
         debug(err, res, 500);
       } else if (results.rows.length) {
-        send(res, results.rows);
+        let data = results.rows;
+
+        if (symbols.length) {
+          data = results.rows.filter((result) => symbols.includes(result.plant_symbol));
+        }
+
+        send(res, data);
+
         pool.query(
           `
             insert into weather.queries (date, url, query, results)
-            values (now(), '${req.originalUrl}', 'plantscharacteristics', $1)
+            values (now(), '${req.originalUrl}', 'plantscharacteristics${mlra}', $1)
           `,
-          [JSON.stringify(results.rows)],
+          [JSON.stringify(data)],
           (err2) => {
             if (err2) {
               console.error(err2);
@@ -2633,7 +2629,6 @@ module.exports = {
   routeMLRAErrors,
   routeMlraSpecies,
   routeMlraSpecies2,
-  routeMlraSymbols,
   routeMvm,
   routeNvm,
   routeNvm2,

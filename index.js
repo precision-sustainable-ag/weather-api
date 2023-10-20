@@ -74,7 +74,6 @@ app.all('/frost', db.initializeVariables, db.routeFrost);
 app.all('/countyspecies', db.routeCountySpecies);
 app.all('/mlraspecies', db.routeMlraSpecies);
 app.all('/mlraspecies2', db.routeMlraSpecies2);
-app.all('/mlrasymbols', db.routeMlraSymbols);
 app.all('/mlraerrors', db.routeMLRAErrors);
 app.all('/plants', db.routePlants);
 app.all('/plants2', db.routePlants2);
