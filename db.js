@@ -2238,7 +2238,12 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
         palatability_browse.extent_name as palatability_browse,
         palatability_graze.extent_name as palatability_graze,
         palatability_human_ind,
-        protein_potential.extent_name as protein_potential
+        protein_potential.extent_name as protein_potential,
+
+        frost_free_days_min,
+        planting_density_min,
+        root_depth_min
+
       from plants3.plant_master_tbl p
       left join plants3.plant_classifications_tbl using (plant_master_id)
       left join (
