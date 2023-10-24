@@ -2241,8 +2241,14 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
         protein_potential.extent_name as protein_potential
       from plants3.plant_master_tbl p
       left join plants3.plant_classifications_tbl using (plant_master_id)
-      left join plants3.plant_duration using (plant_master_id)
-      left join plants3.d_plant_duration using (plant_duration_id)
+      left join (
+        select
+          array_to_string(array_agg(plant_duration_name order by plant_duration_name), ', ') as plant_duration_name,
+          plant_master_id
+        from plants3.plant_duration
+        left join plants3.d_plant_duration using (plant_duration_id)
+        group by plant_master_id
+      ) pd using (plant_master_id)
       left join (
         select
           array_to_string(array_agg(plant_growth_habit_name order by plant_growth_habit_name), ', ') as plant_growth_habit_name,
