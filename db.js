@@ -1777,7 +1777,7 @@ const routeMLRA = (req = testRequest, res = testResponse) => {
     if (mlra) {
       query(`
         SELECT
-          b.id,b.name,b.mlrarsym,b.lrrsym,b.lrrname,
+          b.name,b.mlrarsym,b.lrrsym,b.lrrname,
           string_agg(DISTINCT county || ' County' || ' ' || state, ', ') as counties,
           string_agg(DISTINCT state, ', ') as states,
           string_agg(DISTINCT state_code,', ') as state_codes,
@@ -1791,7 +1791,7 @@ const routeMLRA = (req = testRequest, res = testResponse) => {
           WHERE mlrarsym = '${mlra}'
         ) b
         ON ST_Intersects(ST_SetSRID(b.geometry, 4269), a.geometry)
-        GROUP BY b.id,b.name,b.mlrarsym,b.lrrsym,b.lrrname ${polygon ? ', polygon' : ''}
+        GROUP BY b.name,b.mlrarsym,b.lrrsym,b.lrrname ${polygon ? ', polygon' : ''}
       `);
     } else {
       query(
@@ -1807,12 +1807,12 @@ const routeMLRA = (req = testRequest, res = testResponse) => {
   if (!attributes) {
     if (polygon === 'true') {
       attributes = `
-        id, name, mlrarsym, lrrsym, lrrname,
+        name, mlrarsym, lrrsym, lrrname,
         (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,
         ST_AsText(geometry) as polygon
       `;
     } else {
-      attributes = 'id, name, mlrarsym, lrrsym, lrrname';
+      attributes = 'name, mlrarsym, lrrsym, lrrname';
     }
   }
 
