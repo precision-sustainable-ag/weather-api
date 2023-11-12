@@ -1,3 +1,26 @@
+/*
+  SELECT * INTO plants3.nativity
+  FROM (
+    SELECT DISTINCT
+      plc.plant_master_id,
+      COALESCE(dpn.plant_nativity_id, 0) AS plant_nativity,
+      COALESCE(plant_excluded_location_ind, false) AS plant_excluded_ind,
+      COALESCE(pl.plant_nativity_region_id, 0) AS plant_nativity_region_id,
+      dpnr.plant_nativity_region_name,
+      COALESCE(plant_nativity_type, '') AS plant_nativity_type,
+      COALESCE(plant_nativity_name, '') AS plant_nativity_name,
+      country_identifier,
+      ROW_NUMBER() OVER (PARTITION BY plc.plant_master_id, dpnr.plant_nativity_region_name
+                        ORDER BY plant_nativity_type, dpnr.plant_nativity_region_name ASC) AS rn
+    FROM
+      plants3.plant_location_characteristic plc
+      INNER JOIN plants3.plant_location pl ON pl.plant_location_id = plc.plant_location_id
+      INNER JOIN plants3.d_plant_nativity dpn ON plc.plant_nativity_id = dpn.plant_nativity_id
+      INNER JOIN plants3.d_plant_nativity_region dpnr ON pl.plant_nativity_region_id = dpnr.plant_nativity_region_id
+    ORDER BY 1
+  ) alias;
+*/
+
 const { format } = require('sql-formatter');
 const axios = require('axios');
 const myip = require('ip');
@@ -2169,7 +2192,7 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
 
 const routePlantsCharacteristics = async (req = testRequest, res = testResponse) => {
   const sq = `
-    select * from (
+    select distinct * from (
       select
         p.plant_symbol,
         plant_master_id,
@@ -2178,7 +2201,7 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
         primary_vernacular,
         plant_duration_name,
         plant_nativity_type,
-        plant_nativity_description,
+        plant_nativity_region_name,
         plant_growth_habit_name,
         cover_crop,
         active_growth_period.season_name as active_growth_period,
@@ -2190,8 +2213,9 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
         fire_resistant_ind,
         color_name,
         flower_conspicuous_ind,
-        fall.foliage_porosity_name as fall,
+        summer.foliage_porosity_name as summer,
         winter.foliage_porosity_name as winter,
+        foliage_texture_name,
         fruit_seed_conspicuous_ind,
         growth_form_name,
         growth_rate.rate_name as growth_rate,
@@ -2205,6 +2229,20 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
         resprout_ability_ind,
         shape_orientation_name,
         toxicity_name,
+        
+        pd_max_range,
+        ff_min_range,
+        ph_min_range,
+        ph_max_range,
+        density_min_range,
+        precip_min_range,
+        precip_max_range,
+        root_min_range,
+        temp_min_range,
+        commercial_availability_id,
+        fruit_seed_abundance_id,
+        propagated_by_bare_root_ind,
+        propagated_by_bulb_ind,
     
         coarse_texture_soil_adaptable_ind,
         medium_texture_soil_adaptable_ind,
@@ -2248,15 +2286,15 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
       left join plants3.plant_classifications_tbl using (plant_master_id)
       left join (
         select
-          array_to_string(array_agg(plant_duration_name order by plant_duration_name), ', ') as plant_duration_name,
+          string_agg(plant_duration_name, ', ' order by plant_duration_name) as plant_duration_name,
           plant_master_id
         from plants3.plant_duration
-        left join plants3.d_plant_duration using (plant_duration_id)
+        left join plants3.d_plant_duration USING (plant_duration_id)
         group by plant_master_id
       ) pd using (plant_master_id)
       left join (
         select
-          array_to_string(array_agg(plant_growth_habit_name order by plant_growth_habit_name), ', ') as plant_growth_habit_name,
+          string_agg(plant_growth_habit_name, ', ' order by plant_growth_habit_name) as plant_growth_habit_name,
           plant_master_id
         from plants3.plant_growth_habit 
         left join plants3.d_plant_growth_habit using (plant_growth_habit_id)
@@ -2266,20 +2304,25 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
       left join plants3.plant_growth_requirements g using (plant_master_id, cultivar_name)
       left join plants3.plant_reproduction r using (plant_master_id, cultivar_name)
       left join plants3.plant_suitability_use s using (plant_master_id, cultivar_name)
+
       left join (
-        select distinct plant_nativity_type, plant_nativity_description, plant_master_id
-        from plants3.plant_location_characteristic
-        left join plants3.plant_location using (plant_location_id)
-        left join plants3.d_plant_nativity using (plant_nativity_id)
-        where country_identifier = 5
-      ) nativity using (plant_master_id)
+        select
+          plant_nativity_type,
+          string_agg(nativity.plant_nativity_region_name, ', ' order by nativity.plant_nativity_region_name) as plant_nativity_region_name,
+          plant_master_id
+        from plants3.nativity
+        left join plants3.d_plant_nativity_region using (plant_nativity_region_id)
+        group by plant_master_id, plant_nativity_type
+      ) nat using (plant_master_id)
+
       left join plants3.d_season active_growth_period on m.active_growth_period_id=active_growth_period.season_id
       left join plants3.d_rate after_harvest_regrowth_rate on m.after_harvest_regrowth_rate_id=after_harvest_regrowth_rate.rate_id
       left join plants3.d_extent bloat_potential on m.bloat_potential_id=bloat_potential.extent_id
       left join plants3.d_extent c_n_ratio on m.c_n_ratio_id=c_n_ratio.extent_id
       left join plants3.d_color c on m.flower_color_id = c.color_id
-      left join plants3.d_foliage_porosity fall on m.summer_foliage_porosity_id=fall.foliage_porosity_id
+      left join plants3.d_foliage_porosity summer on m.summer_foliage_porosity_id=summer.foliage_porosity_id
       left join plants3.d_foliage_porosity winter on m.winter_foliage_porosity_id=winter.foliage_porosity_id
+      left join plants3.d_foliage_texture foliage_texture_name on m.foliage_texture_id=foliage_texture_name.foliage_texture_id
       left join plants3.d_growth_form gf on m.growth_form_id=gf.growth_form_id
       left join plants3.d_rate growth_rate on m.growth_rate_id=growth_rate.rate_id
       left join plants3.d_lifespan using (lifespan_id)
@@ -2308,7 +2351,7 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
     ) alias
     where coalesce(
       active_growth_period::text, after_harvest_regrowth_rate::text, bloat_potential::text, c_n_ratio::text, coppice_potential_ind::text,
-      fall_conspicuous_ind::text, fire_resistant_ind::text, color_name::text, flower_conspicuous_ind::text, fall::text, winter::text,
+      fall_conspicuous_ind::text, fire_resistant_ind::text, color_name::text, flower_conspicuous_ind::text, summer::text, winter::text,
       fruit_seed_conspicuous_ind::text, growth_form_name::text, growth_rate::text, height_max_at_base_age::text, height_at_maturity::text,
       known_allelopath_ind::text, leaf_retention_ind::text, lifespan_name::text, low_growing_grass_ind::text, nitrogen_fixation_potential::text,
       resprout_ability_ind::text, shape_orientation_name::text, toxicity_name::text, coarse_texture_soil_adaptable_ind::text,
@@ -2335,12 +2378,18 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
       WHERE mlra='${mlra}'
     `);
     symbols = symbols.rows.map((row) => row.plant_symbol);
+  } else if (req.query.symbols) {
+    symbols = req.query.symbols.split(',');
   }
 
   const characteristics = await pool.query(`select results from weather.queries where query = 'plantscharacteristics${mlra}'`);
   if (characteristics.rows.length) {
     console.log('cached');
-    send(res, characteristics.rows[0].results);
+    let data = characteristics.rows[0].results;
+    if (symbols.length) {
+      data = data.filter((result) => symbols.includes(result.plant_symbol));
+    }
+    send(res, data);
     return;
   }
 
@@ -2353,7 +2402,7 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
         let data = results.rows;
 
         if (symbols.length) {
-          data = results.rows.filter((result) => symbols.includes(result.plant_symbol));
+          data = data.filter((result) => symbols.includes(result.plant_symbol));
         }
 
         send(res, data);
@@ -2363,7 +2412,7 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
             insert into weather.queries (date, url, query, results)
             values (now(), '${req.originalUrl}', 'plantscharacteristics${mlra}', $1)
           `,
-          [JSON.stringify(data)],
+          [JSON.stringify(results.rows)],
           (err2) => {
             if (err2) {
               console.error(err2);
