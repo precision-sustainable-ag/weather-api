@@ -1948,6 +1948,7 @@ const routeCountySpecies = (req = testRequest, res = testResponse) => {
 }; // routeCountySpecies
 
 const routeMlraSpecies = (req = testRequest, res = testResponse) => {
+  // from Access database
   const { mlra } = req.query;
 
   const sq = `
@@ -1979,6 +1980,7 @@ const routeMlraSpecies = (req = testRequest, res = testResponse) => {
 }; // routeMlraSpecies
 
 const routeMlraSpecies2 = (req = testRequest, res = testResponse) => {
+  // from Access database
   const { mlra } = req.query;
 
   const sq = `
@@ -2402,6 +2404,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   }
 
   if (mlra && !symbols.length) {
+    // from Access database
     symbols = await pool.query(`
       SELECT distinct plant_symbol
       FROM mlra_species
@@ -2455,6 +2458,14 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     },
   );
 }; // routeVegspecCharacteristics
+
+const routeVegspecDeleteState = (req, res) => {
+  simpleQuery(
+    'DELETE FROM plants3.states where state=$1',
+    [req.query.state],
+    res,
+  );
+}; // routeVegspecDeleteState
 
 const routeVegspecSaveState = async (req, res) => {
   const {
@@ -2761,6 +2772,7 @@ module.exports = {
   routeVegspecStructure,
   routePlantsTable,
   routeVegspecSaveState,
+  routeVegspecDeleteState,
   routeVegspecState,
   routeRosetta,
   routeTables,
