@@ -75,13 +75,28 @@ app.all('/countyspecies', db.routeCountySpecies);
 app.all('/mlraspecies', db.routeMlraSpecies);
 app.all('/mlraspecies2', db.routeMlraSpecies2);
 app.all('/mlraerrors', db.routeMLRAErrors);
+
 app.all('/plants', db.routePlants);
+
 app.all('/plants2', db.routePlants2);
-app.all('/plantsrecords', db.initializeVariables, db.routePlantsRecords);
-app.all('/plantscharacteristics', db.initializeVariables, db.routePlantsCharacteristics);
-app.all('/plantsstructure', db.initializeVariables, db.routePlantsStructure);
+
+app.all('/plantsrecords', db.initializeVariables, db.routeVegspecRecords);
+app.all('/vegspec/records', db.initializeVariables, db.routeVegspecRecords);
+
+app.all('/plantscharacteristics', db.initializeVariables, db.routeVegspecCharacteristics);
+app.all('/vegspec/characteristics', db.initializeVariables, db.routeVegspecCharacteristics);
+
+app.all('/plantsstructure', db.initializeVariables, db.routeVegspecStructure);
+app.all('/vegspec/structure', db.initializeVariables, db.routeVegspecStructure);
+
 app.all('/plantstable', db.initializeVariables, db.routePlantsTable);
+app.all('/vegspec/table', db.initializeVariables, db.routePlantsTable);
+
 app.all('/plantsemptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
+app.all('/vegspec/emptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
+
+app.all('/vegspec/savestate', db.routeVegspecSaveState);
+app.all('/vegspec/state', db.routeVegspecState);
 
 app.all('/yearly', db.initializeVariables, db.routeYearly);
 

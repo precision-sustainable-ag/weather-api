@@ -19,6 +19,15 @@
       INNER JOIN plants3.d_plant_nativity_region dpnr ON pl.plant_nativity_region_id = dpnr.plant_nativity_region_id
     ORDER BY 1
   ) alias;
+
+  CREATE TABLE plants3.states (
+    state VARCHAR(255),
+    plant_symbol VARCHAR(10),
+    cultivar_name VARCHAR(20),
+    parameter VARCHAR(30),
+    value VARCHAR(255),
+    notes TEXT
+  );
 */
 
 const { format } = require('sql-formatter');
@@ -2068,9 +2077,10 @@ const routePlants2 = (req, res = testResponse) => {
   );
 }; // routePlants2
 
-const simpleQuery = (sq, res, hideUnused) => {
+const simpleQuery = (sq, parameters, res, hideUnused) => {
   pool.query(
     sq,
+    parameters,
     (err, results) => {
       if (hideUnused) {
         const used = new Set();
@@ -2093,21 +2103,21 @@ const simpleQuery = (sq, res, hideUnused) => {
   );
 }; // simpleQuery
 
-const routePlantsStructure = (req = testRequest, res = testResponse) => {
+const routeVegspecStructure = (req = testRequest, res = testResponse) => {
   const { table } = req.query;
 
   const sq = `
     SELECT table_name, column_name, data_type
     FROM information_schema.columns
-    WHERE ${table ? `table_name = '${table}' AND ` : ''}
+    WHERE ${table ? `table_name = $1 AND ` : ''}
       table_schema = 'plants3'
     ORDER BY table_name, ordinal_position;
   `;
 
-  simpleQuery(sq, res);
-}; // routePlantsStructure
+  simpleQuery(sq, table ? [table] : [], res);
+}; // routeVegspecStructure
 
-const routePlantsRecords = (req = testRequest, res = testResponse) => {
+const routeVegspecRecords = (req = testRequest, res = testResponse) => {
   // https://stackoverflow.com/a/38684225/3903374 and Chat-GPT
   const sq = `
     WITH table_stats AS (
@@ -2136,8 +2146,8 @@ const routePlantsRecords = (req = testRequest, res = testResponse) => {
     FROM table_stats ts;
   `;
 
-  simpleQuery(sq, res);
-}; // routePlantsRecords
+  simpleQuery(sq, [], res);
+}; // routeVegspecRecords
 
 const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) => {
   if (!req.query.generate) {
@@ -2190,7 +2200,7 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
   send(res, empty);
 }; // routePlantsEmptyColumns
 
-const routePlantsCharacteristics = async (req = testRequest, res = testResponse) => {
+const routeVegspecCharacteristics = async (req = testRequest, res = testResponse) => {
   const sq = `
     select distinct * from (
       select
@@ -2371,7 +2381,27 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
   let symbols = [];
 
   const mlra = req.query.mlra || '';
-  if (mlra) {
+  const state = req.query.state?.toUpperCase() || '';
+  if (state) {
+    const data = await pool.query('select * from plants3.states where state=$1', [state]);
+    if (data.rows.length) {
+      if (mlra) {
+        data.rows = data.rows.filter((row) => row.parameter === 'mlra' && row.value.includes(mlra));
+      }
+
+      data.rows.forEach((row) => {
+        const s = row.plant_symbol.split(',');
+        s.forEach((symbol) => {
+          if (!symbols.includes(symbol)) {
+            symbols.push(symbol);
+          }
+        });
+      });
+      console.log(symbols);
+    }
+  }
+
+  if (mlra && !symbols.length) {
     symbols = await pool.query(`
       SELECT distinct plant_symbol
       FROM mlra_species
@@ -2424,12 +2454,40 @@ const routePlantsCharacteristics = async (req = testRequest, res = testResponse)
       }
     },
   );
-}; // routePlantsCharacteristics
+}; // routeVegspecCharacteristics
+
+const routeVegspecSaveState = async (req, res) => {
+  const {
+    state, symbol, cultivar, parameter, value, notes,
+  } = req.query;
+
+  console.log(state, symbol, cultivar, parameter, value, notes);
+
+  try {
+    await pool.query(
+      'INSERT INTO plants3.states (state, plant_symbol, cultivar_name, parameter, value, notes) VALUES ($1, $2, $3, $4, $5, $6)',
+      [state, symbol || null, cultivar || null, parameter || null, value || null, notes || null],
+    );
+
+    send(res, { status: 'Success' });
+  } catch (error) {
+    send(res, { error });
+  }
+}; // routeVegspecSaveState
+
+const routeVegspecState = async (req = testRequest, res = testResponse) => {
+  simpleQuery(
+    'select * from plants3.states where state=$1',
+    [req.query.state],
+    res,
+  );
+}; // routeVegspecState
 
 const routePlantsTable = (req = testRequest, res = testResponse) => {
-  const sq = `select * from plants3.${req.query.table}`;
+  const table = safeQuery(req, 'table');
+  const sq = `select * from plants3.${table}`;
 
-  simpleQuery(sq, res, true);
+  simpleQuery(sq, [], res, true);
 }; // routePlantsTable
 
 const routeFrost = (req = testRequest, res = testResponse) => {
@@ -2657,8 +2715,8 @@ async function routeTest(req, res) {
     routeNvm2Query,
     routePlants,
     routePlants2,
-    routePlantsRecords,
-    routePlantsStructure,
+    routeVegspecRecords,
+    routeVegspecStructure,
     routeTables,
     routeWatershed,
     routeYearly,
@@ -2697,11 +2755,13 @@ module.exports = {
   routeNvm2Update,
   routePlants,
   routePlants2,
-  routePlantsCharacteristics,
+  routeVegspecCharacteristics,
   routePlantsEmptyColumns,
-  routePlantsRecords,
-  routePlantsStructure,
+  routeVegspecRecords,
+  routeVegspecStructure,
   routePlantsTable,
+  routeVegspecSaveState,
+  routeVegspecState,
   routeRosetta,
   routeTables,
   routeTest,
