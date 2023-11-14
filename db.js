@@ -2388,7 +2388,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     const data = await pool.query('select * from plants3.states where state=$1', [state]);
     if (data.rows.length) {
       if (mlra) {
-        data.rows = data.rows.filter((row) => row.parameter === 'mlra' && row.value.includes(mlra));
+        data.rows = data.rows.filter((row) => row.parameter === 'mlra' && row.value.split(',').includes(mlra));
       }
 
       data.rows.forEach((row) => {
