@@ -98,6 +98,7 @@ app.all('/vegspec/emptycolumns', db.initializeVariables, db.routePlantsEmptyColu
 app.all('/vegspec/savestate', db.routeVegspecSaveState);
 app.all('/vegspec/state', db.routeVegspecState);
 app.all('/vegspec/deletestate', db.routeVegspecDeleteState);
+app.all('/vegspec/missingcultivars', db.initializeVariables, db.routeMissingCultivars);
 
 app.all('/yearly', db.initializeVariables, db.routeYearly);
 
