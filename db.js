@@ -2263,6 +2263,17 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
 const routeVegspecCharacteristics = async (req = testRequest, res = testResponse) => {
   const createCharacteristics = async () => {
     const sq = `
+      DROP TABLE IF EXISTS plants3.synonyms;
+      SELECT DISTINCT * INTO plants3.synonyms
+      FROM (
+        SELECT a.plant_master_id as pid, b.synonym_plant_master_id
+        FROM plants3.plant_synonym_tbl a
+        INNER JOIN plants3.plant_synonym_tbl b
+        ON a.plant_master_id = b.plant_master_id
+      ) a;
+      CREATE INDEX ON plants3.synonyms (pid);
+      CREATE INDEX ON plants3.synonyms (synonym_plant_master_id);
+            
       DROP TABLE IF EXISTS plants3.characteristics;
       SELECT * INTO plants3.characteristics
       FROM (
@@ -2357,6 +2368,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
             root_depth_min
 
           FROM plants3.plant_master_tbl p
+          
           LEFT JOIN plants3.plant_classifications_tbl USING (plant_master_id)
           LEFT JOIN (
             SELECT
@@ -2449,7 +2461,12 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     await createCharacteristics();
   } else {
     try {
-      const results = await pool.query('SELECT COUNT(*) FROM plants3.characteristics');
+      let results = await pool.query('SELECT COUNT(*) FROM plants3.characteristics');
+      if (+results.rows[0].count === 0) {
+        await createCharacteristics();
+      }
+
+      results = await pool.query('SELECT COUNT(*) FROM plants3.synonyms');
       if (+results.rows[0].count === 0) {
         await createCharacteristics();
       }
@@ -2457,6 +2474,27 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
       await createCharacteristics();
     }
   }
+
+  console.time();
+  const allSymbols = {};
+  const presults = await pool.query('SELECT plant_master_id, plant_symbol FROM plants3.plant_master_tbl');
+  presults.rows.forEach((row) => {
+    allSymbols[row.plant_master_id] = row.plant_symbol;
+    allSymbols[row.plant_symbol] = row.plant_master_id;
+  });
+  console.timeEnd(); // 1.3s
+
+  const synonyms = {};
+  const sresults = await pool.query('SELECT * FROM plants3.synonyms');
+  sresults.rows.forEach((row) => {
+    // console.log(row);
+    synonyms[row.pid] = synonyms[row.pid] || [];
+    synonyms[row.pid].push(row.synonym_plant_master_id);
+
+    synonyms[row.synonym_plant_master_id] = synonyms[row.synonym_plant_master_id] || [];
+    synonyms[row.synonym_plant_master_id].push(row.pid);
+  });
+  // console.log(synonyms);
 
   let symbols = [];
 
@@ -2492,16 +2530,71 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     symbols = req.query.symbols.split(',');
   }
 
-  const sq = symbols.length
+  const querySymbols = [];
+  if (symbols.length) {
+    [...symbols].forEach((symbol) => {
+      if (synonyms[allSymbols[symbol]]) {
+        querySymbols.push(...synonyms[allSymbols[symbol]].map((syn) => allSymbols[syn]));
+
+        synonyms[allSymbols[symbol]].forEach((syn) => {
+          querySymbols.push(allSymbols[syn]);
+          synonyms[syn].forEach((syn2) => {
+            querySymbols.push(allSymbols[syn2]);
+          });
+        });
+      } else {
+        querySymbols.push(symbol);
+      }
+    });
+  }
+
+  const sq = querySymbols.length
     ? `
         SELECT * FROM plants3.characteristics
-        WHERE plant_symbol IN (${symbols.map((symbol) => `'${symbol}'`)})
+        WHERE plant_symbol IN (${querySymbols.map((symbol) => `'${symbol}'`)})
       `
     : 'SELECT * FROM plants3.characteristics';
 
-  const results = await pool.query(sq);
+  console.time('query');
+  const cresults = await pool.query(sq);
+  console.timeEnd('query'); // 1s
 
-  send(res, results.rows);
+  const results = [];
+
+  cresults.rows.forEach((row) => {
+    if (synonyms[row.plant_master_id]) {
+      synonyms[row.plant_master_id].forEach((syn) => {
+        [syn, ...synonyms[syn]].forEach((syn2) => {
+          results.push({
+            ...row,
+            plant_master_id: syn2,
+            plant_symbol: allSymbols[syn2],
+          });
+        });
+      });
+    } else {
+      results.push(row);
+    }
+  });
+
+  console.time('filter');
+  let finalResults = results
+    .sort((a, b) => a.plant_symbol.localeCompare(b.plant_symbol) || (a.cultivar || '').localeCompare(b.cultivar || ''))
+    .filter((a, i, arr) => JSON.stringify(a) !== JSON.stringify(arr[i - 1]));
+
+  if (symbols.length) {
+    finalResults = finalResults.filter((a) => symbols.includes(a.plant_symbol));
+  }
+  console.timeEnd('filter'); // 300ms
+
+  if (!finalResults.length) {
+    res.send([]);
+    return;
+  }
+
+  console.log(finalResults.length);
+
+  send(res, finalResults);
 }; // routeVegspecCharacteristics
 
 const routeVegspecDeleteState = (req, res) => {
