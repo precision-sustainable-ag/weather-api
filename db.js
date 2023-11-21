@@ -28,6 +28,23 @@
     value VARCHAR(255),
     notes TEXT
   );
+
+  CREATE TABLE weather.canada30year (
+    lat NUMERIC,
+    lon NUMERIC,
+    fff_0 NUMERIC,
+    fff_2 NUMERIC,
+    fff_4 NUMERIC,
+    lsf_0 NUMERIC,
+    lsf_2 NUMERIC,
+    lsf_4 NUMERIC,
+    fff_0_date DATE,
+    fff_2_date DATE,
+    fff_4_date DATE,
+    lsf_0_date DATE,
+    lsf_2_date DATE,
+    lsf_4_date DATE
+  );
 */
 
 const { format } = require('sql-formatter');
@@ -2119,6 +2136,47 @@ const routeVegspecStructure = (req = testRequest, res = testResponse) => {
   simpleQuery(sq, table ? [table] : [], res);
 }; // routeVegspecStructure
 
+const routeMissingCultivars = (req, res) => {
+  const { state } = req.query;
+  const sq = `
+    SELECT DISTINCT
+      state,
+      '<a target="_blank" href="https://plants.sc.egov.usda.gov/home/plantProfile?symbol=' || a.plant_symbol || '">' || a.plant_symbol || '</a>'
+        as plant_symbol,
+      cultivar_name,
+      cultivars
+    FROM (
+      SELECT *
+      FROM plants3.states
+      WHERE
+        cultivar_name IS NOT NULL
+        ${state ? ' AND state = $1' : ''}
+    ) a
+    LEFT JOIN (
+      SELECT
+        plant_symbol,
+        cultivars
+      FROM (
+        SELECT
+          plant_master_id,
+          ARRAY_AGG(DISTINCT cultivar_name) AS cultivars
+        FROM plants3.plant_growth_requirements
+        WHERE cultivar_name > ''
+        GROUP BY plant_master_id
+      ) a
+      INNER JOIN plants3.plant_master_tbl b ON a.plant_master_id = b.plant_master_id
+    ) b ON a.plant_symbol = b.plant_symbol
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM UNNEST(b.cultivars) AS c(cultivar)
+      WHERE c.cultivar = a.cultivar_name
+    )
+    ORDER BY state, plant_symbol, cultivar_name;
+  `;
+
+  simpleQuery(sq, state ? [state] : [], res);
+}; // routeMissingCultivars
+
 const routeVegspecRecords = (req = testRequest, res = testResponse) => {
   // https://stackoverflow.com/a/38684225/3903374 and Chat-GPT
   const sq = `
@@ -2203,189 +2261,247 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
 }; // routePlantsEmptyColumns
 
 const routeVegspecCharacteristics = async (req = testRequest, res = testResponse) => {
-  const sq = `
-    select distinct * from (
-      select
-        p.plant_symbol,
-        plant_master_id,
-        coalesce(m.cultivar_name, g.cultivar_name, r.cultivar_name, s.cultivar_name) as cultivar,
-        full_scientific_name_without_author,
-        primary_vernacular,
-        plant_duration_name,
-        plant_nativity_type,
-        plant_nativity_region_name,
-        plant_growth_habit_name,
-        cover_crop,
-        active_growth_period.season_name as active_growth_period,
-        after_harvest_regrowth_rate.rate_name as after_harvest_regrowth_rate,
-        bloat_potential.extent_name as bloat_potential,
-        c_n_ratio.extent_name as c_n_ratio,
-        coppice_potential_ind,
-        fall_conspicuous_ind,
-        fire_resistant_ind,
-        color_name,
-        flower_conspicuous_ind,
-        summer.foliage_porosity_name as summer,
-        winter.foliage_porosity_name as winter,
-        foliage_texture_name,
-        fruit_seed_conspicuous_ind,
-        growth_form_name,
-        growth_rate.rate_name as growth_rate,
-        height_max_at_base_age,
-        height_at_maturity,
-        known_allelopath_ind,
-        leaf_retention_ind,
-        lifespan_name,
-        low_growing_grass_ind,
-        nitrogen_fixation_potential.extent_name as nitrogen_fixation_potential,
-        resprout_ability_ind,
-        shape_orientation_name,
-        toxicity_name,
+  const createCharacteristics = async () => {
+    const sq = `
+      DROP TABLE IF EXISTS plants3.synonyms;
+      SELECT DISTINCT * INTO plants3.synonyms
+      FROM (
+        SELECT a.plant_master_id as pid, b.synonym_plant_master_id
+        FROM plants3.plant_synonym_tbl a
+        INNER JOIN plants3.plant_synonym_tbl b
+        ON a.plant_master_id = b.plant_master_id
+      ) a;
+      CREATE INDEX ON plants3.synonyms (pid);
+      CREATE INDEX ON plants3.synonyms (synonym_plant_master_id);
+            
+      DROP TABLE IF EXISTS plants3.characteristics;
+      SELECT * INTO plants3.characteristics
+      FROM (
+        SELECT DISTINCT * FROM (
+          SELECT
+            p.plant_symbol,
+            plant_master_id,
+            coalesce(m.cultivar_name, g.cultivar_name, r.cultivar_name, s.cultivar_name) AS cultivar,
+            full_scientific_name_without_author,
+            primary_vernacular,
+            plant_duration_name,
+            plant_nativity_type,
+            plant_nativity_region_name,
+            plant_growth_habit_name,
+            cover_crop,
+            active_growth_period.season_name AS active_growth_period,
+            after_harvest_regrowth_rate.rate_name AS after_harvest_regrowth_rate,
+            bloat_potential.extent_name AS bloat_potential,
+            c_n_ratio.extent_name AS c_n_ratio,
+            coppice_potential_ind,
+            fall_conspicuous_ind,
+            fire_resistant_ind,
+            color_name,
+            flower_conspicuous_ind,
+            summer.foliage_porosity_name AS summer,
+            winter.foliage_porosity_name AS winter,
+            foliage_texture_name,
+            fruit_seed_conspicuous_ind,
+            growth_form_name,
+            growth_rate.rate_name AS growth_rate,
+            height_max_at_base_age,
+            height_at_maturity,
+            known_allelopath_ind,
+            leaf_retention_ind,
+            lifespan_name,
+            low_growing_grass_ind,
+            nitrogen_fixation_potential.extent_name AS nitrogen_fixation_potential,
+            resprout_ability_ind,
+            shape_orientation_name,
+            toxicity_name,
+            
+            pd_max_range,
+            ff_min_range,
+            ph_min_range,
+            ph_max_range,
+            density_min_range,
+            precip_min_range,
+            precip_max_range,
+            root_min_range,
+            temp_min_range,
+            commercial_availability_id,
+            fruit_seed_abundance_id,
+            propagated_by_bare_root_ind,
+            propagated_by_bulb_ind,
         
-        pd_max_range,
-        ff_min_range,
-        ph_min_range,
-        ph_max_range,
-        density_min_range,
-        precip_min_range,
-        precip_max_range,
-        root_min_range,
-        temp_min_range,
-        commercial_availability_id,
-        fruit_seed_abundance_id,
-        propagated_by_bare_root_ind,
-        propagated_by_bulb_ind,
-    
-        coarse_texture_soil_adaptable_ind,
-        medium_texture_soil_adaptable_ind,
-        fine_texture_soil_adaptable_ind,
-        anaerobic_tolerance.extent_name as anaerobic_tolerance,
-        caco3_tolerance.extent_name as caco3_tolerance,
-        cold_stratification_required_ind,
-        drought_tolerance.extent_name as drought_tolerance,
-        fire_tolerance.extent_name as fire_tolerance,
-        hedge_tolerance.extent_name as hedge_tolerance,
-        moisture_usage.extent_name as moisture_usage,
-        soil_ph_tolerance_min,
-        soil_ph_tolerance_max,
-        precipitation_tolerance_min, 
-        precipitation_tolerance_max,
-        salinity_tolerance.extent_name as salinity_tolerance,
-        shade_tolerance_name,
-        temperature_tolerance_min,
-    
-        bloom_period.season_name as bloom_period,
-        fruit_seed_period_start.season_name as fruit_seed_period_start,
-        fruit_seed_period_end.season_name as fruit_seed_period_end,
-        fruit_seed_persistence_ind,
-        seed_per_pound,
-        seed_spread_rate.rate_name as seed_spread_rate,
-        seedling_vigor.extent_name as seedling_vigor,
-        vegetative_spread_rate.rate_name as vegetative_spread_rate,
-    
-        berry_nut_seed_product_ind,
-        fodder_product_ind,
-        palatability_browse.extent_name as palatability_browse,
-        palatability_graze.extent_name as palatability_graze,
-        palatability_human_ind,
-        protein_potential.extent_name as protein_potential,
+            coarse_texture_soil_adaptable_ind,
+            medium_texture_soil_adaptable_ind,
+            fine_texture_soil_adaptable_ind,
+            anaerobic_tolerance.extent_name AS anaerobic_tolerance,
+            caco3_tolerance.extent_name AS caco3_tolerance,
+            cold_stratification_required_ind,
+            drought_tolerance.extent_name AS drought_tolerance,
+            fire_tolerance.extent_name AS fire_tolerance,
+            hedge_tolerance.extent_name AS hedge_tolerance,
+            moisture_usage.extent_name AS moisture_usage,
+            soil_ph_tolerance_min,
+            soil_ph_tolerance_max,
+            precipitation_tolerance_min, 
+            precipitation_tolerance_max,
+            salinity_tolerance.extent_name AS salinity_tolerance,
+            shade_tolerance_name,
+            temperature_tolerance_min,
+        
+            bloom_period.season_name AS bloom_period,
+            fruit_seed_period_start.season_name AS fruit_seed_period_start,
+            fruit_seed_period_end.season_name AS fruit_seed_period_end,
+            fruit_seed_persistence_ind,
+            seed_per_pound,
+            seed_spread_rate.rate_name AS seed_spread_rate,
+            seedling_vigor.extent_name AS seedling_vigor,
+            vegetative_spread_rate.rate_name AS vegetative_spread_rate,
+        
+            berry_nut_seed_product_ind,
+            fodder_product_ind,
+            palatability_browse.extent_name AS palatability_browse,
+            palatability_graze.extent_name AS palatability_graze,
+            palatability_human_ind,
+            protein_potential.extent_name AS protein_potential,
 
-        frost_free_days_min,
-        planting_density_min,
-        root_depth_min
+            frost_free_days_min,
+            planting_density_min,
+            root_depth_min
 
-      from plants3.plant_master_tbl p
-      left join plants3.plant_classifications_tbl using (plant_master_id)
-      left join (
-        select
-          string_agg(plant_duration_name, ', ' order by plant_duration_name) as plant_duration_name,
-          plant_master_id
-        from plants3.plant_duration
-        left join plants3.d_plant_duration USING (plant_duration_id)
-        group by plant_master_id
-      ) pd using (plant_master_id)
-      left join (
-        select
-          string_agg(plant_growth_habit_name, ', ' order by plant_growth_habit_name) as plant_growth_habit_name,
-          plant_master_id
-        from plants3.plant_growth_habit 
-        left join plants3.d_plant_growth_habit using (plant_growth_habit_id)
-        group by plant_master_id
-      ) pgh using (plant_master_id)
-      left join plants3.plant_morphology_physiology m using (plant_master_id)
-      left join plants3.plant_growth_requirements g using (plant_master_id, cultivar_name)
-      left join plants3.plant_reproduction r using (plant_master_id, cultivar_name)
-      left join plants3.plant_suitability_use s using (plant_master_id, cultivar_name)
+          FROM plants3.plant_master_tbl p
+          
+          LEFT JOIN plants3.plant_classifications_tbl USING (plant_master_id)
+          LEFT JOIN (
+            SELECT
+              string_agg(plant_duration_name, ', ' ORDER BY plant_duration_name) AS plant_duration_name,
+              plant_master_id
+            FROM plants3.plant_duration
+            LEFT JOIN plants3.d_plant_duration USING (plant_duration_id)
+            GROUP BY plant_master_id
+          ) pd USING (plant_master_id)
+          LEFT JOIN (
+            SELECT
+              string_agg(plant_growth_habit_name, ', ' ORDER BY plant_growth_habit_name) AS plant_growth_habit_name,
+              plant_master_id
+            FROM plants3.plant_growth_habit 
+            LEFT JOIN plants3.d_plant_growth_habit USING (plant_growth_habit_id)
+            GROUP BY plant_master_id
+          ) pgh USING (plant_master_id)
+          LEFT JOIN plants3.plant_morphology_physiology m USING (plant_master_id)
+          LEFT JOIN plants3.plant_growth_requirements g USING (plant_master_id, cultivar_name)
+          LEFT JOIN plants3.plant_reproduction r USING (plant_master_id, cultivar_name)
+          LEFT JOIN plants3.plant_suitability_use s USING (plant_master_id, cultivar_name)
 
-      left join (
-        select
-          plant_nativity_type,
-          string_agg(nativity.plant_nativity_region_name, ', ' order by nativity.plant_nativity_region_name) as plant_nativity_region_name,
-          plant_master_id
-        from plants3.nativity
-        left join plants3.d_plant_nativity_region using (plant_nativity_region_id)
-        group by plant_master_id, plant_nativity_type
-      ) nat using (plant_master_id)
+          LEFT JOIN (
+            SELECT
+              plant_nativity_type,
+              string_agg(nativity.plant_nativity_region_name, ', ' ORDER BY nativity.plant_nativity_region_name) AS plant_nativity_region_name,
+              plant_master_id
+            FROM plants3.nativity
+            LEFT JOIN plants3.d_plant_nativity_region USING (plant_nativity_region_id)
+            GROUP BY plant_master_id, plant_nativity_type
+          ) nat USING (plant_master_id)
 
-      left join plants3.d_season active_growth_period on m.active_growth_period_id=active_growth_period.season_id
-      left join plants3.d_rate after_harvest_regrowth_rate on m.after_harvest_regrowth_rate_id=after_harvest_regrowth_rate.rate_id
-      left join plants3.d_extent bloat_potential on m.bloat_potential_id=bloat_potential.extent_id
-      left join plants3.d_extent c_n_ratio on m.c_n_ratio_id=c_n_ratio.extent_id
-      left join plants3.d_color c on m.flower_color_id = c.color_id
-      left join plants3.d_foliage_porosity summer on m.summer_foliage_porosity_id=summer.foliage_porosity_id
-      left join plants3.d_foliage_porosity winter on m.winter_foliage_porosity_id=winter.foliage_porosity_id
-      left join plants3.d_foliage_texture foliage_texture_name on m.foliage_texture_id=foliage_texture_name.foliage_texture_id
-      left join plants3.d_growth_form gf on m.growth_form_id=gf.growth_form_id
-      left join plants3.d_rate growth_rate on m.growth_rate_id=growth_rate.rate_id
-      left join plants3.d_lifespan using (lifespan_id)
-      left join plants3.d_extent nitrogen_fixation_potential on m.nitrogen_fixation_potential_id=nitrogen_fixation_potential.extent_id
-      left join plants3.d_shape_orientation q on m.shape_orientation_id=q.shape_orientation_id
-      left join plants3.d_toxicity using (toxicity_id)
-      left join plants3.d_extent anaerobic_tolerance on g.anaerobic_tolerance_id=anaerobic_tolerance.extent_id
-      left join plants3.d_extent caco3_tolerance on g.caco3_tolerance_id=caco3_tolerance.extent_id
-      left join plants3.d_extent drought_tolerance on g.drought_tolerance_id=drought_tolerance.extent_id
-      left join plants3.d_extent fire_tolerance on g.fire_tolerance_id=fire_tolerance.extent_id
-      left join plants3.d_extent hedge_tolerance on g.hedge_tolerance_id=hedge_tolerance.extent_id
-      left join plants3.d_extent moisture_usage on g.moisture_usage_id = moisture_usage.extent_id
-      left join plants3.d_extent salinity_tolerance on g.salinity_tolerance_id = salinity_tolerance.extent_id
-      left join plants3.d_shade_tolerance using (shade_tolerance_id)
-    
-      left join plants3.d_season bloom_period on r.bloom_period_id=bloom_period.season_id
-      left join plants3.d_season fruit_seed_period_start on r.fruit_seed_period_start_id=fruit_seed_period_start.season_id
-      left join plants3.d_season fruit_seed_period_end on r.fruit_seed_period_end_id=fruit_seed_period_end.season_id
-      left join plants3.d_rate seed_spread_rate on r.seed_spread_rate_id=seed_spread_rate.rate_id
-      left join plants3.d_extent seedling_vigor on r.seedling_vigor_id = seedling_vigor.extent_id
-      left join plants3.d_rate vegetative_spread_rate on r.vegetative_spread_rate_id=vegetative_spread_rate.rate_id
-    
-      left join plants3.d_extent palatability_browse on s.palatability_browse_id = palatability_browse.extent_id
-      left join plants3.d_extent palatability_graze on s.palatability_graze_id = palatability_graze.extent_id
-      left join plants3.d_extent protein_potential on s.protein_potential_id = protein_potential.extent_id
-    ) alias
-    where coalesce(
-      active_growth_period::text, after_harvest_regrowth_rate::text, bloat_potential::text, c_n_ratio::text, coppice_potential_ind::text,
-      fall_conspicuous_ind::text, fire_resistant_ind::text, color_name::text, flower_conspicuous_ind::text, summer::text, winter::text,
-      fruit_seed_conspicuous_ind::text, growth_form_name::text, growth_rate::text, height_max_at_base_age::text, height_at_maturity::text,
-      known_allelopath_ind::text, leaf_retention_ind::text, lifespan_name::text, low_growing_grass_ind::text, nitrogen_fixation_potential::text,
-      resprout_ability_ind::text, shape_orientation_name::text, toxicity_name::text, coarse_texture_soil_adaptable_ind::text,
-      medium_texture_soil_adaptable_ind::text, fine_texture_soil_adaptable_ind::text, anaerobic_tolerance::text, caco3_tolerance::text,
-      cold_stratification_required_ind::text, drought_tolerance::text, fire_tolerance::text, hedge_tolerance::text, moisture_usage::text,
-      soil_ph_tolerance_min::text, soil_ph_tolerance_max::text, precipitation_tolerance_min::text, precipitation_tolerance_max::text,
-      salinity_tolerance::text, shade_tolerance_name::text, temperature_tolerance_min::text, bloom_period::text, fruit_seed_period_start::text,
-      fruit_seed_period_end::text, fruit_seed_persistence_ind::text, seed_per_pound::text, seed_spread_rate::text, seedling_vigor::text,
-      vegetative_spread_rate::text, berry_nut_seed_product_ind::text, fodder_product_ind::text, palatability_browse::text, palatability_graze::text,
-      palatability_human_ind::text, protein_potential::text
-    ) > ''
-    order by 1, 2, 3
+          LEFT JOIN plants3.d_season active_growth_period on m.active_growth_period_id=active_growth_period.season_id
+          LEFT JOIN plants3.d_rate after_harvest_regrowth_rate on m.after_harvest_regrowth_rate_id=after_harvest_regrowth_rate.rate_id
+          LEFT JOIN plants3.d_extent bloat_potential on m.bloat_potential_id=bloat_potential.extent_id
+          LEFT JOIN plants3.d_extent c_n_ratio on m.c_n_ratio_id=c_n_ratio.extent_id
+          LEFT JOIN plants3.d_color c on m.flower_color_id = c.color_id
+          LEFT JOIN plants3.d_foliage_porosity summer on m.summer_foliage_porosity_id=summer.foliage_porosity_id
+          LEFT JOIN plants3.d_foliage_porosity winter on m.winter_foliage_porosity_id=winter.foliage_porosity_id
+          LEFT JOIN plants3.d_foliage_texture foliage_texture_name on m.foliage_texture_id=foliage_texture_name.foliage_texture_id
+          LEFT JOIN plants3.d_growth_form gf on m.growth_form_id=gf.growth_form_id
+          LEFT JOIN plants3.d_rate growth_rate on m.growth_rate_id=growth_rate.rate_id
+          LEFT JOIN plants3.d_lifespan USING (lifespan_id)
+          LEFT JOIN plants3.d_extent nitrogen_fixation_potential on m.nitrogen_fixation_potential_id=nitrogen_fixation_potential.extent_id
+          LEFT JOIN plants3.d_shape_orientation q on m.shape_orientation_id=q.shape_orientation_id
+          LEFT JOIN plants3.d_toxicity USING (toxicity_id)
+          LEFT JOIN plants3.d_extent anaerobic_tolerance on g.anaerobic_tolerance_id=anaerobic_tolerance.extent_id
+          LEFT JOIN plants3.d_extent caco3_tolerance on g.caco3_tolerance_id=caco3_tolerance.extent_id
+          LEFT JOIN plants3.d_extent drought_tolerance on g.drought_tolerance_id=drought_tolerance.extent_id
+          LEFT JOIN plants3.d_extent fire_tolerance on g.fire_tolerance_id=fire_tolerance.extent_id
+          LEFT JOIN plants3.d_extent hedge_tolerance on g.hedge_tolerance_id=hedge_tolerance.extent_id
+          LEFT JOIN plants3.d_extent moisture_usage on g.moisture_usage_id = moisture_usage.extent_id
+          LEFT JOIN plants3.d_extent salinity_tolerance on g.salinity_tolerance_id = salinity_tolerance.extent_id
+          LEFT JOIN plants3.d_shade_tolerance USING (shade_tolerance_id)
+        
+          LEFT JOIN plants3.d_season bloom_period on r.bloom_period_id=bloom_period.season_id
+          LEFT JOIN plants3.d_season fruit_seed_period_start on r.fruit_seed_period_start_id=fruit_seed_period_start.season_id
+          LEFT JOIN plants3.d_season fruit_seed_period_end on r.fruit_seed_period_end_id=fruit_seed_period_end.season_id
+          LEFT JOIN plants3.d_rate seed_spread_rate on r.seed_spread_rate_id=seed_spread_rate.rate_id
+          LEFT JOIN plants3.d_extent seedling_vigor on r.seedling_vigor_id = seedling_vigor.extent_id
+          LEFT JOIN plants3.d_rate vegetative_spread_rate on r.vegetative_spread_rate_id=vegetative_spread_rate.rate_id
+        
+          LEFT JOIN plants3.d_extent palatability_browse on s.palatability_browse_id = palatability_browse.extent_id
+          LEFT JOIN plants3.d_extent palatability_graze on s.palatability_graze_id = palatability_graze.extent_id
+          LEFT JOIN plants3.d_extent protein_potential on s.protein_potential_id = protein_potential.extent_id
+        ) alias
+        WHERE coalesce(
+          active_growth_period::text, after_harvest_regrowth_rate::text, bloat_potential::text, c_n_ratio::text, coppice_potential_ind::text,
+          fall_conspicuous_ind::text, fire_resistant_ind::text, color_name::text, flower_conspicuous_ind::text, summer::text, winter::text,
+          fruit_seed_conspicuous_ind::text, growth_form_name::text, growth_rate::text, height_max_at_base_age::text, height_at_maturity::text,
+          known_allelopath_ind::text, leaf_retention_ind::text, lifespan_name::text, low_growing_grass_ind::text, nitrogen_fixation_potential::text,
+          resprout_ability_ind::text, shape_orientation_name::text, toxicity_name::text, coarse_texture_soil_adaptable_ind::text,
+          medium_texture_soil_adaptable_ind::text, fine_texture_soil_adaptable_ind::text, anaerobic_tolerance::text, caco3_tolerance::text,
+          cold_stratification_required_ind::text, drought_tolerance::text, fire_tolerance::text, hedge_tolerance::text, moisture_usage::text,
+          soil_ph_tolerance_min::text, soil_ph_tolerance_max::text, precipitation_tolerance_min::text, precipitation_tolerance_max::text,
+          salinity_tolerance::text, shade_tolerance_name::text, temperature_tolerance_min::text, bloom_period::text, fruit_seed_period_start::text,
+          fruit_seed_period_end::text, fruit_seed_persistence_ind::text, seed_per_pound::text, seed_spread_rate::text, seedling_vigor::text,
+          vegetative_spread_rate::text, berry_nut_seed_product_ind::text, fodder_product_ind::text,
+          palatability_browse::text, palatability_graze::text,
+          palatability_human_ind::text, protein_potential::text
+        ) > ''
+        ORDER BY 1, 2, 3
+      ) alias;  
     `;
 
-  // const q = sq.replace(/'/g, '');
+    await pool.query({ text: sq, multi: true });
+  }; // createCharacteristics
+
+  if (req.query.create) {
+    await createCharacteristics();
+  } else {
+    try {
+      let results = await pool.query('SELECT COUNT(*) FROM plants3.characteristics');
+      if (+results.rows[0].count === 0) {
+        await createCharacteristics();
+      }
+
+      results = await pool.query('SELECT COUNT(*) FROM plants3.synonyms');
+      if (+results.rows[0].count === 0) {
+        await createCharacteristics();
+      }
+    } catch (error) {
+      await createCharacteristics();
+    }
+  }
+
+  console.time();
+  const allSymbols = {};
+  const presults = await pool.query('SELECT plant_master_id, plant_symbol FROM plants3.plant_master_tbl');
+  presults.rows.forEach((row) => {
+    allSymbols[row.plant_master_id] = row.plant_symbol;
+    allSymbols[row.plant_symbol] = row.plant_master_id;
+  });
+  console.timeEnd(); // 1.3s
+
+  const synonyms = {};
+  const sresults = await pool.query('SELECT * FROM plants3.synonyms');
+  sresults.rows.forEach((row) => {
+    // console.log(row);
+    synonyms[row.pid] = synonyms[row.pid] || [];
+    synonyms[row.pid].push(row.synonym_plant_master_id);
+
+    synonyms[row.synonym_plant_master_id] = synonyms[row.synonym_plant_master_id] || [];
+    synonyms[row.synonym_plant_master_id].push(row.pid);
+  });
+  // console.log(synonyms);
 
   let symbols = [];
 
   const mlra = req.query.mlra || '';
   const state = req.query.state?.toUpperCase() || '';
   if (state) {
-    const data = await pool.query('select * from plants3.states where state=$1', [state]);
+    const data = await pool.query('SELECT * FROM plants3.states WHERE state=$1', [state]);
     if (data.rows.length) {
       if (mlra) {
         data.rows = data.rows.filter((row) => row.parameter === 'mlra' && row.value.split(',').includes(mlra));
@@ -2399,14 +2515,13 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
           }
         });
       });
-      console.log(symbols);
     }
   }
 
   if (mlra && !symbols.length) {
     // from Access database
     symbols = await pool.query(`
-      SELECT distinct plant_symbol
+      SELECT DISTINCT plant_symbol
       FROM mlra_species
       WHERE mlra='${mlra}'
     `);
@@ -2415,48 +2530,71 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     symbols = req.query.symbols.split(',');
   }
 
-  const characteristics = await pool.query(`select results from weather.queries where query = 'plantscharacteristics${mlra}'`);
-  if (characteristics.rows.length) {
-    console.log('cached');
-    let data = characteristics.rows[0].results;
-    if (symbols.length) {
-      data = data.filter((result) => symbols.includes(result.plant_symbol));
+  const querySymbols = [];
+  if (symbols.length) {
+    [...symbols].forEach((symbol) => {
+      if (synonyms[allSymbols[symbol]]) {
+        querySymbols.push(...synonyms[allSymbols[symbol]].map((syn) => allSymbols[syn]));
+
+        synonyms[allSymbols[symbol]].forEach((syn) => {
+          querySymbols.push(allSymbols[syn]);
+          synonyms[syn].forEach((syn2) => {
+            querySymbols.push(allSymbols[syn2]);
+          });
+        });
+      } else {
+        querySymbols.push(symbol);
+      }
+    });
+  }
+
+  const sq = querySymbols.length
+    ? `
+        SELECT * FROM plants3.characteristics
+        WHERE plant_symbol IN (${querySymbols.map((symbol) => `'${symbol}'`)})
+      `
+    : 'SELECT * FROM plants3.characteristics';
+
+  console.time('query');
+  const cresults = await pool.query(sq);
+  console.timeEnd('query'); // 1s
+
+  const results = [];
+
+  cresults.rows.forEach((row) => {
+    if (synonyms[row.plant_master_id]) {
+      synonyms[row.plant_master_id].forEach((syn) => {
+        [syn, ...synonyms[syn]].forEach((syn2) => {
+          results.push({
+            ...row,
+            plant_master_id: syn2,
+            plant_symbol: allSymbols[syn2],
+          });
+        });
+      });
+    } else {
+      results.push(row);
     }
-    send(res, data);
+  });
+
+  console.time('filter');
+  let finalResults = results
+    .sort((a, b) => a.plant_symbol.localeCompare(b.plant_symbol) || (a.cultivar || '').localeCompare(b.cultivar || ''))
+    .filter((a, i, arr) => JSON.stringify(a) !== JSON.stringify(arr[i - 1]));
+
+  if (symbols.length) {
+    finalResults = finalResults.filter((a) => symbols.includes(a.plant_symbol));
+  }
+  console.timeEnd('filter'); // 300ms
+
+  if (!finalResults.length) {
+    res.send([]);
     return;
   }
 
-  pool.query(
-    sq,
-    (err, results) => {
-      if (err) {
-        debug(err, res, 500);
-      } else if (results.rows.length) {
-        let data = results.rows;
+  console.log(finalResults.length);
 
-        if (symbols.length) {
-          data = data.filter((result) => symbols.includes(result.plant_symbol));
-        }
-
-        send(res, data);
-
-        pool.query(
-          `
-            insert into weather.queries (date, url, query, results)
-            values (now(), '${req.originalUrl}', 'plantscharacteristics${mlra}', $1)
-          `,
-          [JSON.stringify(results.rows)],
-          (err2) => {
-            if (err2) {
-              console.error(err2);
-            }
-          },
-        );
-      } else {
-        send(res, {});
-      }
-    },
-  );
+  send(res, finalResults);
 }; // routeVegspecCharacteristics
 
 const routeVegspecDeleteState = (req, res) => {
@@ -2754,6 +2892,7 @@ module.exports = {
   routeHits,
   routeHourly,
   routeIndexes,
+  routeMissingCultivars,
   routeMLRA,
   routeMLRAErrors,
   routeMlraSpecies,
