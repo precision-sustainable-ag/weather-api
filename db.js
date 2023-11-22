@@ -120,7 +120,7 @@ const range = (start, end) => {
   return result;
 }; // range
 
-const send = (res, results) => {
+const send = (res, results, opt = {}) => {
   if (testing) {
     if (typeof results === 'object') {
       res.write('SUCCESS');
@@ -146,6 +146,36 @@ const send = (res, results) => {
     res.send(`
       <link rel="stylesheet" href="/css/dbGraph.css">
       <link rel="stylesheet" href="/css/weather.css">
+      <style>
+        table {
+          position: relative;
+          overflow: hidden;
+        }
+
+        tr {
+          vertical-align: top;
+          position: relative;
+        }
+
+        tr.even {
+          background: #efc;
+        }
+
+        td:nth-child(1)[rowspan] {
+          position: relative;
+        }
+
+        tr.even td:nth-child(1)::before {
+          content: '';
+          position: absolute;
+          height: 100%;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          outline: 1px solid #666;
+          z-index: 999;
+        }
+      </style>
 
       <div id="Graph"></div>
 
@@ -154,9 +184,40 @@ const send = (res, results) => {
           <tr><th>${Object.keys(results[0]).join('<th>')}</tr>
         </thead>
         <tbody>
-          <tr>${results.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
+          ${results.map((r) => `<tr><td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('\n')}
         </tbody>
       </table>
+
+      ${opt.rowspan ? `
+        <script>
+          const data = document.querySelector('#Data tbody');
+          let cname = 'odd';
+          [...data.rows].forEach((r1, i) => {
+            for (let n = 0; n < data.rows[0].cells.length; n++) {
+              if (n === 0 && r1.cells[0].style.display) continue;
+
+              if (n === 0 && !r1.className) r1.classList.add(cname);
+
+              for (let j = i + 1; j < data.rows.length; j++) {
+                if ((n > 0) && (j - i + 1 > (r1.cells[0].rowSpan || 1))) {
+                  break;
+                }
+                const r2 = data.rows[j];
+                if (r1?.cells[n]?.innerText === r2?.cells[n]?.innerText) {
+                  if (n === 0) r2.classList.add(cname);
+                  r1.cells[n].rowSpan = j - i + 1;
+                  r2.cells[n].style.display = 'none';
+                } else {
+                  break;
+                }
+              }
+              
+              if ((n === 0) && !r1.cells[0].style.display) {
+                cname = cname === 'odd' ? 'even' : 'odd';
+              }
+            }
+          });
+        </script>` : ''}
     `);
   } else if (output === 'csv') {
     if (!Array.isArray(results)) {
@@ -2136,45 +2197,71 @@ const routeVegspecStructure = (req = testRequest, res = testResponse) => {
   simpleQuery(sq, table ? [table] : [], res);
 }; // routeVegspecStructure
 
-const routeMissingCultivars = (req, res) => {
+const routeMissingCultivars = async (req, res) => {
   const { state } = req.query;
-  const sq = `
+
+  console.time('cquery');
+  const cquery = await pool.query(`
     SELECT DISTINCT
       state,
-      '<a target="_blank" href="https://plants.sc.egov.usda.gov/home/plantProfile?symbol=' || a.plant_symbol || '">' || a.plant_symbol || '</a>'
-        as plant_symbol,
-      cultivar_name,
-      cultivars
-    FROM (
-      SELECT *
-      FROM plants3.states
-      WHERE
-        cultivar_name IS NOT NULL
-        ${state ? ' AND state = $1' : ''}
-    ) a
-    LEFT JOIN (
-      SELECT
-        plant_symbol,
-        cultivars
-      FROM (
-        SELECT
-          plant_master_id,
-          ARRAY_AGG(DISTINCT cultivar_name) AS cultivars
-        FROM plants3.plant_growth_requirements
-        WHERE cultivar_name > ''
-        GROUP BY plant_master_id
-      ) a
-      INNER JOIN plants3.plant_master_tbl b ON a.plant_master_id = b.plant_master_id
-    ) b ON a.plant_symbol = b.plant_symbol
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM UNNEST(b.cultivars) AS c(cultivar)
-      WHERE c.cultivar = a.cultivar_name
-    )
-    ORDER BY state, plant_symbol, cultivar_name;
-  `;
+      plant_symbol AS symbol,
+      cultivar_name AS cultivar
+    FROM plants3.states
+    WHERE
+      cultivar_name IS NOT NULL
+      ${state ? ' AND state = $1' : ''}
+  `, state ? [state] : undefined);
+  console.timeEnd('cquery');
 
-  simpleQuery(sq, state ? [state] : [], res);
+  console.log(cquery.rows.length);
+
+  console.time('squery');
+  const squery = await pool.query(`
+    SELECT DISTINCT
+      ARRAY_AGG(synonym_plant_master_id) OVER (PARTITION BY pid ORDER BY pid, synonym_plant_master_id) || pid AS pids,
+      ARRAY_AGG(ssymbol) OVER (PARTITION BY pid ORDER BY pid, synonym_plant_master_id) || psymbol AS symbols,
+      ARRAY_AGG(cultivar_name) OVER (PARTITION BY pid ORDER BY pid, synonym_plant_master_id) || cultivar_name AS cultivars
+    FROM (
+      SELECT a.*, cultivar_name FROM plants3.synonyms a
+      LEFT JOIN plants3.plant_growth_requirements b
+      ON a.pid = b.plant_master_id
+    ) a
+  `);
+  console.timeEnd('squery');
+
+  console.log(squery.rows.length);
+
+  console.time('cultivars');
+  const cultivars = {};
+  squery.rows.forEach((row) => {
+    row.symbols.forEach((symbol) => {
+      const c = row.cultivars.filter((cultivar) => cultivar).sort().filter((cultivar, i, a) => cultivar !== a[i - 1]);
+      if (c.length) {
+        cultivars[symbol] = c;
+      }
+    });
+  });
+  console.timeEnd('cultivars');
+
+  console.time('results');
+  const results = [];
+  cquery.rows.forEach((crow) => {
+    if (!cultivars[crow.symbol]?.includes(crow.cultivar)) {
+      results.push({
+        symbol: `<a target="_blank" href="https://plants.sc.egov.usda.gov/home/plantProfile?symbol=${crow.symbol}">${crow.symbol}</a>`,
+        cultivar: crow.cultivar,
+        'known cultivars': (cultivars[crow.symbol] || []).join(', '),
+        state: crow.state,
+      });
+    }
+  });
+  console.timeEnd('results');
+
+  send(
+    res,
+    results.sort((a, b) => a.state.localeCompare(b.state) || a.symbol.localeCompare(b.symbol) || a.cultivar.localeCompare(b.cultivar)),
+    { rowspan: true },
+  );
 }; // routeMissingCultivars
 
 const routeVegspecRecords = (req = testRequest, res = testResponse) => {
@@ -2266,10 +2353,19 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
       DROP TABLE IF EXISTS plants3.synonyms;
       SELECT DISTINCT * INTO plants3.synonyms
       FROM (
-        SELECT a.plant_master_id as pid, b.synonym_plant_master_id
-        FROM plants3.plant_synonym_tbl a
-        INNER JOIN plants3.plant_synonym_tbl b
-        ON a.plant_master_id = b.plant_master_id
+        SELECT DISTINCT plant_master_id as pid, synonym_plant_master_id, psymbol, d.plant_symbol as ssymbol
+        FROM (
+          SELECT a.*, plant_symbol as psymbol FROM (
+            SELECT a.plant_master_id as pid, b.synonym_plant_master_id
+            FROM plants3.plant_synonym_tbl a
+            INNER JOIN plants3.plant_synonym_tbl b
+            ON a.plant_master_id = b.plant_master_id
+          ) a
+          LEFT JOIN plants3.plant_master_tbl b
+          ON a.pid = b.plant_master_id
+        ) c
+        RIGHT JOIN plants3.plant_master_tbl d
+        ON c.synonym_plant_master_id = d.plant_master_id
       ) a;
       CREATE INDEX ON plants3.synonyms (pid);
       CREATE INDEX ON plants3.synonyms (synonym_plant_master_id);
@@ -2475,26 +2571,21 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     }
   }
 
-  console.time();
-  const allSymbols = {};
-  const presults = await pool.query('SELECT plant_master_id, plant_symbol FROM plants3.plant_master_tbl');
-  presults.rows.forEach((row) => {
-    allSymbols[row.plant_master_id] = row.plant_symbol;
-    allSymbols[row.plant_symbol] = row.plant_master_id;
-  });
-  console.timeEnd(); // 1.3s
+  console.time('squery');
+  const squery = await pool.query(`
+    SELECT DISTINCT ARRAY_AGG(ssymbol) || psymbol AS symbols
+    FROM plants3.synonyms
+    WHERE psymbol IS NOT NULL
+    GROUP BY psymbol
+  `);
+  console.timeEnd('squery'); // 0.5s
 
   const synonyms = {};
-  const sresults = await pool.query('SELECT * FROM plants3.synonyms');
-  sresults.rows.forEach((row) => {
-    // console.log(row);
-    synonyms[row.pid] = synonyms[row.pid] || [];
-    synonyms[row.pid].push(row.synonym_plant_master_id);
-
-    synonyms[row.synonym_plant_master_id] = synonyms[row.synonym_plant_master_id] || [];
-    synonyms[row.synonym_plant_master_id].push(row.pid);
+  squery.rows.forEach((row) => {
+    row.symbols.forEach((symbol) => {
+      synonyms[symbol] = row.symbols;
+    });
   });
-  // console.log(synonyms);
 
   let symbols = [];
 
@@ -2533,15 +2624,8 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   const querySymbols = [];
   if (symbols.length) {
     [...symbols].forEach((symbol) => {
-      if (synonyms[allSymbols[symbol]]) {
-        querySymbols.push(...synonyms[allSymbols[symbol]].map((syn) => allSymbols[syn]));
-
-        synonyms[allSymbols[symbol]].forEach((syn) => {
-          querySymbols.push(allSymbols[syn]);
-          synonyms[syn].forEach((syn2) => {
-            querySymbols.push(allSymbols[syn2]);
-          });
-        });
+      if (synonyms[symbol]) {
+        querySymbols.push(...synonyms[symbol]);
       } else {
         querySymbols.push(symbol);
       }
@@ -2559,23 +2643,22 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   const cresults = await pool.query(sq);
   console.timeEnd('query'); // 1s
 
+  console.time('cresults');
   const results = [];
-
   cresults.rows.forEach((row) => {
-    if (synonyms[row.plant_master_id]) {
-      synonyms[row.plant_master_id].forEach((syn) => {
-        [syn, ...synonyms[syn]].forEach((syn2) => {
-          results.push({
-            ...row,
-            plant_master_id: syn2,
-            plant_symbol: allSymbols[syn2],
-          });
+    delete row.plant_master_id;
+    if (synonyms[row.plant_symbol]) {
+      synonyms[row.plant_symbol].forEach((syn) => {
+        results.push({
+          ...row,
+          plant_symbol: syn,
         });
       });
     } else {
       results.push(row);
     }
   });
+  console.timeEnd('cresults');
 
   console.time('filter');
   let finalResults = results
