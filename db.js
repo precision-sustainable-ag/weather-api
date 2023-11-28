@@ -2213,7 +2213,24 @@ const routeMissingCultivars = async (req, res) => {
       cultivar_name AS cultivar
     FROM plants3.states
     WHERE
-      cultivar_name IS NOT NULL
+      (
+        cultivar_name IS NOT NULL
+        OR plant_symbol IN (
+          SELECT plant_symbol
+          FROM plants3.plant_master_tbl
+          WHERE plant_master_id IN (
+            SELECT plant_master_id
+            FROM plants3.plant_growth_requirements
+            WHERE  plant_master_id in (
+              SELECT plant_master_id
+              FROM plants3.plant_growth_requirements
+              WHERE cultivar_name > ''
+            )
+            GROUP BY plant_master_id
+            HAVING COUNT(*) = 1
+          )        
+        )
+      )
       ${state ? ' AND state = $1' : ''}
   `, state ? [state] : undefined);
   console.timeEnd('cquery');
