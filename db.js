@@ -175,6 +175,11 @@ const send = (res, results, opt = {}) => {
           outline: 1px solid #666;
           z-index: 999;
         }
+
+        a {
+          position: absolute;
+          z-index: 1000;
+        }
       </style>
 
       <div id="Graph"></div>
@@ -2591,20 +2596,23 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
 
   const mlra = req.query.mlra || '';
   const state = req.query.state?.toUpperCase() || '';
+  const allowedCultivars = {};
+  let stateData = [];
   if (state) {
-    const data = await pool.query('SELECT * FROM plants3.states WHERE state=$1', [state]);
-    if (data.rows.length) {
+    stateData = (await pool.query('SELECT * FROM plants3.states WHERE state=$1', [state])).rows;
+    if (stateData.length) {
       if (mlra) {
-        data.rows = data.rows.filter((row) => row.parameter === 'mlra' && row.value.split(',').includes(mlra));
+        stateData = stateData.filter((row) => row.parameter === 'mlra' && row.value.split(',').includes(mlra));
       }
 
-      data.rows.forEach((row) => {
-        const s = row.plant_symbol.split(',');
-        s.forEach((symbol) => {
-          if (!symbols.includes(symbol)) {
-            symbols.push(symbol);
-          }
-        });
+      stateData.forEach((row) => {
+        if (!symbols.includes(row.plant_symbol)) {
+          symbols.push(row.plant_symbol);
+        }
+        if (row.cultivar_name) {
+          allowedCultivars[row.plant_symbol] = allowedCultivars[row.plant_symbol] || [];
+          allowedCultivars[row.plant_symbol].push(row.cultivar_name);
+        }
       });
     }
   }
@@ -2632,12 +2640,21 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     });
   }
 
+  let stateCond = '';
+  if (state === 'AK') {
+    stateCond = ` AND plant_nativity_region_name ~ 'Alaska'`;
+  } else if (state === 'HI') {
+    stateCond = ` AND plant_nativity_region_name ~ 'Hawaii'`;
+  } else if (state) {
+    stateCond = ` AND plant_nativity_region_name ~ 'Lower 48'`;
+  }
+
   const sq = querySymbols.length
     ? `
         SELECT * FROM plants3.characteristics
-        WHERE plant_symbol IN (${querySymbols.map((symbol) => `'${symbol}'`)})
+        WHERE plant_symbol IN (${querySymbols.map((symbol) => `'${symbol}'`)}) ${stateCond}
       `
-    : 'SELECT * FROM plants3.characteristics';
+    : `SELECT * FROM plants3.characteristics ${stateCond}`;
 
   console.time('query');
   const cresults = await pool.query(sq);
@@ -2668,14 +2685,17 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   if (symbols.length) {
     finalResults = finalResults.filter((a) => symbols.includes(a.plant_symbol));
   }
+
+  if (Object.keys(allowedCultivars).length) {
+    finalResults = finalResults.filter((row) => !row.cultivar || allowedCultivars[row.plant_symbol]?.includes(row.cultivar));
+  }
+
   console.timeEnd('filter'); // 300ms
 
   if (!finalResults.length) {
     res.send([]);
     return;
   }
-
-  console.log(finalResults.length);
 
   send(res, finalResults);
 }; // routeVegspecCharacteristics
