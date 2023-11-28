@@ -2281,7 +2281,7 @@ const routeMissingCultivars = async (req, res) => {
 
   send(
     res,
-    results.sort((a, b) => a.state.localeCompare(b.state) || a.symbol.localeCompare(b.symbol) || a.cultivar.localeCompare(b.cultivar)),
+    results.sort((a, b) => a.state?.localeCompare(b.state) || a.symbol?.localeCompare(b.symbol) || a.cultivar?.localeCompare(b.cultivar)),
     { rowspan: true },
   );
 }; // routeMissingCultivars
