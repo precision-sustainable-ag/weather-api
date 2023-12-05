@@ -2653,20 +2653,66 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   const querySymbols = symbols.map((symbol) => `'${symbol}'`);
 
   let stateCond = '';
+  let regionRegex = 'plant_nativity_region_name';
+  let groupBy = '';
   if (state === 'AK') {
     stateCond = ` AND plant_nativity_region_name ~ 'Alaska'`;
+    regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Alaska.*', 'Alaska')`;
   } else if (state === 'HI') {
     stateCond = ` AND plant_nativity_region_name ~ 'Hawaii'`;
+    regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Hawaii.*', 'Hawaii')`;
   } else if (state) {
     stateCond = ` AND plant_nativity_region_name ~ 'Lower 48'`;
+    regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Lower 48 States.*', 'Lower 48 States')`;
   }
+
+  const columns = `
+    plant_symbol,plant_master_id,cultivar,full_scientific_name_without_author,primary_vernacular,plant_duration_name,
+    ${state ? 'ARRAY_AGG(plant_nativity_type ORDER BY plant_nativity_type) AS plant_nativity_type' : 'plant_nativity_type'},
+    ${regionRegex} AS plant_nativity_region_name,
+    plant_growth_habit_name,cover_crop,active_growth_period,after_harvest_regrowth_rate,bloat_potential,c_n_ratio,
+    coppice_potential_ind,fall_conspicuous_ind,fire_resistant_ind,color_name,flower_conspicuous_ind,summer,winter,foliage_texture_name,
+    fruit_seed_conspicuous_ind,growth_form_name,growth_rate,height_max_at_base_age,height_at_maturity,known_allelopath_ind,leaf_retention_ind,
+    lifespan_name,low_growing_grass_ind,nitrogen_fixation_potential,resprout_ability_ind,shape_orientation_name,toxicity_name,pd_max_range,
+    ff_min_range,ph_min_range,ph_max_range,density_min_range,precip_min_range,precip_max_range,root_min_range,temp_min_range,
+    commercial_availability_id,fruit_seed_abundance_id,propagated_by_bare_root_ind,propagated_by_bulb_ind,coarse_texture_soil_adaptable_ind,
+    medium_texture_soil_adaptable_ind,fine_texture_soil_adaptable_ind,anaerobic_tolerance,caco3_tolerance,cold_stratification_required_ind,
+    drought_tolerance,fire_tolerance,hedge_tolerance,moisture_usage,soil_ph_tolerance_min,soil_ph_tolerance_max,precipitation_tolerance_min,
+    precipitation_tolerance_max,salinity_tolerance,shade_tolerance_name,temperature_tolerance_min,bloom_period,fruit_seed_period_start,
+    fruit_seed_period_end,fruit_seed_persistence_ind,seed_per_pound,seed_spread_rate,seedling_vigor,vegetative_spread_rate,
+    berry_nut_seed_product_ind,fodder_product_ind,palatability_browse,palatability_graze,palatability_human_ind,protein_potential,
+    frost_free_days_min,planting_density_min,root_depth_min
+  `;
+
+  if (state) {
+    groupBy = `
+      GROUP BY
+      plant_symbol,plant_master_id,cultivar,full_scientific_name_without_author,primary_vernacular,plant_duration_name,
+      ${regionRegex},
+      plant_growth_habit_name,cover_crop,active_growth_period,after_harvest_regrowth_rate,bloat_potential,c_n_ratio,
+      coppice_potential_ind,fall_conspicuous_ind,fire_resistant_ind,color_name,flower_conspicuous_ind,summer,winter,foliage_texture_name,
+      fruit_seed_conspicuous_ind,growth_form_name,growth_rate,height_max_at_base_age,height_at_maturity,known_allelopath_ind,leaf_retention_ind,
+      lifespan_name,low_growing_grass_ind,nitrogen_fixation_potential,resprout_ability_ind,shape_orientation_name,toxicity_name,pd_max_range,
+      ff_min_range,ph_min_range,ph_max_range,density_min_range,precip_min_range,precip_max_range,root_min_range,temp_min_range,
+      commercial_availability_id,fruit_seed_abundance_id,propagated_by_bare_root_ind,propagated_by_bulb_ind,coarse_texture_soil_adaptable_ind,
+      medium_texture_soil_adaptable_ind,fine_texture_soil_adaptable_ind,anaerobic_tolerance,caco3_tolerance,cold_stratification_required_ind,
+      drought_tolerance,fire_tolerance,hedge_tolerance,moisture_usage,soil_ph_tolerance_min,soil_ph_tolerance_max,precipitation_tolerance_min,
+      precipitation_tolerance_max,salinity_tolerance,shade_tolerance_name,temperature_tolerance_min,bloom_period,fruit_seed_period_start,
+      fruit_seed_period_end,fruit_seed_persistence_ind,seed_per_pound,seed_spread_rate,seedling_vigor,vegetative_spread_rate,
+      berry_nut_seed_product_ind,fodder_product_ind,palatability_browse,palatability_graze,palatability_human_ind,protein_potential,
+      frost_free_days_min,planting_density_min,root_depth_min
+    `;
+  }
+
+  console.log(groupBy);
 
   const sq = querySymbols.length
     ? `
-        SELECT * FROM plants3.characteristics
+        SELECT ${columns} FROM plants3.characteristics
         WHERE plant_symbol IN (${querySymbols}) ${stateCond}
+        ${groupBy}
       `
-    : `SELECT * FROM plants3.characteristics ${stateCond}`;
+    : `SELECT ${columns} FROM plants3.characteristics ${stateCond}`;
 
   console.time('query');
   const results = (await pool.query(sq)).rows;
