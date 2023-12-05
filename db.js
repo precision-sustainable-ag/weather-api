@@ -2668,7 +2668,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
 
   const columns = `
     plant_symbol,plant_master_id,cultivar,full_scientific_name_without_author,primary_vernacular,plant_duration_name,
-    ${state ? 'ARRAY_AGG(plant_nativity_type ORDER BY plant_nativity_type) AS plant_nativity_type' : 'plant_nativity_type'},
+    ${state ? `STRING_AGG(plant_nativity_type, ', ' ORDER BY plant_nativity_type) AS plant_nativity_type` : 'plant_nativity_type'},
     ${regionRegex} AS plant_nativity_region_name,
     plant_growth_habit_name,cover_crop,active_growth_period,after_harvest_regrowth_rate,bloat_potential,c_n_ratio,
     coppice_potential_ind,fall_conspicuous_ind,fire_resistant_ind,color_name,flower_conspicuous_ind,summer,winter,foliage_texture_name,
