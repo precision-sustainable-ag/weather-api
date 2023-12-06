@@ -2633,7 +2633,11 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     ).rows;
     if (stateData.length) {
       if (mlra) {
-        stateData = stateData.filter((row) => row.parameter === 'mlra' && row.value.split(',').includes(mlra));
+        const stateSymbols = stateData
+          .filter((row) => row.parameter === 'mlra' && row.value.split(',').includes(mlra))
+          .map((row) => row.plant_symbol);
+
+        stateData = stateData.filter((row) => stateSymbols.includes(row.plant_symbol));
       }
 
       stateData.forEach((row) => {
