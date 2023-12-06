@@ -2731,7 +2731,30 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     finalResults = finalResults.filter((row) => !row.cultivar || allowedCultivars[row.plant_symbol]?.includes(row.cultivar));
   }
 
+  stateData.forEach((row) => {
+    if (
+      symbols.includes(row.plant_symbol)
+      && !/mlra|cps/.test(row.parameter)
+    ) {
+      let obj = finalResults.find((frow) => (
+        (frow.plant_symbol === row.plant_symbol)
+        && ((frow.cultivar || '') === (row.cultivar_name || ''))
+      ));
+
+      if (!obj) {
+        obj = { ...finalResults[0] };
+        Object.keys(obj).forEach((key) => { obj[key] = null; });
+        finalResults.push(obj);
+      }
+      obj.plant_symbol = row.plant_symbol;
+      obj.cultivar = row.cultivar_name;
+      obj[row.parameter] = row.value;
+    }
+  });
+
   console.timeEnd('filter'); // 300ms
+
+  finalResults = finalResults.sort((a, b) => a.plant_symbol.localeCompare(b.plant_symbol));
 
   if (!finalResults.length) {
     res.send([]);
