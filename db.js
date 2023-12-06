@@ -2618,7 +2618,19 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   const allowedCultivars = {};
   let stateData = [];
   if (state) {
-    stateData = (await pool.query('SELECT * FROM plants3.states WHERE state=$1', [state])).rows;
+    stateData = (
+      await pool.query(`
+        SELECT * FROM plants3.states
+        LEFT JOIN plants3.plant_classifications_tbl USING (plant_symbol)
+        LEFT JOIN plants3.plant_master_tbl USING (plant_master_id)
+        LEFT JOIN plants3.plant_duration USING (plant_master_id)
+        LEFT JOIN plants3.d_plant_duration USING (plant_duration_id)
+        LEFT JOIN plants3.nativity USING (plant_master_id)
+        LEFT JOIN plants3.plant_growth_habit USING (plant_master_id)
+        LEFT JOIN plants3.d_plant_growth_habit USING (plant_growth_habit_id)
+        WHERE state = $1
+      `, [state])
+    ).rows;
     if (stateData.length) {
       if (mlra) {
         stateData = stateData.filter((row) => row.parameter === 'mlra' && row.value.split(',').includes(mlra));
@@ -2704,7 +2716,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     `;
   }
 
-  console.log(groupBy);
+  // console.log(groupBy);
 
   const sq = querySymbols.length
     ? `
@@ -2749,6 +2761,36 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
       obj.plant_symbol = row.plant_symbol;
       obj.cultivar = row.cultivar_name;
       obj[row.parameter] = row.value;
+      obj.full_scientific_name_without_author = row.sci_name;
+      obj.plant_master_id = row.plant_master_id;
+      obj.primary_vernacular = row.primary_vernacular;
+
+      const add = (parm) => {
+        if (
+          (state === 'AK' && row.plant_nativity_region_name === 'Alaska')
+          || (state === 'HI' && row.plant_nativity_region_name === 'Hawaii')
+          || (row.plant_nativity_region_name === 'Lower 48 States')
+        ) {
+          obj.plant_nativity_region_name = row.plant_nativity_region_name;
+          if (row[parm] && !obj[parm]?.includes(row[parm])) {
+            if (!obj[parm]) {
+              obj[parm] = row[parm];
+            } else {
+              obj[parm] = ((obj[parm] || '').split(', ')) || [];
+              obj[parm].push(row[parm]);
+              obj[parm] = obj[parm].sort().join(', ');
+            }
+          }
+        }
+      }; // add
+
+      if (row.plant_nativity_region_name === 'Lower 48 States') {
+        obj.plant_nativity_region_name = row.plant_nativity_region_name;
+        add('plant_duration_name');
+        add('plant_nativity_type');
+        add('plant_growth_habit_name');
+        obj.cover_crop = row.cover_crop;
+      }
     }
   });
 
