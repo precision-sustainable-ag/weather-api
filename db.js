@@ -2397,12 +2397,12 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
       FROM (
         SELECT a.plant_master_id AS pid, b.synonym_plant_master_id
         FROM plants3.plant_synonym_tbl a
-        LEFT JOIN plants3.plant_synonym_tbl b
-        ON a.plant_master_id = b.plant_master_id
+        JOIN plants3.plant_synonym_tbl b
+        USING (plant_master_id)
       ) a
-      LEFT JOIN plants3.plant_master_tbl b
+      JOIN plants3.plant_master_tbl b
       ON a.pid = b.plant_master_id
-      LEFT JOIN plants3.plant_master_tbl c
+      JOIN plants3.plant_master_tbl c
       ON synonym_plant_master_id = c.plant_master_id;
       CREATE INDEX ON plants3.synonyms (pid);
       CREATE INDEX ON plants3.synonyms (synonym_plant_master_id);
@@ -2620,8 +2620,21 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   if (state) {
     stateData = (
       await pool.query(`
-        SELECT * FROM plants3.states
-        LEFT JOIN plants3.plant_classifications_tbl USING (plant_symbol)
+        SELECT
+          plant_master_id,
+          b.plant_symbol,
+          parameter,
+          value,
+          cultivar_name,
+          sci_name,
+          primary_vernacular,
+          plant_duration_name,
+          plant_nativity_type,
+          plant_nativity_region_name,
+          plant_growth_habit_name,
+          cover_crop
+        FROM plants3.states a
+        LEFT JOIN plants3.plant_classifications_tbl b USING (plant_symbol)
         LEFT JOIN plants3.plant_master_tbl USING (plant_master_id)
         LEFT JOIN plants3.plant_duration USING (plant_master_id)
         LEFT JOIN plants3.d_plant_duration USING (plant_duration_id)
@@ -2629,6 +2642,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
         LEFT JOIN plants3.plant_growth_habit USING (plant_master_id)
         LEFT JOIN plants3.d_plant_growth_habit USING (plant_growth_habit_id)
         WHERE state = $1
+        ORDER BY a.plant_symbol, parameter
       `, [state])
     ).rows;
     if (stateData.length) {
@@ -2823,7 +2837,7 @@ const routeVegspecSaveState = async (req, res) => {
     state, symbol, cultivar, parameter, value, notes,
   } = req.query;
 
-  console.log(state, symbol, cultivar, parameter, value, notes);
+  // console.log(state, symbol, cultivar, parameter, value, notes);
 
   try {
     await pool.query(
@@ -2833,6 +2847,7 @@ const routeVegspecSaveState = async (req, res) => {
 
     send(res, { status: 'Success' });
   } catch (error) {
+    console.error(error);
     send(res, { error });
   }
 }; // routeVegspecSaveState
