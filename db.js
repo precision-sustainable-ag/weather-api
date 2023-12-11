@@ -2742,8 +2742,13 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
         WHERE plant_symbol IN (${querySymbols}) ${stateCond}
         ${groupBy}
       `
-    : `SELECT ${columns} FROM plants3.characteristics ${stateCond}`;
+    : `
+        SELECT ${columns} FROM plants3.characteristics
+        WHERE TRUE ${stateCond}
+        ${groupBy}
+      `;
 
+  // console.log(sq);
   console.time('query');
   const results = (await pool.query(sq)).rows;
   console.timeEnd('query'); // 1s
