@@ -2744,7 +2744,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
       `
     : `
         SELECT ${columns} FROM plants3.characteristics
-        WHERE TRUE ${stateCond}
+        WHERE active_growth_period IS NOT NULL ${stateCond}
         ${groupBy}
       `;
 
