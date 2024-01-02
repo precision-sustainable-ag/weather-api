@@ -2583,9 +2583,32 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
             palatability_human_ind::text, protein_potential::text,
             plant_nativity_region_name
           ) > ''
+          OR p.plant_symbol in (SELECT plant_symbol FROM plants3.states)
         ) alias
         ORDER BY 1, 2, 3
       ) alias;
+
+      INSERT INTO plants3.characteristics (plant_symbol, cultivar, plant_nativity_region_name, plant_nativity_type) (
+        SELECT DISTINCT
+          a.plant_symbol, a.cultivar_name,
+          CASE WHEN state IN ('HI', 'AK') THEN state ELSE 'Lower 48 States' END,
+          'Native'
+        FROM plants3.states a
+        LEFT JOIN plants3.characteristics b
+        ON a.plant_symbol = b.plant_symbol AND COALESCE(a.cultivar_name, '') = COALESCE(b.cultivar, '')
+        WHERE b.plant_symbol IS NULL
+      );
+
+      UPDATE plants3.characteristics a
+      SET  (plant_master_id,   full_scientific_name_without_author,   primary_vernacular,   plant_duration_name,   plant_growth_habit_name,
+            cover_crop) =
+        ROW(b.plant_master_id, b.full_scientific_name_without_author, b.primary_vernacular, b.plant_duration_name, b.plant_growth_habit_name,
+            b.cover_crop)
+      FROM plants3.characteristics b
+      WHERE
+        a.plant_symbol = b.plant_symbol
+        AND a.full_scientific_name_without_author IS NULL AND b.full_scientific_name_without_author IS NOT NULL;
+    
       CREATE INDEX ON plants3.characteristics (plant_symbol);
       CREATE INDEX ON plants3.characteristics (plant_master_id);
     `;
@@ -2839,17 +2862,33 @@ const routeVegspecDeleteState = (req, res) => {
 
 const routeVegspecSaveState = async (req, res) => {
   const {
-    state, symbol, cultivar, parameter, value, notes,
+    state, symbol, cultivar, parameter, value, note,
   } = req.query;
 
+  console.log({
+    state, symbol, cultivar, parameter, value, note,
+  });
   // console.log(state, symbol, cultivar, parameter, value, notes);
 
-  try {
-    await pool.query(
-      'INSERT INTO plants3.states (state, plant_symbol, cultivar_name, parameter, value, notes) VALUES ($1, $2, $3, $4, $5, $6)',
-      [state, symbol || null, cultivar || null, parameter || null, value || null, notes || null],
-    );
+  const symbols = symbol.split(',');
+  const cultivars = (cultivar || '').split(',');
+  const parameters = parameter.split(',');
+  const values = value.split(';');
+  const notes = (note || '').split(';');
 
+  pool.query('DROP TABLE IF EXISTS plants3.characteristics');
+
+  try {
+    let i = 0;
+    // eslint-disable-next-line no-restricted-syntax
+    for (const sym of symbols) {
+      // eslint-disable-next-line no-await-in-loop
+      await pool.query(
+        'INSERT INTO plants3.states (state, plant_symbol, cultivar_name, parameter, value, notes) VALUES ($1, $2, $3, $4, $5, $6)',
+        [state, sym || null, cultivars[i] || null, parameters[i] || null, values[i] || null, notes[i] || null],
+      );
+      i += 1;
+    }
     send(res, { status: 'Success' });
   } catch (error) {
     console.error(error);
