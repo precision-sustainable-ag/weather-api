@@ -94,6 +94,7 @@ app.all('/vegspec/table', db.initializeVariables, db.routePlantsTable);
 
 app.all('/plantsemptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
 app.all('/vegspec/emptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
+app.all('/vegspec/props', db.initializeVariables, db.routeVegspecProps);
 
 app.all('/vegspec/savestate', db.routeVegspecSaveState);
 app.all('/vegspec/state', db.routeVegspecState);
