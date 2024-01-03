@@ -2904,6 +2904,84 @@ const routeVegspecState = async (req = testRequest, res = testResponse) => {
   );
 }; // routeVegspecState
 
+const routeVegspecProps = async (req = testRequest, res = testResponse) => {
+  /* eslint-disable max-len */
+  const results = await pool.query(`
+    SELECT 'coppice_potential_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'fall_conspicuous_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'fire_resistant_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'flower_conspicuous_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'fruit_seed_conspicuous_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'known_allelopath_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'leaf_retention_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'low_growing_grass_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'resprout_ability_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'propagated_by_bare_root_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'propagated_by_bulb_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'coarse_texture_soil_adaptable_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'medium_texture_soil_adaptable_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'fine_texture_soil_adaptable_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'cold_stratification_required_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'fruit_seed_persistence_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'berry_nut_seed_product_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'fodder_product_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    SELECT 'palatability_human_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
+    
+    SELECT 'plant_duration_name' AS parm, ARRAY_AGG(DISTINCT plant_duration_name ORDER BY plant_duration_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'plant_nativity_type' AS parm, ARRAY_AGG(DISTINCT plant_nativity_type ORDER BY plant_nativity_type NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'plant_nativity_region_name' AS parm, ARRAY_AGG(DISTINCT plant_nativity_region_name ORDER BY plant_nativity_region_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'plant_growth_habit_name' AS parm, ARRAY_AGG(DISTINCT plant_growth_habit_name ORDER BY plant_growth_habit_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'active_growth_period' AS parm, ARRAY_AGG(DISTINCT active_growth_period ORDER BY active_growth_period NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'after_harvest_regrowth_rate' AS parm, ARRAY_AGG(DISTINCT after_harvest_regrowth_rate ORDER BY after_harvest_regrowth_rate NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'bloat_potential' AS parm, ARRAY_AGG(DISTINCT bloat_potential ORDER BY bloat_potential NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'c_n_ratio' AS parm, ARRAY_AGG(DISTINCT c_n_ratio ORDER BY c_n_ratio NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'color_name' AS parm, ARRAY_AGG(DISTINCT color_name ORDER BY color_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'summer' AS parm, ARRAY_AGG(DISTINCT summer ORDER BY summer NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'winter' AS parm, ARRAY_AGG(DISTINCT winter ORDER BY winter NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'foliage_texture_name' AS parm, ARRAY_AGG(DISTINCT foliage_texture_name ORDER BY foliage_texture_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'growth_form_name' AS parm, ARRAY_AGG(DISTINCT growth_form_name ORDER BY growth_form_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'growth_rate' AS parm, ARRAY_AGG(DISTINCT growth_rate ORDER BY growth_rate NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'lifespan_name' AS parm, ARRAY_AGG(DISTINCT lifespan_name ORDER BY lifespan_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'nitrogen_fixation_potential' AS parm, ARRAY_AGG(DISTINCT nitrogen_fixation_potential ORDER BY nitrogen_fixation_potential NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'shape_orientation_name' AS parm, ARRAY_AGG(DISTINCT shape_orientation_name ORDER BY shape_orientation_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'toxicity_name' AS parm, ARRAY_AGG(DISTINCT toxicity_name ORDER BY toxicity_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'pd_max_range' AS parm, ARRAY_AGG(DISTINCT pd_max_range ORDER BY pd_max_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'ff_min_range' AS parm, ARRAY_AGG(DISTINCT ff_min_range ORDER BY ff_min_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'ph_min_range' AS parm, ARRAY_AGG(DISTINCT ph_min_range ORDER BY ph_min_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'ph_max_range' AS parm, ARRAY_AGG(DISTINCT ph_max_range ORDER BY ph_max_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'density_min_range' AS parm, ARRAY_AGG(DISTINCT density_min_range ORDER BY density_min_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'precip_min_range' AS parm, ARRAY_AGG(DISTINCT precip_min_range ORDER BY precip_min_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'precip_max_range' AS parm, ARRAY_AGG(DISTINCT precip_max_range ORDER BY precip_max_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'root_min_range' AS parm, ARRAY_AGG(DISTINCT root_min_range ORDER BY root_min_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'temp_min_range' AS parm, ARRAY_AGG(DISTINCT temp_min_range ORDER BY temp_min_range NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'anaerobic_tolerance' AS parm, ARRAY_AGG(DISTINCT anaerobic_tolerance ORDER BY anaerobic_tolerance NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'caco3_tolerance' AS parm, ARRAY_AGG(DISTINCT caco3_tolerance ORDER BY caco3_tolerance NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'drought_tolerance' AS parm, ARRAY_AGG(DISTINCT drought_tolerance ORDER BY drought_tolerance NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'fire_tolerance' AS parm, ARRAY_AGG(DISTINCT fire_tolerance ORDER BY fire_tolerance NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'hedge_tolerance' AS parm, ARRAY_AGG(DISTINCT hedge_tolerance ORDER BY hedge_tolerance NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'moisture_usage' AS parm, ARRAY_AGG(DISTINCT moisture_usage ORDER BY moisture_usage NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'salinity_tolerance' AS parm, ARRAY_AGG(DISTINCT salinity_tolerance ORDER BY salinity_tolerance NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'shade_tolerance_name' AS parm, ARRAY_AGG(DISTINCT shade_tolerance_name ORDER BY shade_tolerance_name NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'bloom_period' AS parm, ARRAY_AGG(DISTINCT bloom_period ORDER BY bloom_period NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'fruit_seed_period_start' AS parm, ARRAY_AGG(DISTINCT fruit_seed_period_start ORDER BY fruit_seed_period_start NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'fruit_seed_period_end' AS parm, ARRAY_AGG(DISTINCT fruit_seed_period_end ORDER BY fruit_seed_period_end NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'seed_spread_rate' AS parm, ARRAY_AGG(DISTINCT seed_spread_rate ORDER BY seed_spread_rate NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'seedling_vigor' AS parm, ARRAY_AGG(DISTINCT seedling_vigor ORDER BY seedling_vigor NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'vegetative_spread_rate' AS parm, ARRAY_AGG(DISTINCT vegetative_spread_rate ORDER BY vegetative_spread_rate NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'palatability_browse' AS parm, ARRAY_AGG(DISTINCT palatability_browse ORDER BY palatability_browse NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'palatability_graze' AS parm, ARRAY_AGG(DISTINCT palatability_graze ORDER BY palatability_graze NULLS FIRST) FROM plants3.characteristics UNION ALL
+    SELECT 'protein_potential' AS parm, ARRAY_AGG(DISTINCT protein_potential ORDER BY protein_potential NULLS FIRST) FROM plants3.characteristics
+  `);
+  /* eslint-enable max-len */
+
+  const obj = {};
+  results.rows.forEach((row) => {
+    obj[row.parm] = row.array_agg;
+  });
+
+  send(res, obj);
+}; // routeVegspecProps
+
 const routePlantsTable = (req = testRequest, res = testResponse) => {
   const table = safeQuery(req, 'table');
   const sq = `select * from plants3.${table}`;
@@ -3179,6 +3257,7 @@ module.exports = {
   routePlants2,
   routeVegspecCharacteristics,
   routePlantsEmptyColumns,
+  routeVegspecProps,
   routeVegspecRecords,
   routeVegspecStructure,
   routePlantsTable,
