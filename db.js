@@ -53,7 +53,7 @@
     state VARCHAR(255),
     plant_symbol VARCHAR(10),
     cultivar_name VARCHAR(20),
-    parameter VARCHAR(30),
+    parameter VARCHAR(50),
     value VARCHAR(255),
     notes TEXT
   );
@@ -3034,7 +3034,8 @@ const routeVegspecProps = async (req = testRequest, res = testResponse) => {
 
   const statesResults = await pool.query(`SELECT DISTINCT parameter, value FROM plants3.states WHERE parameter NOT IN ('cps', 'mlra')`);
   statesResults.rows.forEach((row) => {
-    if (!obj[row.parameter].includes(obj.value)) {
+    if (!obj[row.parameter]?.includes(row.value)) {
+      obj[row.parameter] = obj[row.parameter] || [];
       obj[row.parameter].push(row.value);
     }
   });
