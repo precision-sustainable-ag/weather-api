@@ -2931,7 +2931,24 @@ const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
       } else if (results.rowCount) {
         send(res, `Success: ${results.rowCount} row updated`);
       } else {
-        send(res, 'No rows updated');
+        pool.query(
+          `
+            INSERT INTO plants3.states
+            (value, state, plant_symbol, cultivar_name, parameter)
+            VALUES ($1, $2, $3, $4, $5)
+          `,
+          [value, state, symbol, cultivar || null, parameter],
+          (error2, results2) => {
+            if (error2) {
+              console.log(error2);
+              debug({
+                value, state, symbol, cultivar, parameter, error,
+              }, res, 500);
+            } else {
+              send(res, `Success: ${results2.rowCount} row inserted`);
+            }
+          },
+        );
       }
     },
   );
