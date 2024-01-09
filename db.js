@@ -2870,11 +2870,11 @@ const routeVegspecSaveState = async (req, res) => {
   });
   // console.log(state, symbol, cultivar, parameter, value, notes);
 
-  const symbols = symbol.split(',');
-  const cultivars = (cultivar || '').split(',');
-  const parameters = parameter.split(',');
-  const values = value.split(';');
-  const notes = (note || '').split(';');
+  const symbols = symbol.split('|');
+  const cultivars = (cultivar || '').split('|');
+  const parameters = parameter.split('|');
+  const values = value.split('|');
+  const notes = (note || '').split('|');
 
   pool.query('DROP TABLE IF EXISTS plants3.characteristics');
 
@@ -2882,6 +2882,9 @@ const routeVegspecSaveState = async (req, res) => {
     let i = 0;
     // eslint-disable-next-line no-restricted-syntax
     for (const sym of symbols) {
+      // console.log({
+      //   state, sym, cultivar: cultivars[i], parameter: parameters[i], value: values[i], note: notes[i],
+      // });
       // eslint-disable-next-line no-await-in-loop
       await pool.query(
         'INSERT INTO plants3.states (state, plant_symbol, cultivar_name, parameter, value, notes) VALUES ($1, $2, $3, $4, $5, $6)',
@@ -2929,7 +2932,7 @@ const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
           value, state, symbol, cultivar, parameter, error,
         }, res, 500);
       } else if (results.rowCount) {
-        send(res, `Success: ${results.rowCount} row updated`);
+        send(res, { Success: `${results.rowCount} row updated` });
       } else {
         pool.query(
           `
@@ -2945,7 +2948,7 @@ const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
                 value, state, symbol, cultivar, parameter, error,
               }, res, 500);
             } else {
-              send(res, `Success: ${results2.rowCount} row inserted`);
+              send(res, { Success: `${results2.rowCount} row inserted` });
             }
           },
         );
@@ -3029,6 +3032,12 @@ const routeVegspecProps = async (req = testRequest, res = testResponse) => {
     obj[row.parm] = row.array_agg;
   });
 
+  const statesResults = await pool.query(`SELECT DISTINCT parameter, value FROM plants3.states WHERE parameter NOT IN ('cps', 'mlra')`);
+  statesResults.rows.forEach((row) => {
+    if (!obj[row.parameter].includes(obj.value)) {
+      obj[row.parameter].push(row.value);
+    }
+  });
   send(res, obj);
 }; // routeVegspecProps
 
