@@ -2904,6 +2904,39 @@ const routeVegspecState = async (req = testRequest, res = testResponse) => {
   );
 }; // routeVegspecState
 
+const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
+  const {
+    value, state, symbol, cultivar, parameter,
+  } = req.query;
+
+  pool.query(
+    `
+      UPDATE plants3.states
+      SET value=$1
+      WHERE
+        state=$2
+        AND plant_symbol=$3
+        AND (
+          cultivar_name=$4 OR (cultivar_name IS NULL AND $4 IS NULL)
+        )
+        AND parameter=$5
+    `,
+    [value, state, symbol, cultivar || null, parameter],
+    (error, results) => {
+      if (error) {
+        console.log(error);
+        debug({
+          value, state, symbol, cultivar, parameter, error,
+        }, res, 500);
+      } else if (results.rowCount) {
+        send(res, `Success: ${results.rowCount} row updated`);
+      } else {
+        send(res, 'No rows updated');
+      }
+    },
+  );
+}; // routeVegspecEditState
+
 const routeVegspecProps = async (req = testRequest, res = testResponse) => {
   /* eslint-disable max-len */
   const results = await pool.query(`
@@ -3264,6 +3297,7 @@ module.exports = {
   routeVegspecSaveState,
   routeVegspecDeleteState,
   routeVegspecState,
+  routeVegspecEditState,
   routeRosetta,
   routeTables,
   routeTest,
