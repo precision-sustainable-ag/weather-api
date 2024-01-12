@@ -53,7 +53,7 @@
     state VARCHAR(255),
     plant_symbol VARCHAR(10),
     cultivar_name VARCHAR(20),
-    parameter VARCHAR(30),
+    parameter VARCHAR(50),
     value VARCHAR(255),
     notes TEXT
   );
@@ -2792,7 +2792,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   stateData.forEach((row) => {
     if (
       symbols.includes(row.plant_symbol)
-      && !/mlra|cps/.test(row.parameter)
+      && !/zmlra|zcps/.test(row.parameter)
     ) {
       let obj = finalResults.find((frow) => (
         (frow.plant_symbol === row.plant_symbol)
@@ -2870,11 +2870,11 @@ const routeVegspecSaveState = async (req, res) => {
   });
   // console.log(state, symbol, cultivar, parameter, value, notes);
 
-  const symbols = symbol.split(',');
-  const cultivars = (cultivar || '').split(',');
-  const parameters = parameter.split(',');
-  const values = value.split(';');
-  const notes = (note || '').split(';');
+  const symbols = symbol.split('|');
+  const cultivars = (cultivar || '').split('|');
+  const parameters = parameter.split('|');
+  const values = value.split('|');
+  const notes = (note || '').split('|');
 
   pool.query('DROP TABLE IF EXISTS plants3.characteristics');
 
@@ -2882,6 +2882,9 @@ const routeVegspecSaveState = async (req, res) => {
     let i = 0;
     // eslint-disable-next-line no-restricted-syntax
     for (const sym of symbols) {
+      // console.log({
+      //   state, sym, cultivar: cultivars[i], parameter: parameters[i], value: values[i], note: notes[i],
+      // });
       // eslint-disable-next-line no-await-in-loop
       await pool.query(
         'INSERT INTO plants3.states (state, plant_symbol, cultivar_name, parameter, value, notes) VALUES ($1, $2, $3, $4, $5, $6)',
@@ -2903,6 +2906,56 @@ const routeVegspecState = async (req = testRequest, res = testResponse) => {
     res,
   );
 }; // routeVegspecState
+
+const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
+  const {
+    value, state, symbol, cultivar, parameter,
+  } = req.query;
+
+  pool.query(
+    `
+      UPDATE plants3.states
+      SET value=$1
+      WHERE
+        state=$2
+        AND plant_symbol=$3
+        AND (
+          cultivar_name=$4 OR (cultivar_name IS NULL AND $4 IS NULL)
+        )
+        AND parameter=$5
+    `,
+    [value, state, symbol, cultivar || null, parameter],
+    (error, results) => {
+      if (error) {
+        console.log(error);
+        debug({
+          value, state, symbol, cultivar, parameter, error,
+        }, res, 500);
+      } else if (results.rowCount) {
+        send(res, { Success: `${results.rowCount} row updated` });
+      } else {
+        pool.query(
+          `
+            INSERT INTO plants3.states
+            (value, state, plant_symbol, cultivar_name, parameter)
+            VALUES ($1, $2, $3, $4, $5)
+          `,
+          [value, state, symbol, cultivar || null, parameter],
+          (error2, results2) => {
+            if (error2) {
+              console.log(error2);
+              debug({
+                value, state, symbol, cultivar, parameter, error,
+              }, res, 500);
+            } else {
+              send(res, { Success: `${results2.rowCount} row inserted` });
+            }
+          },
+        );
+      }
+    },
+  );
+}; // routeVegspecEditState
 
 const routeVegspecProps = async (req = testRequest, res = testResponse) => {
   /* eslint-disable max-len */
@@ -2979,6 +3032,13 @@ const routeVegspecProps = async (req = testRequest, res = testResponse) => {
     obj[row.parm] = row.array_agg;
   });
 
+  const statesResults = await pool.query(`SELECT DISTINCT parameter, value FROM plants3.states WHERE parameter NOT IN ('cps', 'mlra')`);
+  statesResults.rows.forEach((row) => {
+    if (!obj[row.parameter]?.includes(row.value)) {
+      obj[row.parameter] = obj[row.parameter] || [];
+      obj[row.parameter].push(row.value);
+    }
+  });
   send(res, obj);
 }; // routeVegspecProps
 
@@ -3264,6 +3324,7 @@ module.exports = {
   routeVegspecSaveState,
   routeVegspecDeleteState,
   routeVegspecState,
+  routeVegspecEditState,
   routeRosetta,
   routeTables,
   routeTest,

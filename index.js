@@ -99,6 +99,7 @@ app.all('/vegspec/props', db.initializeVariables, db.routeVegspecProps);
 app.all('/vegspec/savestate', db.routeVegspecSaveState);
 app.all('/vegspec/state', db.routeVegspecState);
 app.all('/vegspec/deletestate', db.routeVegspecDeleteState);
+app.all('/vegspec/editstate', db.routeVegspecEditState);
 app.all('/vegspec/missingcultivars', db.initializeVariables, db.routeMissingCultivars);
 
 app.all('/yearly', db.initializeVariables, db.routeYearly);
