@@ -2792,7 +2792,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   stateData.forEach((row) => {
     if (
       symbols.includes(row.plant_symbol)
-      && !/mlra|cps/.test(row.parameter)
+      && !/zmlra|zcps/.test(row.parameter)
     ) {
       let obj = finalResults.find((frow) => (
         (frow.plant_symbol === row.plant_symbol)
