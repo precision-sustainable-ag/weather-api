@@ -2664,7 +2664,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
         LEFT JOIN plants3.nativity USING (plant_master_id)
         LEFT JOIN plants3.plant_growth_habit USING (plant_master_id)
         LEFT JOIN plants3.d_plant_growth_habit USING (plant_growth_habit_id)
-        WHERE state = $1
+        WHERE (state = $1 OR (parameter <> 'mlra' AND state = 'all'))
         ORDER BY a.plant_symbol, parameter
       `, [state])
     ).rows;
@@ -2790,10 +2790,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
   }
 
   stateData.forEach((row) => {
-    if (
-      symbols.includes(row.plant_symbol)
-      && !/zmlra|zcps/.test(row.parameter)
-    ) {
+    if (symbols.includes(row.plant_symbol)) {
       let obj = finalResults.find((frow) => (
         (frow.plant_symbol === row.plant_symbol)
         && ((frow.cultivar || '') === (row.cultivar_name || ''))
@@ -2842,7 +2839,7 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
 
   console.timeEnd('filter'); // 300ms
 
-  finalResults = finalResults.sort((a, b) => a.plant_symbol.localeCompare(b.plant_symbol));
+  finalResults = finalResults.sort((a, b) => a.plant_symbol?.localeCompare(b.plant_symbol) || (a.cultivar || '').localeCompare((b.cultivar || '')));
 
   if (!finalResults.length) {
     res.send([]);
@@ -2854,11 +2851,19 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
 
 const routeVegspecDeleteState = (req, res) => {
   simpleQuery(
-    'DELETE FROM plants3.states where state=$1',
+    'DELETE FROM plants3.states WHERE state=$1',
     [req.query.state],
     res,
   );
 }; // routeVegspecDeleteState
+
+const routeVegspecRenameCultivar = (req, res) => {
+  simpleQuery(
+    'UPDATE plants3.states SET cultivar_name=$1 WHERE plant_symbol=$2 AND cultivar_name=$3',
+    [req.query.newname, req.query.symbol, req.query.oldname],
+    res,
+  );
+}; // routeVegspecRenameCultivar
 
 const routeVegspecSaveState = async (req, res) => {
   const {
@@ -3048,6 +3053,46 @@ const routePlantsTable = (req = testRequest, res = testResponse) => {
 
   simpleQuery(sq, [], res, true);
 }; // routePlantsTable
+
+const routeVegspecSymbols = async (req = testRequest, res = testResponse) => {
+  pool.query(
+    'SELECT TRIM(plant_symbol) AS plant_symbol FROM plants3.plant_master_tbl',
+    (err, results) => {
+      if (err) {
+        debug(err, res, 500);
+      } else {
+        send(res, results.rows.map((row) => row.plant_symbol));
+      }
+    },
+  );
+}; // routeVegspecSymbols
+
+const routeVegspecNewSpecies = async (req = testRequest, res = testResponse) => {
+  const { state, symbol, cultivar } = req.query;
+  pool.query(
+    'SELECT * FROM plants3.states WHERE state=$1 AND plant_symbol=$2 AND cultivar_name=$3',
+    [state, symbol, cultivar],
+    (err, results) => {
+      if (err) {
+        debug(err, res, 500);
+      } else if (results.rows.length) {
+        res.send({ status: 'Species already exists' });
+      } else {
+        pool.query(
+          'INSERT INTO plants3.states (state, plant_symbol, cultivar_name) values ($1, $2, $3)',
+          [state, symbol, cultivar],
+          (err2) => {
+            if (err2) {
+              debug(err, res, 500);
+            } else {
+              res.send({ status: 'Success' });
+            }
+          },
+        );
+      }
+    },
+  );
+}; // routeVegspecNewSpecies
 
 const routeFrost = (req = testRequest, res = testResponse) => {
   const query = () => {
@@ -3318,6 +3363,9 @@ module.exports = {
   routeVegspecCharacteristics,
   routePlantsEmptyColumns,
   routeVegspecProps,
+  routeVegspecSymbols,
+  routeVegspecNewSpecies,
+  routeVegspecRenameCultivar,
   routeVegspecRecords,
   routeVegspecStructure,
   routePlantsTable,

@@ -95,6 +95,9 @@ app.all('/vegspec/table', db.initializeVariables, db.routePlantsTable);
 app.all('/plantsemptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
 app.all('/vegspec/emptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
 app.all('/vegspec/props', db.initializeVariables, db.routeVegspecProps);
+app.all('/vegspec/symbols', db.initializeVariables, db.routeVegspecSymbols);
+app.all('/vegspec/newspecies', db.initializeVariables, db.routeVegspecNewSpecies);
+app.all('/vegspec/renamecultivar', db.initializeVariables, db.routeVegspecRenameCultivar);
 
 app.all('/vegspec/savestate', db.routeVegspecSaveState);
 app.all('/vegspec/state', db.routeVegspecState);
