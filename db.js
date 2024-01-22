@@ -81,26 +81,9 @@ const axios = require('axios');
 const myip = require('ip');
 const { pool, googleAPIKey } = require('./pools');
 
-let lats;
-let lons;
-let cols;
-let minLat;
-let maxLat;
-let minLon;
-let maxLon;
-let rect;
-let location;
-let options;
-let output;
-let where;
-let stats;
-let group;
-let mrms; // true if MRMS precip; false if NLDAS precip
-let attr;
-let years;
-let ip;
 let testing;
 let tests;
+
 let testRequest;
 let testResponse;
 
@@ -122,6 +105,48 @@ const parms = [
   'shortwave_radiation',
   'precipitation',
 ];
+
+/**
+ * Cleans a string by removing specific characters and forbidden keywords.
+ * @param {string} s - The string to clean.
+ * @returns {string} The cleaned string or 'ERROR' if forbidden keywords are found.
+ */
+const clean = (s) => {
+  const t = decodeURI(s)
+    .replace(/["()+\-*/<>,= 0-9.]/ig, '')
+    .replace(/doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not/ig, '')
+    .replace(/between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd/ig, '')
+    .replace(/meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|/ig, '')
+    .replace(/potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd/ig, '');
+
+  if (t) {
+    console.error('*'.repeat(80));
+    console.error(t);
+    console.error('*'.repeat(80));
+    return 'ERROR';
+  }
+  return s;
+}; // clean
+
+/**
+ * Fixes column names by replacing specific abbreviations with full column names.
+ * @param {string} col - The column name to fix.
+ * @param {boolean} [alias=false] - Determines if column aliases should be included.
+ * @returns {string} The fixed column name with optional aliases.
+ */
+const fix = (col, alias) => (
+  col.replace(/\btmp\b/i, `air_temperature${alias ? ' as TMP' : ''}`)
+    .replace(/\bspfh\b/i, `humidity${alias ? ' as SPFH' : ''}`)
+    .replace(/\bpres\b/i, `pressure${alias ? ' as PRES' : ''}`)
+    .replace(/\bugrd\b/i, `zonal_wind_speed${alias ? ' as UGRD' : ''}`)
+    .replace(/\bvgrd\b/i, `meridional_wind_speed${alias ? ' as VGRD' : ''}`)
+    .replace(/\bdlwrf\b/i, `longwave_radiation${alias ? ' as DLWRF' : ''}`)
+    .replace(/\bfrain\b/i, `convective_precipitation${alias ? ' as FRAIN' : ''}`)
+    .replace(/\bcape\b/i, `potential_energy${alias ? ' as CAPE' : ''}`)
+    .replace(/\bpevap\b/i, `potential_evaporation${alias ? ' as PEVAP' : ''}`)
+    .replace(/\bapcp\b/i, `precipitation${alias ? ' as APCP' : ''}`)
+    .replace(/\bdswrf\b/i, `shortwave_radiation${alias ? ' as DSWRF' : ''}`)
+); // fix
 
 /**
  * Restricts a number to a specified range.
@@ -149,7 +174,7 @@ const range = (start, end) => {
   return result;
 }; // range
 
-const send = (res, results, opt = {}) => {
+const sendResults = (req, res, results, opt = {}) => {
   if (testing) {
     if (typeof results === 'object') {
       res.write('SUCCESS');
@@ -167,7 +192,7 @@ const send = (res, results, opt = {}) => {
       res.write(`\n${tests[0].name.padEnd(25)}: `);
       tests.shift()();
     }
-  } else if (output === 'html') {
+  } else if (req.query.output === 'html') {
     if (!Array.isArray(results)) {
       results = [results];
     }
@@ -253,7 +278,7 @@ const send = (res, results, opt = {}) => {
           });
         </script>` : ''}
     `);
-  } else if (output === 'csv') {
+  } else if (req.query.output === 'csv') {
     if (!Array.isArray(results)) {
       results = [results];
     }
@@ -262,19 +287,19 @@ const send = (res, results, opt = {}) => {
       results.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
 
     res.set('Content-Type', 'text/csv');
-    res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.csv`);
+    res.setHeader('Content-disposition', `attachment; filename=${req.query.lat}.${req.query.lon}.csv`);
     res.send(s);
   } else {
     res.send(results);
   }
-}; // send
+}; // sendResults
 
 /**
  * Logs a message along with the line number where the debug function is called.
  * @param {string} s - The message to log.
  * @returns {void}
  */
-const debug = (s, res, status = 200) => {
+const debug = (s, req, res, status = 200) => {
   try {
     throw new Error();
   } catch (error) {
@@ -301,48 +326,10 @@ ${JSON.stringify(s, null, 2).replace(/\\n/g, '\n')}
       res.type('text/plain');
       res.status(status).send(result);
     } else if (res && testing) {
-      send(res, `ERROR\n${result}\n`);
+      sendResults(req, res, `ERROR\n${result}\n`);
     }
   }
 }; // debug
-
-/**
- * Initializes various parameters based on the given request object.
- *
- * @param {Object} req - The request object.
- * @returns {undefined}
- */
-const init = (req) => {
-  ip = (req.headers['x-forwarded-for'] || '').split(',').pop() || req.socket.remoteAddress;
-
-  output = req.query.explain ? 'json' : req.query.output ?? 'json';
-
-  lats = null;
-  lons = null;
-  cols = null;
-  minLat = null;
-  maxLat = null;
-  minLon = null;
-  maxLon = null;
-  location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
-  options = (req.query.options || '').toLowerCase().split(',');
-  rect = options.includes('rect') && (location || (req.query.lat || '').split(',').length === 2);
-
-  debug({
-    lats,
-    lons,
-    cols,
-    minLat,
-    maxLat,
-    minLon,
-    maxLon,
-    rect,
-    location,
-    options,
-    output,
-    ip,
-  });
-}; // init
 
 /** ____________________________________________________________________________________________________________________________________
  * Round latitude and longitude values to the nearest NLDAS-2 grid coordinates used in the database.
@@ -360,6 +347,211 @@ const NLDASlon = (n) => (Math.floor(n * 8) / 8).toFixed(3);
  * @returns {string} A string representation of the rounded number.
  */
 const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
+
+/**
+ * Initializes various parameters based on the given request object.
+ *
+ * @param {Object} req - The request object.
+ * @returns {undefined}
+ */
+const init = async (req, res) => {
+  let location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
+  const lats = location ? [] : req.query.lat?.toString().split(',').map((n) => +n);
+  const lons = location ? [] : req.query.lon?.toString().split(',').map((n) => +n);
+  const options = req.query.options || '';
+
+  const rect = req.query.options?.includes('rect') && (req.query.location || lats.length === 2);
+
+  let attr = (req.query.attr || req.query.attributes || '').toLowerCase().split(/\s*,\s*/).filter((col) => col);
+  if (attr.length && /averages|daily/.test(req.url)) {
+    attr = attr.filter((col) => !/frost|nldas/.test(col));
+  }
+
+  const results = {
+    ip: (req.headers?.['x-forwarded-for'] || '').split(',').pop() || req.socket?.remoteAddress,
+    output: req.query.explain ? 'json' : req.query.output ?? 'json',
+    lats,
+    lons,
+    minLat: rect ? Math.min(...lats) : null,
+    maxLat: rect ? Math.max(...lats) : null,
+    minLon: rect ? Math.min(...lons) : null,
+    maxLon: rect ? Math.max(...lons) : null,
+    location,
+    options,
+    rect,
+    attr,
+    group: req.query.group,
+    stats: req.query.stats ? clean(fix(req.query.stats.replace(/[^,]+/g, (s) => `${s} as "${s}"`))) : '',
+    where: req.query.where ? clean(fix(req.query.where)).replace(/month/g, 'extract(month from date)') : '',
+  };
+
+  const getTimeZone = async () => {
+    if (options.includes('gmt') || options.includes('utc')) {
+      results.timeOffset = 0;
+      return;
+    }
+
+    try {
+      const results2 = await pool.query(`
+        select * from weather.timezone
+        where lat=${NLDASlat(results.lats[0])} and lon=${NLDASlon(results.lons[0])}
+      `);
+
+      if (results2.rows.length) {
+        results.timeOffset = results2.rows[0].rawoffset;
+        return;
+      }
+    } catch (err) {
+      debug({
+        trigger: 'timezone', lat: results.lats[0], lon: results.lons[0], err,
+      }, req, res, 400);
+      return;
+    }
+
+    console.time('Getting timezone');
+    try {
+      const data = await axios.get(
+        // eslint-disable-next-line max-len
+        `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(results.lats[0])},${NLDASlon(results.lons[0])}&timestamp=0&key=${googleAPIKey}`,
+      );
+      console.timeEnd('Getting timezone');
+      if (data.status === 'ZERO_RESULTS') { // Google API can't determine timezone for some locations over water, such as (28, -76)
+        results.timeOffset = 0;
+        return;
+      }
+
+      pool.query(`
+        insert into weather.timezone (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
+        values (
+          ${NLDASlat(lats[0])}, ${NLDASlon(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}'
+        )
+      `);
+      console.log(`
+        insert into weather.timezone (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
+        values (
+          ${NLDASlat(lats[0])}, ${NLDASlon(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}'
+        )
+      `);
+
+      results.timeOffset = data.rawOffset;
+    } catch (error) {
+      debug(
+        {
+          trigger: 'Google API timezone',
+          lat: lats[0],
+          lon: lons[0],
+          error,
+        },
+        req,
+        res,
+        500,
+      );
+    }
+  }; // getTimeZone
+
+  /** ____________________________________________________________________________________________________________________________________
+   * Gets the latitude and longitude coordinates of a location using the Google Maps API or the database.
+   * (New locations are added to the database.)
+   * If `location` is a valid ZIP code, it will be automatically converted to "zip <code>".
+   * If `rect` is `true`, also calculates the bounding box (minLat, maxLat, minLon, maxLon) for the location.
+   * If `func` is provided, it will be called with the resulting latitude and longitude arrays.
+   *
+   * @param {Object} res - Express response object.
+   * @param {Function} func - Optional callback function to receive the resulting latitude and longitude arrays.
+   */
+  const getLocation = async () => {
+    let lresults;
+
+    if (+location) {
+      location = `zip ${location}`;
+    }
+    try {
+      lresults = await pool.query(
+        'SELECT * FROM weather.addresses WHERE address=$1',
+        [location],
+      );
+    } catch (err) {
+      sendResults(req, res, err);
+    }
+
+    if (lresults.rows.length) {
+      // debug(`Found ${location}`);
+      results.lats = [lresults.rows[0].lat];
+      results.lons = [lresults.rows[0].lon];
+      if (results.rect) {
+        results.minLat = Math.min(lresults.rows[0].lat1, lresults.rows[0].lat2);
+        results.maxLat = Math.max(lresults.rows[0].lat1, lresults.rows[0].lat2);
+        results.minLon = Math.min(lresults.rows[0].lon1, lresults.rows[0].lon2);
+        results.maxLon = Math.max(lresults.rows[0].lon1, lresults.rows[0].lon2);
+      }
+    } else {
+      try {
+        console.time(`Looking up ${location}`);
+        const { data } = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`);
+        console.timeEnd(`Looking up ${location}`);
+
+        try {
+          // eslint-disable-next-line prefer-destructuring
+          const lat = data.results[0].geometry.location.lat;
+          const lon = data.results[0].geometry.location.lng;
+          const lat1 = data.results[0].geometry.viewport.northeast.lat;
+          const lon1 = data.results[0].geometry.viewport.northeast.lng;
+          const lat2 = data.results[0].geometry.viewport.southwest.lat;
+          const lon2 = data.results[0].geometry.viewport.southwest.lng;
+
+          debug({
+            location,
+            lat,
+            lon,
+            lat1,
+            lon1,
+            lat2,
+            lon2,
+          });
+
+          results.lats = [lat];
+          results.lons = [lon];
+
+          pool.query(`
+            insert into weather.addresses
+            (address, lat, lon, lat1, lon1, lat2, lon2)
+            values ('${location}', ${lat}, ${lon}, ${lat1}, ${lon1}, ${lat2}, ${lon2})
+          `);
+
+          if (rect) {
+            results.minLat = Math.min(lat1, lat2);
+            results.maxLat = Math.max(lat1, lat2);
+            results.minLon = Math.min(lon1, lon2);
+            results.maxLon = Math.max(lon1, lon2);
+          }
+
+          // if (func) {
+          //   func(lats, lons);
+          // }
+        } catch (ee) {
+          debug(ee.message);
+        }
+      } catch (err) {
+        debug({ trigger: 'Google Maps Geocode', location, err }, req, res, 400);
+      }
+    }
+  }; // getLocation
+
+  if (location) {
+    await getLocation();
+  }
+
+  console.log(544, { results });
+
+  console.log(1);
+  await getTimeZone();
+  console.log(results.timeOffset);
+  console.log(2);
+
+  debug(results);
+
+  return results;
+}; // init
 
 /** ____________________________________________________________________________________________________________________________________
  * Sanitizes a string for safe use in an SQL query.
@@ -482,95 +674,6 @@ const pretty = (sq) => {
 }; // pretty
 
 /** ____________________________________________________________________________________________________________________________________
- * Gets the latitude and longitude coordinates of a location using the Google Maps API or the database.
- * (New locations are added to the database.)
- * If `location` is a valid ZIP code, it will be automatically converted to "zip <code>".
- * If `rect` is `true`, also calculates the bounding box (minLat, maxLat, minLon, maxLon) for the location.
- * If `func` is provided, it will be called with the resulting latitude and longitude arrays.
- *
- * @param {Object} res - Express response object.
- * @param {Function} func - Optional callback function to receive the resulting latitude and longitude arrays.
- */
-const getLocation = (res, func) => {
-  if (+location) {
-    location = `zip ${location}`;
-  }
-  pool.query(
-    'select * from weather.addresses where address=$1',
-    [location],
-    (err, results) => {
-      if (err) {
-        send(res, err);
-      } else if (results.rows.length) {
-        debug(`Found ${location}`);
-        lats = [results.rows[0].lat];
-        lons = [results.rows[0].lon];
-        if (rect) {
-          minLat = Math.min(results.rows[0].lat1, results.rows[0].lat2);
-          maxLat = Math.max(results.rows[0].lat1, results.rows[0].lat2);
-          minLon = Math.min(results.rows[0].lon1, results.rows[0].lon2);
-          maxLon = Math.max(results.rows[0].lon1, results.rows[0].lon2);
-        }
-        if (func) {
-          func(lats, lons);
-        }
-      } else {
-        console.time(`Looking up ${location}`);
-        axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`)
-          .then(({ data }) => {
-            console.timeEnd(`Looking up ${location}`);
-            if (err) {
-              debug({ trigger: 'Google Maps Geocode', location, err }, res, 400);
-            } else {
-              try {
-                // eslint-disable-next-line prefer-destructuring
-                const lat = data.results[0].geometry.location.lat;
-                const lon = data.results[0].geometry.location.lng;
-                const lat1 = data.results[0].geometry.viewport.northeast.lat;
-                const lon1 = data.results[0].geometry.viewport.northeast.lng;
-                const lat2 = data.results[0].geometry.viewport.southwest.lat;
-                const lon2 = data.results[0].geometry.viewport.southwest.lng;
-
-                debug({
-                  location,
-                  lat,
-                  lon,
-                  lat1,
-                  lon1,
-                  lat2,
-                  lon2,
-                });
-
-                lats = [lat];
-                lons = [lon];
-
-                pool.query(`
-                  insert into weather.addresses
-                  (address, lat, lon, lat1, lon1, lat2, lon2)
-                  values ('${location}', ${lat}, ${lon}, ${lat1}, ${lon1}, ${lat2}, ${lon2})
-                `);
-
-                if (rect) {
-                  minLat = Math.min(lat1, lat2);
-                  maxLat = Math.max(lat1, lat2);
-                  minLon = Math.min(lon1, lon2);
-                  maxLon = Math.max(lon1, lon2);
-                }
-
-                if (func) {
-                  func(lats, lons);
-                }
-              } catch (ee) {
-                debug(ee.message);
-              }
-            }
-          });
-      }
-    },
-  );
-}; // getLocation
-
-/** ____________________________________________________________________________________________________________________________________
  * Removes the leading whitespace indentation from a string.
  *
  * @param {string} s - The input string.
@@ -583,144 +686,181 @@ const unindent = (s) => {
   return rep;
 }; // unindent
 
-/** ____________________________________________________________________________________________________________________________________
- * Processes a query and sends the results to the client in the requested format: csv, html, or json (default).
- * Saves the query to the "hits" table, along with date, IP, and runtime.  This can be avoided using the "nosave" parameter.
- * Saves the results to the "queries" table for faster retrieval of repeat queries. Deletes any older than 30 days.
- * If the "explain" parameter exists, sends EXPLAIN details rather than executing the query.
- *
- * @function
- * @param {Object} req - The HTTP request object.
- * @param {Object} res - The HTTP response object.
- * @param {string} sq - The SQL query to execute.
- * @returns {undefined}
- */
-const sendQuery = (req, res, sq) => {
-  // pretty(sq);
+const runQuery = async (req, res, type, start, end, format2, daily) => {
+  let years;
+  let mrms;
+  const {
+    ip,
+    output,
+    attr,
+    group,
+    where,
+    stats,
+    lats,
+    lons,
+    minLat,
+    maxLat,
+    minLon,
+    maxLon,
+    location,
+    options,
+    rect,
+    timeOffset,
+  } = await init(req, res);
 
-  const process = (rows) => {
-    if (!rows.length) {
-      console.warn('No data found');
-      send(res, 'No data found');
-      return;
-    }
+  console.log({
+    ip,
+    output,
+    lats,
+    lons,
+    minLat,
+    maxLat,
+    minLon,
+    maxLon,
+    location,
+    options,
+    rect,
+    timeOffset,
+  });
 
-    // prevent duplicate rows. screws up LIMIT unfortunately. hopefully unnecessary
-    //   let lastJSON;
-    //   rows = rows.filter((row) => lastJSON !== (lastJSON = JSON.stringify(row)));
+  /** ____________________________________________________________________________________________________________________________________
+   * Processes a query and sends the results to the client in the requested format: csv, html, or json (default).
+   * Saves the query to the "hits" table, along with date, IP, and runtime.  This can be avoided using the "nosave" parameter.
+   * Saves the results to the "queries" table for faster retrieval of repeat queries. Deletes any older than 30 days.
+   * If the "explain" parameter exists, sends EXPLAIN details rather than executing the query.
+   *
+   * @function
+   * @param {string} sq - The SQL query to execute.
+   * @returns {undefined}
+   */
+  const sendQuery = (sq) => {
+    // pretty(sq);
 
-    let s;
-    switch (output ? output.toLowerCase() : 'json') {
-      case 'csv':
-        s = `${Object.keys(rows[0]).toString()}\n${
-          rows.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
-        // rows.map(r => Object.values(r).toString()).join('<br>');
-
-        res.set('Content-Type', 'text/csv');
-        res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
-        res.send(s);
-        break;
-
-      case 'html':
-        s = `
-          <script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
-          <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
-          <script src="https://aesl.ces.uga.edu/scripts/jqlibrary.js"></script>
-          <script src="https://aesl.ces.uga.edu/scripts/dbGraph.js"></script>
-
-          <link rel="stylesheet" href="/css/dbGraph.css">
-          <link rel="stylesheet" href="/css/weather.css">
-
-          <div id="Graph"></div>
-
-          <table id="Data">
-            <thead>
-              <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
-            </thead>
-            <tbody>
-              <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
-            </tbody>
-          </table>
-
-          <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
-        `;
-        res.send(s);
-        break;
-
-      default:
-        if (req.query.explain) {
-          res.json({
-            query: sq.slice(8).trim(),
-            rows,
-          });
-        } else if (req.callback) {
-          req.callback(rows);
-        } else if (testing) {
-          send(res, 'SUCCESS');
-        } else {
-          res.json(rows);
-        }
-    }
-  }; // process
-
-  const qq = sq.replace(/'/g, '');
-
-  pool.query('delete from weather.queries where date < now() - interval \'30 day\'');
-
-  pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
-    if (err) {
-      debug(err);
-    } else if (!req.query.explain && results.rowCount) {
-      process(results.rows[0].results);
-      pool.query(`update weather.queries set date=now() where query='${qq}'`);
-
-      if (!req.query.nosave) {
-        const hits = `
-          insert into weather.hits
-          (date, ip, query, ms)
-          values (now(), '${ip}', '${req.url}', 0)
-        `;
-        pool.query(hits);
-      }
-    } else {
-      const startTime = new Date();
-
-      if (req.query.explain) {
-        sq = `explain ${sq}`;
+    const process = (rows) => {
+      if (!rows.length) {
+        console.warn('No data found');
+        sendResults(req, res, 'No data found');
+        return;
       }
 
-      pool.query(sq, (error, results2) => {
-        if (error) {
-          debug({ sq, error }, res, 500);
-          return;
-        }
+      // prevent duplicate rows. screws up LIMIT unfortunately. hopefully unnecessary
+      //   let lastJSON;
+      //   rows = rows.filter((row) => lastJSON !== (lastJSON = JSON.stringify(row)));
 
-        if (
-          !req.query.explain
-          && (
-            /averages?/.test(req.originalUrl)
-            || (req.query.end && new Date() - new Date(req.query.end) > 86400000)
-          )
-        ) {
-          const jr = JSON.stringify(results2.rows);
-          pool.query(`insert into weather.queries (date, url, query, results) values (now(), '${req.originalUrl}', '${qq}', '${jr}')`);
-        }
+      let s;
+      switch (output ? output.toLowerCase() : 'json') {
+        case 'csv':
+          s = `${Object.keys(rows[0]).toString()}\n${
+            rows.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
+          // rows.map(r => Object.values(r).toString()).join('<br>');
+
+          res.set('Content-Type', 'text/csv');
+          res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
+          res.send(s);
+          break;
+
+        case 'html':
+          s = `
+            <script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
+            <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
+            <script src="https://aesl.ces.uga.edu/scripts/jqlibrary.js"></script>
+            <script src="https://aesl.ces.uga.edu/scripts/dbGraph.js"></script>
+
+            <link rel="stylesheet" href="/css/dbGraph.css">
+            <link rel="stylesheet" href="/css/weather.css">
+
+            <div id="Graph"></div>
+
+            <table id="Data">
+              <thead>
+                <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
+              </thead>
+              <tbody>
+                <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
+              </tbody>
+            </table>
+
+            <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
+          `;
+          res.send(s);
+          break;
+
+        default:
+          if (req.query.explain) {
+            res.json({
+              query: sq.slice(8).trim(),
+              rows,
+            });
+          } else if (req.callback) {
+            req.callback(rows);
+          } else if (testing) {
+            sendResults(req, res, 'SUCCESS');
+          } else {
+            res.json(rows);
+          }
+      }
+    }; // process
+
+    const qq = sq.replace(/'/g, '');
+
+    pool.query('delete from weather.queries where date < now() - interval \'30 day\'');
+
+    pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
+      if (err) {
+        debug(err);
+      } else if (!req.query.explain && results.rowCount) {
+        process(results.rows[0].results);
+        pool.query(`update weather.queries set date=now() where query='${qq}'`);
 
         if (!req.query.nosave) {
-          const time = new Date() - startTime;
           const hits = `
-            insert into weather.hits (date, ip, query, ms)
-            values (now(), '${ip}', '${req.url}', ${time})
+            insert into weather.hits
+            (date, ip, query, ms)
+            values (now(), '${ip}', '${req.url}', 0)
           `;
           pool.query(hits);
         }
-        process(results2.rows);
-      });
-    }
-  });
-}; // sendQuery
+      } else {
+        const startTime = new Date();
 
-const runQuery = (req, res, type, start, end, format2, daily) => {
+        if (req.query.explain) {
+          sq = `explain ${sq}`;
+        }
+
+        pool.query(sq, (error, results2) => {
+          if (error) {
+            debug({ sq, error }, req, res, 500);
+            return;
+          }
+
+          if (!req.query.explain && !req.query.nosave) {
+            console.log(!req.query.explain);
+            console.log(!req.query.nosave);
+            if (
+              /averages?/.test(req.originalUrl)
+              || (req.query.end && new Date() - new Date(req.query.end) > 86400000)
+            ) {
+              const jr = JSON.stringify(results2.rows);
+              pool.query(`
+                INSERT INTO weather.queries (date, url, query, results)
+                VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}')
+              `);
+            }
+
+            const time = new Date() - startTime;
+            const hits = `
+              INSERT INTO weather.hits (date, ip, query, ms)
+              VALUES (NOW(), '${ip}', '${req.url}', ${time})
+            `;
+            pool.query(hits);
+          }
+          process(results2.rows);
+        });
+      }
+    });
+  }; // sendQuery
+
+  let cols;
   const query = (offset) => {
     let byx;
     let byy;
@@ -901,24 +1041,24 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
         as growingyear, 
       `;
 
-      if (/\bdoy\b/.test(req.query.stats)) {
+      if (/\bdoy\b/.test(stats)) {
         other += `extract(doy from date::timestamp + interval '${offset} seconds') as doy, `;
       }
 
-      if (/\bmonth\b/.test(req.query.stats)) {
+      if (/\bmonth\b/.test(stats)) {
         other += `extract(month from date::timestamp + interval '${offset} seconds') as month, `;
       }
 
-      if (/\bgrowingyear\b/.test(req.query.stats)) {
+      if (/\bgrowingyear\b/.test(stats)) {
         other += gy;
       }
 
-      if (/\byear\b/.test(req.query.stats)) {
+      if (/\byear\b/.test(stats)) {
         other += `extract(year from date::timestamp + interval '${offset} seconds') as year, `;
       }
 
-      if (req.query.group) {
-        other += req.query.group
+      if (group) {
+        other += group
           .replace(/\bdoy\b/g, `extract(doy from date::timestamp + interval '${offset} seconds') as doy, `)
           .replace(/\bmonth\b/g, `extract(month from date::timestamp + interval '${offset} seconds') as month, `)
           .replace(/\byear\b/g, `extract(year from date::timestamp + interval '${offset} seconds') as year, `)
@@ -948,7 +1088,6 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
     }
 
     if (req.query.gaws) {
-      attr = (req.query.attr || '').split(',');
       sq = unindent(`
         select *
         from (
@@ -966,7 +1105,7 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
               max_soil_temperature_10cm as ws_max_soil_temperature,
               avg_soil_temperature_10cm as ws_avg_soil_temperature,
             ` : ''}
-            ${attr.includes('soil_temperature') ? `
+            ${attr.includes('water_temperature') ? `
               min_water_temp as ws_min_water_temperature,
               max_water_temp as ws_max_water_temperature,
               avg_water_temp as ws_avg_water_temperature,
@@ -1003,106 +1142,8 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
       sq = `select * from (${sq}) a limit ${req.query.limit} offset ${req.query.offset}`;
     }
 
-    sendQuery(req, res, sq);
+    sendQuery(sq);
   }; // query
-
-  const getTimeZone = () => {
-    if (options.includes('gmt') || options.includes('utc')) {
-      return query(0);
-    }
-    pool.query(
-      `select * from weather.timezone
-       where lat=${NLDASlat(lats[0])} and lon=${NLDASlon(lons[0])}
-      `,
-      (err, results) => {
-        if (err) {
-          debug({
-            trigger: 'timezone', lat: lats[0], lon: lons[0], err,
-          }, res, 400);
-          return false;
-        }
-
-        if (results.rows.length) {
-          return query(results.rows[0].rawoffset);
-        }
-
-        console.time('Getting timezone');
-        axios.get(
-          `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(lats[0])},${NLDASlon(lons[0])}&timestamp=0&key=${googleAPIKey}`,
-        )
-          .then(({ data }) => {
-            console.timeEnd('Getting timezone');
-            console.log(data);
-            if (data.status === 'ZERO_RESULTS') { // Google API can't determine timezone for some locations over water, such as (28, -76)
-              return query(0);
-            }
-
-            pool.query(`
-              insert into weather.timezone (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
-              values (${NLDASlat(lats[0])}, ${NLDASlon(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}')
-            `);
-
-            return query(data.rawOffset);
-          })
-          .catch((error) => {
-            debug(
-              {
-                trigger: 'Google API timezone',
-                lat: lats[0],
-                lon: lons[0],
-                error,
-              },
-              res,
-              500,
-            );
-          });
-
-        return false;
-      },
-    );
-
-    return false;
-  }; // getTimeZone
-
-  /**
-   * Cleans a string by removing specific characters and forbidden keywords.
-   * @param {string} s - The string to clean.
-   * @returns {string} The cleaned string or 'ERROR' if forbidden keywords are found.
-   */
-  const clean = (s) => {
-    const t = decodeURI(s)
-      .replace(/["()+\-*/<>,= 0-9.]/ig, '')
-      .replace(/doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not/ig, '')
-      .replace(/between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd/ig, '')
-      .replace(/meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|/ig, '')
-      .replace(/potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd/ig, '');
-
-    if (t) {
-      console.error('*'.repeat(80));
-      console.error(t);
-      console.error('*'.repeat(80));
-      return 'ERROR';
-    }
-    return s;
-  }; // clean
-
-  /**
-   * Fixes column names by replacing specific abbreviations with full column names.
-   * @param {string} col - The column name to fix.
-   * @param {boolean} [alias=false] - Determines if column aliases should be included.
-   * @returns {string} The fixed column name with optional aliases.
-   */
-  const fix = (col, alias) => col.replace(/\btmp\b/i, `air_temperature${alias ? ' as TMP' : ''}`)
-    .replace(/\bspfh\b/i, `humidity${alias ? ' as SPFH' : ''}`)
-    .replace(/\bpres\b/i, `pressure${alias ? ' as PRES' : ''}`)
-    .replace(/\bugrd\b/i, `zonal_wind_speed${alias ? ' as UGRD' : ''}`)
-    .replace(/\bvgrd\b/i, `meridional_wind_speed${alias ? ' as VGRD' : ''}`)
-    .replace(/\bdlwrf\b/i, `longwave_radiation${alias ? ' as DLWRF' : ''}`)
-    .replace(/\bfrain\b/i, `convective_precipitation${alias ? ' as FRAIN' : ''}`)
-    .replace(/\bcape\b/i, `potential_energy${alias ? ' as CAPE' : ''}`)
-    .replace(/\bpevap\b/i, `potential_evaporation${alias ? ' as PEVAP' : ''}`)
-    .replace(/\bapcp\b/i, `precipitation${alias ? ' as APCP' : ''}`)
-    .replace(/\bdswrf\b/i, `shortwave_radiation${alias ? ' as DSWRF' : ''}`); // fix
 
   /**
    * Generates SQL aggregation functions for statistical calculations on a given parameter.
@@ -1130,11 +1171,10 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
    * Determines the columns to be selected in the database query based on the provided parameters.
    */
   const getColumns = () => {
+    console.log({ attr });
     if (daily) {
-      if (attr) {
-        cols = attr.toLowerCase()
-          .replace(/,?gdd/g, '') // included automatically if req.query.gddbase
-          .split(',')
+      if (attr.length) {
+        cols = attr.filter((col) => col !== 'gdd') // included automatically if req.query.gddbase
           .map((col) => {
             if (/^(lat|lon)$/.test(col)) {
               return col;
@@ -1164,7 +1204,6 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
           ${statistics('meridional_wind_speed')},
           ${statistics('wind_speed')}
         `;
-        console.log(cols);
       }
       const { gddbase } = req.query;
       if (gddbase) {
@@ -1178,7 +1217,7 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
         `;
       }
     } else {
-      cols = attr ? fix(attr, true) : parms.slice(1).join(', ');
+      cols = attr.length ? fix(attr.join(','), true) : parms.slice(1).join(', ');
 
       if (/averages|daily/.test(req.url)) {
         cols = cols.replace(', frost', '');
@@ -1186,24 +1225,9 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
     }
   }; // getColumns
 
-  attr = (req.query.attributes || req.query.attr || '')
-    .replace(/(soil_temperature|water_temperature|dewpoint|vapor_pressure),?/g, '')
-    .replace(/,$/, '');
   // const year1 = Math.max(+start.slice(0, 4), 2015);
   const year1 = Math.max(+start.slice(0, 4), 2005);
   const year2 = Math.min(+end.slice(0, 4), new Date().getFullYear());
-  group = req.query.group;
-  where = req.query.where
-    ? clean(fix(req.query.where))
-      .replace(/month/g, 'extract(month from date)')
-    : '';
-  stats = req.query.stats
-    ? clean(fix(req.query.stats.replace(/[^,]+/g, (s) => `${s} as "${s}"`)))
-    : '';
-
-  if (attr && /averages|daily/.test(req.url)) {
-    attr = attr.replace(/, *frost/, '').replace(/, *nldas/, '');
-  }
 
   years = range(year1, Math.min(year2 + 1, new Date().getFullYear()));
 
@@ -1215,19 +1239,7 @@ const runQuery = (req, res, type, start, end, format2, daily) => {
 
   getColumns();
 
-  if (location) {
-    getLocation(res, getTimeZone);
-  } else {
-    lats = (req.query.lat.toString() || '').split(',');
-    lons = (req.query.lon.toString() || '').split(',');
-    if (rect && lats.length === 2) {
-      minLat = Math.min(...lats);
-      maxLat = Math.max(...lats);
-      minLon = Math.min(...lons);
-      maxLon = Math.max(...lons);
-    }
-    getTimeZone();
-  }
+  query(timeOffset);
 }; // runQuery
 
 const routeHourly = (req = testRequest, res = testResponse) => {
@@ -1274,9 +1286,9 @@ const queryJSON = (req, res, sq) => {
     `,
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else if (testing) {
-        send(res, 'SUCCESS');
+        sendResults(req, res, 'SUCCESS');
       } else {
         res.json(results.rows);
       }
@@ -1373,16 +1385,16 @@ const routeMvm = (req = testRequest, res = testResponse) => {
 
   pool.query(sq, (err, results) => {
     if (err) {
-      send(res, `ERROR:<br>${sq.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+      sendResults(req, res, `ERROR:<br>${sq.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
     } else if (testing) {
-      send(res, 'SUCCESS');
+      sendResults(req, res, 'SUCCESS');
     } else {
-      send(res, JSON.stringify(results.rows));
+      sendResults(req, res, JSON.stringify(results.rows));
     }
   });
 }; // routeMvm
 
-const routeNvm = (req = testRequest, res = testResponse) => {
+const routeNvm = async (req = testRequest, res = testResponse) => {
   let mlat;
   let mlon;
   let nlat;
@@ -1514,7 +1526,7 @@ const routeNvm = (req = testRequest, res = testResponse) => {
       `;
 
       if (err) {
-        send(res, `ERROR:<br>${sq1.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+        sendResults(req, res, `ERROR:<br>${sq1.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
         return;
       }
       s += `${data(results)}<hr>`;
@@ -1525,34 +1537,18 @@ const routeNvm = (req = testRequest, res = testResponse) => {
 
       pool.query(sq2, (e, results2) => {
         if (e) {
-          send(res, `ERROR:<br>${sq2.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
+          sendResults(req, res, `ERROR:<br>${sq2.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
         } else if (testing) {
-          send(res, 'SUCCESS');
+          sendResults(req, res, 'SUCCESS');
         } else {
           s += data(results2);
-          send(res, s);
+          sendResults(req, res, s);
         }
       });
     });
   }; // NVMprocess
 
-  if (location) {
-    getLocation(res, (rlats, rlons) => {
-      mlat = MRMSround(rlats);
-      mlon = MRMSround(rlons);
-      nlat = NLDASlat(rlats);
-      nlon = NLDASlon(rlons);
-
-      NVMprocess();
-    });
-  } else {
-    mlat = MRMSround(req.query.lat);
-    mlon = MRMSround(req.query.lon);
-    nlat = NLDASlat(req.query.lat);
-    nlon = NLDASlon(req.query.lon);
-
-    NVMprocess();
-  }
+  NVMprocess();
 }; // routeNvm
 
 const routeNvm2 = (req = testRequest, res = testResponse) => {
@@ -1617,7 +1613,7 @@ const routeNvm2 = (req = testRequest, res = testResponse) => {
         `,
         (err, results) => {
           if (err) {
-            send(res, err);
+            sendResults(req, res, err);
           } else {
             try {
               let s = `
@@ -1643,7 +1639,7 @@ const routeNvm2 = (req = testRequest, res = testResponse) => {
                 `,
                 (e, results2) => {
                   if (e || !results2) {
-                    send(res, e);
+                    sendResults(req, res, e);
                   } else {
                     try {
                       if (results2.rowCount) {
@@ -1668,15 +1664,15 @@ const routeNvm2 = (req = testRequest, res = testResponse) => {
                         values (${lat}, ${lon}, ${year}, '${s.replace(/ /g, ' ').trim()}')
                       `);
 
-                      send(res, s);
+                      sendResults(req, res, s);
                     } catch (error) {
-                      send(res, error.message);
+                      sendResults(req, res, error.message);
                     }
                   }
                 },
               );
             } catch (ee) {
-              send(res, ee.message);
+              sendResults(req, res, ee.message);
             }
           }
         },
@@ -1687,18 +1683,18 @@ const routeNvm2 = (req = testRequest, res = testResponse) => {
       `select data from weather.nvm2 where lat = ${lat} and lon = ${lon} and year = ${year}`,
       (err, results) => {
         if (err) {
-          send(res, err);
+          sendResults(req, res, err);
         } else if (testing) {
-          send(res, 'SUCCESS');
+          sendResults(req, res, 'SUCCESS');
         } else if (results.rowCount) {
-          send(res, results.rows[0].data);
+          sendResults(req, res, results.rows[0].data);
         } else {
           runNvmQuery();
         }
       },
     );
   } catch (ee) {
-    send(res, ee.message);
+    sendResults(req, res, ee.message);
   }
 }; // routeNvm2
 
@@ -1707,11 +1703,11 @@ const routeNvm2Data = (req, res = testResponse) => {
     'select distinct lat, lon, year from weather.nvm2',
     (err, results) => {
       if (err) {
-        send(res, 'ERROR');
+        sendResults(req, res, 'ERROR');
       } else if (testing) {
-        send(res, 'SUCCESS');
+        sendResults(req, res, 'SUCCESS');
       } else {
-        send(res, JSON.stringify(results.rows));
+        sendResults(req, res, JSON.stringify(results.rows));
       }
     },
   );
@@ -1731,7 +1727,7 @@ const routeNvm2Update = (req, res) => {
   `;
 
   pool.query(sq);
-  send(res, sq);
+  sendResults(req, res, sq);
 }; // routeNvm2Update
 
 const routeNvm2Query = (req = testRequest, res = testResponse) => {
@@ -1745,11 +1741,11 @@ const routeNvm2Query = (req = testRequest, res = testResponse) => {
       sq,
       (err, results) => {
         if (err) {
-          send(res, err);
+          sendResults(req, res, err);
         } else if (testing) {
-          send(res, 'SUCCESS');
+          sendResults(req, res, 'SUCCESS');
         } else if (results.rowCount) {
-          send(res, JSON.stringify(results.rows));
+          sendResults(req, res, JSON.stringify(results.rows));
         }
       },
     );
@@ -1765,25 +1761,27 @@ const routeRosetta = (req = testRequest, res = testResponse) => {
       soildata: req.body.soildata,
     },
   ).then((data) => {
-    send(res, data.data);
+    sendResults(req, res, data.data);
   });
 }; // routeRosetta
 
-const routeWatershed = (req = testRequest, res = testResponse) => {
+const routeWatershed = async (req = testRequest, res = testResponse) => {
+  const { location, lats, lons } = await init(req, res);
+
   const query = (sq) => {
     // pretty(sq);
     pool.query(
       sq,
       (error, results) => {
         if (error) {
-          debug({ sq, error }, res, 500);
+          debug({ sq, error }, req, res, 500);
         } else if (results.rows.length) {
-          send(res, results.rows.map((row) => {
+          sendResults(req, res, results.rows.map((row) => {
             delete row.geometry;
             return row;
           }));
         } else {
-          send(res, {});
+          sendResults(req, res, {});
         }
       },
     );
@@ -1864,7 +1862,7 @@ const routeWatershed = (req = testRequest, res = testResponse) => {
       `,
     );
   } else if (location) {
-    getLocation(res, latLon);
+    latLon();
   } else if (huc) {
     query(
       `
@@ -1879,17 +1877,17 @@ const routeWatershed = (req = testRequest, res = testResponse) => {
       `,
     );
   } else {
-    lats = (req.query.lat || '').split(',');
-    lons = (req.query.lon || '').split(',');
-    minLat = Math.min(...lats);
-    maxLat = Math.max(...lats);
-    minLon = Math.min(...lons);
-    maxLon = Math.max(...lons);
     latLon();
   }
 }; // routeWatershed
 
-const routeMLRA = (req = testRequest, res = testResponse) => {
+const routeMLRA = async (req = testRequest, res = testResponse) => {
+  const {
+    lats,
+    lons,
+  } = await init(req, res);
+  console.log(lats, lons);
+
   const polygon = safeQuery(req, 'polygon');
   const mlra = safeQuery(req, 'mlra');
 
@@ -1904,14 +1902,14 @@ const routeMLRA = (req = testRequest, res = testResponse) => {
       sq,
       (err, results) => {
         if (err) {
-          debug(err, res, 500);
+          debug(err, req, res, 500);
         } else if (results.rows.length) {
-          send(res, results.rows.map((row) => {
+          sendResults(req, res, results.rows.map((row) => {
             delete row.geometry;
             return row;
           }));
         } else {
-          send(res, {});
+          sendResults(req, res, {});
         }
       },
     );
@@ -1960,34 +1958,29 @@ const routeMLRA = (req = testRequest, res = testResponse) => {
     }
   }
 
-  if (location) {
-    getLocation(res, latLon);
-  } else {
-    lats = (req.query.lat || '').split(',');
-    lons = (req.query.lon || '').split(',');
-    minLat = Math.min(...lats);
-    maxLat = Math.max(...lats);
-    minLon = Math.min(...lons);
-    maxLon = Math.max(...lons);
-    latLon();
-  }
+  latLon();
 }; // routeMLRA
 
-const routeCounty = (req = testRequest, res = testResponse) => {
+const routeCounty = async (req = testRequest, res = testResponse) => {
+  const {
+    lats,
+    lons,
+  } = await init(req, res);
+
   const query = (sq) => {
-    // pretty(sq);
+    pretty(sq);
     pool.query(
       sq,
       (err, results) => {
         if (err) {
-          debug(err, res, 500);
+          debug(err, req, res, 500);
         } else if (results.rows.length) {
-          send(res, results.rows.map((row) => {
+          sendResults(req, res, results.rows.map((row) => {
             delete row.geometry;
             return row;
           }));
         } else {
-          send(res, {});
+          sendResults(req, res, {});
         }
       },
     );
@@ -2000,13 +1993,11 @@ const routeCounty = (req = testRequest, res = testResponse) => {
     ));
 
   const latLon = () => {
-    query(
-      `
-        SELECT distinct ${attributes}
-        FROM counties
-        WHERE ST_Contains(geometry::geometry, ST_Transform(ST_SetSRID(ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'), 4326), 4269))
-      `,
-    );
+    query(`
+      SELECT distinct ${attributes}
+      FROM counties
+      WHERE ST_Contains(geometry::geometry, ST_Transform(ST_SetSRID(ST_GeomFromText('POINT(${lons[0]} ${lats[0]})'), 4326), 4269))
+    `);
   }; // latLon
 
   const { polygon } = req.query;
@@ -2023,17 +2014,7 @@ const routeCounty = (req = testRequest, res = testResponse) => {
     }
   }
 
-  if (location) {
-    getLocation(res, latLon);
-  } else {
-    lats = (req.query.lat || '').split(',');
-    lons = (req.query.lon || '').split(',');
-    minLat = Math.min(...lats);
-    maxLat = Math.max(...lats);
-    minLon = Math.min(...lons);
-    maxLon = Math.max(...lons);
-    latLon();
-  }
+  latLon();
 }; // routeCounty
 
 const routeCountySpecies = (req = testRequest, res = testResponse) => {
@@ -2051,9 +2032,9 @@ const routeCountySpecies = (req = testRequest, res = testResponse) => {
     sq,
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else {
-        send(res, results.rows.map((row) => row.symbol));
+        sendResults(req, res, results.rows.map((row) => row.symbol));
       }
     },
   );
@@ -2083,9 +2064,9 @@ const routeMlraSpecies = (req = testRequest, res = testResponse) => {
     sq,
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else {
-        send(res, results.rows);
+        sendResults(req, res, results.rows);
       }
     },
   );
@@ -2114,9 +2095,9 @@ const routeMlraSpecies2 = (req = testRequest, res = testResponse) => {
     sq,
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else {
-        send(res, results.rows);
+        sendResults(req, res, results.rows);
       }
     },
   );
@@ -2138,9 +2119,9 @@ const routeMLRAErrors = (req, res = testResponse) => {
     sq,
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else {
-        send(res, results.rows);
+        sendResults(req, res, results.rows);
       }
     },
   );
@@ -2150,7 +2131,7 @@ const routePlants = (req = testRequest, res = testResponse) => {
   const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
 
   if (!symbols) {
-    debug({ error: 'symbol required' }, res, 400);
+    debug({ error: 'symbol required' }, req, res, 400);
     return;
   }
 
@@ -2166,9 +2147,9 @@ const routePlants = (req = testRequest, res = testResponse) => {
     sq,
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else {
-        send(res, results.rows);
+        sendResults(req, res, results.rows);
       }
     },
   );
@@ -2183,15 +2164,15 @@ const routePlants2 = (req, res = testResponse) => {
     sq,
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else {
-        send(res, results.rows);
+        sendResults(req, res, results.rows);
       }
     },
   );
 }; // routePlants2
 
-const simpleQuery = (sq, parameters, res, hideUnused) => {
+const simpleQuery = (sq, parameters, req, res, hideUnused) => {
   pool.query(
     sq,
     parameters,
@@ -2207,11 +2188,11 @@ const simpleQuery = (sq, parameters, res, hideUnused) => {
       }
 
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else if (results.rows.length) {
-        send(res, results.rows);
+        sendResults(req, res, results.rows);
       } else {
-        send(res, {});
+        sendResults(req, res, {});
       }
     },
   );
@@ -2228,7 +2209,7 @@ const routeVegspecStructure = (req = testRequest, res = testResponse) => {
     ORDER BY table_name, ordinal_position;
   `;
 
-  simpleQuery(sq, table ? [table] : [], res);
+  simpleQuery(sq, table ? [table] : [], req, res);
 }; // routeVegspecStructure
 
 const routeMissingCultivars = async (req, res) => {
@@ -2268,7 +2249,8 @@ const routeMissingCultivars = async (req, res) => {
     ORDER BY state, symbol, cultivar
   `, state ? [state] : undefined);
 
-  send(
+  sendResults(
+    req,
     res,
     results.rows.map((row) => {
       row.cultivar = row.cultivar || `<em style="color: gray">${row.cultivar || 'common'}</em>`;
@@ -2309,7 +2291,7 @@ const routeVegspecRecords = (req = testRequest, res = testResponse) => {
     FROM table_stats ts;
   `;
 
-  simpleQuery(sq, [], res);
+  simpleQuery(sq, [], req, res);
 }; // routeVegspecRecords
 
 const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) => {
@@ -2319,7 +2301,7 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
       plant_conservation_status_qualifier: [], plant_image_library: ['plant_image_library_id', 'plant_image_id', 'stream_id', 'last_change_date', 'last_changed_by', 'creation_date', 'created_by', 'active_record_ind'], plant_reserved_symbol_tbl: ['plant_family', 'plant_family_symbol', 'plant_family_id', 'subvariety', 'bauthor_data_source_id', 'tauthor_data_source_id', 'qauthor_data_source_id', 'ssauthor_data_source_id', 'fauthor_data_source_id', 'plant_category', 'plant_category_id', 'hybrid_parent', 'hybrid_parent1', 'hybrid_parent2', 'hybrid_parent3', 'suffix', 'svauthor', 'svauthor_id'], plant_conservation_status: [], county_gen2_project_webmercator: ['objectid', 'shape', 'name', 'state_name', 'fips', 'st'], generated_symbols_with_authorship: [], plant_noxious_status: [], d_plant_location_reference_subject: ['plant_location_reference_subject_description'], dw_plant_images: ['plant_images_id', 'plant_symbol', 'plant_master_id', 'parent_master_id', 'plant_rank', 'plant_synonym_ind', 'plant_full_scientific_name', 'plant_full_scientific_name_without_author', 'plant_scientific_name_html', 'plant_sciname_sort', 'plant_family', 'plant_family_symbol', 'plant_primary_vernacular', 'plant_image_type', 'plant_image_purpose', 'provided_by', 'provided_by_sortname', 'scanned_by', 'scanned_by_sortname', 'originally_from', 'originally_from_sortname', 'author', 'author_sortname', 'contributorindividual', 'contrib_ind_sortname', 'contributororganization', 'contrib_org_sortname', 'plantauthorship', 'plant_author_sortname', 'artist', 'artist_sortname', 'copyrightholder', 'copyright_sortname', 'other', 'other_sortname', 'plant_reference_title', 'plant_reference_place', 'plant_reference_year', 'plant_publication_volume_nbr', 'plant_publication_issue', 'plant_reference_publication', 'plant_reference_media_type', 'plant_reference_source_type', 'plant_institution_name', 'plant_image_website_url', 'plant_source_email', 'plant_imagelocation', 'plant_imagecreationdate', 'plant_copyright_ind', 'plant_image_country_fullname', 'plant_image_country_abbr', 'plant_image_state', 'plant_image_state_abbr', 'plant_image_county', 'plant_image_city', 'plant_image_locality', 'plant_image_fips', 'plant_image_geoid', 'plant_image_notes', 'plant_image_primary_ind', 'plant_image_display_ind', 'plant_image_id', 'plant_country_identifier', 'plant_location_id', 'plant_country_subdivision_id', 'plant_reference_id', 'plant_image_last_updated', 'plant_location_last_updated', 'plant_image_cred_last_updated', 'plant_reference_last_updated', 'dw_record_updated'], d_lifespan: [], plant_duration: [], plant_global_conservation: [], plant_hybrid_formula: [], d_common_name_type: [], d_country: [], d_plant_image_purpose: ['plant_image_purpose_description'], d_plant_wetland: [], staging_plant_invasive: ['staging_plant_invasive_id', 'plant_symbol', 'plant_synonym', 'accepted_sciname', 'useifdifferent_sci', 'common_name', 'state_status', 'plant_master_id', 'plant_syn_id', 'common_name_id', 'state_status_id', 'location_abbr', 'location_code', 'location_name', 'creation_date', 'created_by', 'processed'], d_plant_wildlife_food: [], plant_protected_status: [], plant_reference: ['plant_reference_acronym', 'state_county_code', 'secondary_reference_title', 'reference_hyperlink'], d_plant_pollinator: [], plant_usage: ['plant_usage_id', 'plant_use_id', 'plant_location_characteristic_id', 'active_record_ind', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by'], d_noxious_status: [], plant_notes: ['synonym_notes', 'subordinate_taxa_notes', 'legal_notes', 'noxious_notes', 'rarity_notes', 'wetland_notes', 'related_links_notes', 'wildlife_notes', 'sources_notes', 'characteristic_notes', 'pollinator_notes', 'cultural_notes', 'ethnobotany_notes'], d_protected_status_source: [], plant_data_source: ['plant_data_source_last_name', 'plant_data_source_first_name', 'plant_data_source_website_url'], d_plant_reference_purpose: [], d_noxious_status_source: [], audit_plant_master_tbl: ['plant_master_update_id', 'action_taken', 'plant_master_id', 'plant_hierarchy_id', 'plant_symbol', 'plant_status_id', 'plant_rank_id', 'plant_synonym_ind', 'plant_scientific_name', 'plant_author_name_id', 'plant_primary_vernacular_id', 'plant_revisor_id', 'full_scientific_name', 'full_scientific_name_html', 'full_scientific_name_without_author', 'is_active', 'parent_master_id', 'is_taxa', 'taxa_master_id', 'gsat', 'cover_crop', 'cultural_significant_ind', 'action_date', 'action_taken_by', 'action_generated_from'], audit_invasive_source: [], d_plant_wildlife_type: [], d_invasive_status_source: [], staging_plant_wetland: ['parent_region_id'], d_plant_wildlife_cover: [], d_plant_status: ['last_change_date', 'last_changed_by'], d_country_subdivision_type: [], entitlement: [], plant_ethnobotany: [], audit_plant_reference: ['plant_reference_acronym', 'plant_reference_second_title', 'plant_reference_place', 'state_county_code', 'plant_publication_volume_nbr', 'plant_website_url_text', 'plant_author', 'plant_publisher'], d_country_complete: ['end_date'], d_plant_occurrence_type: ['plant_occurrence_type_description'], plant_synonym_tbl: [], d_color: [], d_plant_use: ['plant_use_description', 'last_changed_by'], plant_wildlife: [], plant_data_sources: [], audit_plant_ref_association: ['plant_ref_assoc_id', 'plant_master_id', 'plant_literature_id', 'plant_reference_id', 'action_taken', 'action_date', 'is_active'], plant_image: ['plant_image_file_name', 'plant_image', 'plant_image_notes', 'plant_image_location_latitude', 'plant_image_location_longitude'], plant_unknown_tbl: [], plant_reference_source: [], plant_invasive_status: [], d_foliage_porosity: [], plant_region: [], plant_suitability_use: [], d_plant_nativity_region: [], plant_image_credit: [], plant_growth_requirements: [], d_plant_ethno_culture: ['plant_ethno_culture_notes'], plant_occurrence_location: [], plant_location_characteristic: ['plant_noxious_status_id'], audit_plant_location_common_name: ['plant_location_common_name_audit_id', 'action_taken', 'plant_master_id', 'plant_location_id', 'plant_primary_vernacular_id', 'action_taken_from', 'is_active', 'action_date', 'action_taken_by'], audit_plant_data_source: ['plant_data_source_email_address', 'contributor_id', 'plant_data_source_website_url'], linegeometries: ['id', 'shape', 'code'], d_foliage_texture: [], d_plant_nativity: [], plant_classifications_tbl: ['suborder', 'subfamily', 'classid_hybrid_author', 'taxquest'], d_plant_name_suffix: ['plant_name_suffix_description'], document_delete: ['Word Files', 'PDF files'], d_crop_type: [], audit_plant_synonym_tbl: ['plant_synonym_update_id', 'action_taken', 'plant_synonym_id', 'plant_master_id', 'synonym_plant_master_id', 'is_active', 'action_date', 'action_taken_by', 'action_generated_from'], plant_data_source_detail: ['plant_data_source_address', 'plant_data_source_city', 'plant_data_source_state', 'plant_data_source_phone', 'plant_data_source_affiliations'], d_extent: [], d_plant_taxonomic_status: ['last_changed_by'], d_shape_orientation: [], d_plant_ethno_use: ['plant_ethno_usage_definition'], '8ball_data': [], plant_reproduction: [], role_entitlement: [], plant_pollinator: [], d_plant_image_credit_type: [], staging_symbol_generator: ['reservedfor_id', 'formauthorid', 'varietyauthorid', 'subvarietyauthorid', 'subspeciesauthorid', 'speciesauthorid', 'genusauthorid', 'accepted_symbol', 'acceptedid'], d_plant_record_type: ['last_change_date', 'last_changed_by'], staging_plant_invasive_source: ['staging_plant_invasive_source_id', 'author', 'inv_year', 'hyperlink_txt', 'inv_url', 'location_abbr', 'location_code', 'location_name', 'creation_date', 'created_by', 'processed'], plant_master_image: ['plant_image_purpose_id'], plant_location_reference: ['plant_location_reference_id', 'plant_location_characteristic_id', 'plant_reference_id', 'plant_location_subject_id', 'plant_reference_purpose_id', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by', 'active_record_ind'], alternative_crop: [], d_plant_action: [], d_rate: [], audit_plant_image: ['plant_image_audit_id', 'plant_master_id', 'plant_image_id', 'plant_reference_id', 'plant_image_type_id', 'plant_image_taken_date', 'plant_image_primary_ind', 'plant_image_display_ind', 'plant_image_copyrighted_ind', 'plant_image_stream_id', 'plant_image_location', 'plant_image_notes', 'action_taken', 'action_date', 'action_taken_by', 'active_record_ind'], plant_vascular: ['taxa_master_id'], d_plant_vernacular: [], state_gen_nonus_project_webmercator: ['objectid', 'shape', 'state_name', 'identifier'], audit_plant_invasive_status: ['plant_invasive_id'], d_plant_wetland_region: [], audit_plant_master_image: ['plant_master_image_audit_id', 'plant_master_id', 'plant_master_image_id', 'plant_image_purpose_id', 'action_taken', 'action_date', 'action_taken_by', 'active_record_ind'], audit_plant_work_basket: ['audit_work_basket_id', 'plant_work_basket_id', 'table_name', 'table_record_id', 'process_status_id', 'notes', 'action_date', 'action_taken_by'], plant_herbarium_image: ['plant_herbarium_image_id', 'plant_herbarium_id', 'plant_image_id', 'active_record_ind', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by'], plant_cultural: [], d_plant_family_category: [], d_growth_form: [], audit_plant_wetland: ['plant_wetland_notes'], d_protected_status: [], audit_plant_image_credit: ['plant_image_credit_audit_id', 'plant_master_id', 'plant_image_credit_id', 'plant_image_id', 'plant_image_prefix_id', 'plant_image_credit_type_id', 'plant_image_data_source_id', 'plant_image_credit_display_ind', 'action_taken', 'action_date', 'action_taken_by', 'active_record_ind'], d_season: [], plants_work_basket: ['plant_work_basket_id', 'table_name', 'table_record_id', 'process_status_id', 'notes', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by'], plant_location_common_name: [], plant_occurrence: ['plant_collection_nbr', 'plant_location_description', 'plant_specific_location_description', 'plant_habitat_description', 'plant_determination_date'], plant_data_reference: ['plant_publication_chapter'], audit_plant_image_library: ['plant_image_library_audit_id', 'plant_image_library_id', 'plant_image_id', 'plant_image_name', 'plant_image_new_name', 'plant_stream_id', 'action_taken', 'action_date', 'action_taken_by', 'active_record_ind'], d_plant_website_type: [], plant_common_name: ['last_change_date', 'last_changed_by'], d_commercial_availability: [], plant_spotlight: ['last_change_date', 'last_changed_by'], dw_plant_wetland: ['plant_dw_wetland_id', 'plant_wetland_symbol', 'plant_accepted_symbol', 'plant_master_id', 'parent_master_id', 'plant_rank', 'plant_synonym_ind', 'plant_scientific_name', 'plant_full_scientific_name', 'plant_full_scientific_name_without_author', 'plant_scientific_name_html', 'plant_sciname_sort', 'plant_family', 'plant_family_symbol', 'plant_primary_vernacular', 'plant_region', 'plant_subregion', 'plant_region_description', 'plant_region_abbreviation', 'plant_parent_region_abbreviation', 'plant_parent_region_description', 'plant_wetland_notes', 'plant_wetland_status_abbreviation', 'plant_wetland_status_description', 'plant_wetland_status_name', 'plant_hydrophyte_ind', 'plant_location_id', 'plant_location_characteristic_id', 'plant_wetland_status_id1', 'plant_wetland_region_id', 'plant_wetland_parent_id', 'plant_region_last_updated', 'plant_base_data_last_updated', 'plant_wetland_status_last_updated', 'plant_dw_record_last_updated'], plant_literature_location: [], d_plant_rank: ['display_sequence', 'last_change_date', 'last_changed_by'], alternative_crop_information: [], d_plant_image_type: [], plant_master_tbl: ['taxa_master_id'], role: [], d_plant_herbarium: ['plant_reference_id'], d_plant_duration: [], d_country_subdivision_category: [], d_country_subdivision: ['country_subdivision_level'], plant_location: ['state_county_code', 'plant_location_shape'], plant_ethnobotany_source: [], d_plant_reserved_status: [], staging_plant_wetland_import: ['plant_wetland_import_id', 'plant_scientific_name', 'plant_symbol', 'plant_synonym', 'wetland_symbol', 'hi', 'cb', 'ak', 'aw', 'agcp', 'emp', 'gp', 'mw', 'ncne', 'wmvc', 'aki', 'acp', 'cil', 'crb', 'iah', 'ial', 'iam', 'ngl', 'nbr', 'nsl', 'pda', 'sph', 'spi', 'ukk', 'wbrmnt', 'wgc', 'creation_date', 'created_by'], odmt_authorized: ['odmt_role1', 'odmt_role2', 'odmt_role3', 'last_changed_by'], d_plant_reference_type: [], plant_literature: [], d_plant_reserved_for: [], plants_document_remove: ['plants_doc_remove_id', 'plant_document_name', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by', 'active_record_ind'], audit_plant_notes: ['synonym_notes', 'subordinate_taxa_notes', 'legal_notes', 'noxious_notes', 'rarity_notes', 'wetland_notes', 'related_links', 'wildlife_notes', 'sources_notes', 'characteristic_notes', 'pollinator_notes', 'cultural_notes', 'ethnobotany_notes'], d_plant_family: ['plant_family_alt_sym'], gsat_lkup: [], plant_related_website: ['plant_website_url_suffix'], d_conservation_status_rank: [], d_plant_growth_habit: [], d_state_county: ['coastal_county_ind', 'countyseat_geometry', 'state_county_geometry'], dw_plant_master_profile: ['plant_master_profile_id', 'plant_master_id', 'plant_symbol', 'plant_rank', 'plant_rank_id', 'plant_synonym_ind', 'plant_is_hybrid_ind', 'plant_full_scientific_name', 'plant_full_scientific_name_without_author', 'plant_scientific_name_html', 'plant_sciname_sort', 'plant_author', 'plant_author_id', 'plant_revisor', 'plant_revisor_id', 'plant_primary_vernacular', 'plant_primary_vernacular_id', 'plant_state_vernacular', 'plant_vernacular_state', 'plant_vernacular_trademark', 'plant_other_common_names', 'plant_group', 'plant_category', 'plant_family', 'plant_family_symbol', 'plant_family_vernacular', 'plant_noxious_ind', 'plant_global_rarity_ind', 'plant_us_rarity_ind', 'plant_wetland_ind', 'plant_invasive_ind', 'plant_vascular_ind', 'plant_duration1', 'plant_duration2', 'plant_duration3', 'plant_growth1', 'plant_growth2', 'plant_growth3', 'plant_growth4', 'plant_nat_l48', 'plant_nat_ak', 'plant_nat_hi', 'plant_nat_pr', 'plant_nat_vi', 'plant_nat_nav', 'plant_nat_can', 'plant_nat_gl', 'plant_nat_spm', 'plant_nat_na', 'plant_nat_pb', 'plant_nat_pfa', 'plantguide_pdf', 'plantguide_docx', 'factsheet_pdf', 'factsheet_docx', 'plant_master_notes', 'plant_synonym_notes', 'plant_subordinate_taxa_notes', 'plant_legal_notes', 'plant_taxonomic_status_suffix', 'gsat', 'cover_crop', 'cultural_significant_ind', 'is_taxa', 'taxa_master_id', 'parent_master_id', 'plant_hierarchy_id', 'plant_parent_hierarchy_id', 'plant_taxa_hierarchy_id', 'plant_hybrid_parent1', 'plant_hybrid_parent2', 'plant_hierarchy_level', 'plant_kingdom', 'plant_subkingdom', 'plant_superdivision', 'plant_division', 'plant_subdivision', 'plant_class', 'plant_order', 'plant_suborder', 'plant_subfamily', 'plant_xgenus', 'plant_genus', 'plant_xspecies', 'plant_species', 'plant_ssp', 'plant_xsubsp', 'plant_subspecies', 'plant_var', 'plant_xvariety', 'plant_variety', 'plant_subvariety', 'plant_f', 'plant_forma', 'bauthor', 'tauthor', 'qauthor', 'nomenclature', 'unaccept_reason', 'plant_base_data_last_updated', 'plant_classification_data_last_updated', 'dw_record_updated'], plant_growth_habit: [], plant_document_audit: [], state_nrcs_download: [], plant_master_document: [], d_toxicity: [], d_plant_data_source_type: ['plant_data_source_type_description'], d_plant_noxious_status: ['plant_noxious_status_name'], d_conservation_status_qualifier: [], d_shade_tolerance: [], state_gen_us_project_webmercator: ['objectid', 'shape', 'state_name', 'identifier'], d_process_status: ['process_status_id', 'process_status_name', 'process_status_definition', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by', 'active_record_ind'], audit_plant_ref_source: [], audit_noxious_source: ['source_audit_id', 'action_taken', 'noxious_status_source_id', 'plant_location_id', 'noxious_status_sourc_text', 'is_active', 'action_date', 'action_taken_by'], plant_family_category: [], d_plant_image_prefix: [], plant_name_suffix: [], d_invasive_status: [], plant_morphology_physiology: ['hmaba_id', 'hmaba_display', 'ham_id', 'ham_display'],
     };
 
-    send(res, empty);
+    sendResults(req, res, empty);
   }
   let tables = req.query.table ? [req.query.table] : [];
 
@@ -2360,7 +2342,7 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
     }
   }
 
-  send(res, empty);
+  sendResults(req, res, empty);
 }; // routePlantsEmptyColumns
 
 const routeVegspecCharacteristics = async (req = testRequest, res = testResponse) => {
@@ -2846,13 +2828,14 @@ const routeVegspecCharacteristics = async (req = testRequest, res = testResponse
     return;
   }
 
-  send(res, finalResults);
+  sendResults(req, res, finalResults);
 }; // routeVegspecCharacteristics
 
 const routeVegspecDeleteState = (req, res) => {
   simpleQuery(
     'DELETE FROM plants3.states WHERE state=$1',
     [req.query.state],
+    req,
     res,
   );
 }; // routeVegspecDeleteState
@@ -2861,6 +2844,7 @@ const routeVegspecRenameCultivar = (req, res) => {
   simpleQuery(
     'UPDATE plants3.states SET cultivar_name=$1 WHERE plant_symbol=$2 AND cultivar_name=$3',
     [req.query.newname, req.query.symbol, req.query.oldname],
+    req,
     res,
   );
 }; // routeVegspecRenameCultivar
@@ -2897,10 +2881,10 @@ const routeVegspecSaveState = async (req, res) => {
       );
       i += 1;
     }
-    send(res, { status: 'Success' });
+    sendResults(req, res, { status: 'Success' });
   } catch (error) {
     console.error(error);
-    send(res, { error });
+    sendResults(req, res, { error });
   }
 }; // routeVegspecSaveState
 
@@ -2908,6 +2892,7 @@ const routeVegspecState = async (req = testRequest, res = testResponse) => {
   simpleQuery(
     'select * from plants3.states where state=$1',
     [req.query.state],
+    req,
     res,
   );
 }; // routeVegspecState
@@ -2935,9 +2920,9 @@ const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
         console.log(error);
         debug({
           value, state, symbol, cultivar, parameter, error,
-        }, res, 500);
+        }, req, res, 500);
       } else if (results.rowCount) {
-        send(res, { Success: `${results.rowCount} row updated` });
+        sendResults(req, res, { Success: `${results.rowCount} row updated` });
       } else {
         pool.query(
           `
@@ -2951,9 +2936,9 @@ const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
               console.log(error2);
               debug({
                 value, state, symbol, cultivar, parameter, error,
-              }, res, 500);
+              }, req, res, 500);
             } else {
-              send(res, { Success: `${results2.rowCount} row inserted` });
+              sendResults(req, res, { Success: `${results2.rowCount} row inserted` });
             }
           },
         );
@@ -2962,7 +2947,12 @@ const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
   );
 }; // routeVegspecEditState
 
+function sleep(ms) {
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
 const routeVegspecProps = async (req = testRequest, res = testResponse) => {
+  await sleep(10000);
   /* eslint-disable max-len */
   const results = await pool.query(`
     SELECT 'coppice_potential_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
@@ -3044,14 +3034,14 @@ const routeVegspecProps = async (req = testRequest, res = testResponse) => {
       obj[row.parameter].push(row.value);
     }
   });
-  send(res, obj);
+  sendResults(req, res, obj);
 }; // routeVegspecProps
 
 const routePlantsTable = (req = testRequest, res = testResponse) => {
   const table = safeQuery(req, 'table');
   const sq = `select * from plants3.${table}`;
 
-  simpleQuery(sq, [], res, true);
+  simpleQuery(sq, [], req, res, true);
 }; // routePlantsTable
 
 const routeVegspecSymbols = async (req = testRequest, res = testResponse) => {
@@ -3059,9 +3049,9 @@ const routeVegspecSymbols = async (req = testRequest, res = testResponse) => {
     'SELECT TRIM(plant_symbol) AS plant_symbol FROM plants3.plant_master_tbl',
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else {
-        send(res, results.rows.map((row) => row.plant_symbol));
+        sendResults(req, res, results.rows.map((row) => row.plant_symbol));
       }
     },
   );
@@ -3074,7 +3064,7 @@ const routeVegspecNewSpecies = async (req = testRequest, res = testResponse) => 
     [state, symbol, cultivar],
     (err, results) => {
       if (err) {
-        debug(err, res, 500);
+        debug(err, req, res, 500);
       } else if (results.rows.length) {
         res.send({ status: 'Species already exists' });
       } else {
@@ -3083,7 +3073,7 @@ const routeVegspecNewSpecies = async (req = testRequest, res = testResponse) => 
           [state, symbol, cultivar],
           (err2) => {
             if (err2) {
-              debug(err, res, 500);
+              debug(err, req, res, 500);
             } else {
               res.send({ status: 'Success' });
             }
@@ -3094,42 +3084,39 @@ const routeVegspecNewSpecies = async (req = testRequest, res = testResponse) => 
   );
 }; // routeVegspecNewSpecies
 
-const routeFrost = (req = testRequest, res = testResponse) => {
-  const query = () => {
-    const lat = lats ? lats[0] : req.query.lat;
-    const lon = lons ? lons[0] : req.query.lon;
+const routeFrost = async (req = testRequest, res = testResponse) => {
+  const {
+    lats,
+    lons,
+  } = await init(req, res);
 
-    const sq = `
-      select * from frost.frost
-      where 
-        firstfreeze is not null and
-        firstfrost is not null and
-        lastfreeze is not null and
-        lastfrost is not null and
-        sqrt(power(lat - ${lat}, 2) + power(lon - ${lon}, 2)) < 0.7
-      order by sqrt(power(lat - ${lat}, 2) + power(lon - ${lon}, 2))
-      limit 1
-    `;
+  const lat = lats ? lats[0] : req.query.lat;
+  const lon = lons ? lons[0] : req.query.lon;
 
-    pool.query(
-      sq,
-      (err, results) => {
-        if (err) {
-          debug(err, res, 500);
-        } else if (results.rows.length) {
-          send(res, results.rows[0]);
-        } else {
-          send(res, {});
-        }
-      },
-    );
-  }; // query
+  const sq = `
+    select * from frost.frost
+    where 
+      firstfreeze is not null and
+      firstfrost is not null and
+      lastfreeze is not null and
+      lastfrost is not null and
+      sqrt(power(lat - ${lat}, 2) + power(lon - ${lon}, 2)) < 0.7
+    order by sqrt(power(lat - ${lat}, 2) + power(lon - ${lon}, 2))
+    limit 1
+  `;
 
-  if (location) {
-    getLocation(req, query);
-  } else {
-    query();
-  }
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        debug(err, req, res, 500);
+      } else if (results.rows.length) {
+        sendResults(req, res, results.rows[0]);
+      } else {
+        sendResults(req, res, {});
+      }
+    },
+  );
 }; // routeFrost
 
 /**
@@ -3173,73 +3160,81 @@ const routeFrost = (req = testRequest, res = testResponse) => {
  *     END LOOP;
  * END $$;
 */
-const routeYearly = (req = testRequest, res = testResponse) => {
-  const query = () => {
-    /**
-     * Destructuring request query parameters.
-     * @type {number} year - The year.
-     * @type {number} year1 - The starting year (default: year).
-     * @type {number} year2 - The ending year (default: year or year1).
-     * @type {number} lat - The latitude.
-     * @type {number} lon - The longitude.
-     */
+const routeYearly = async (req = testRequest, res = testResponse) => {
+  const { lats, lons } = await init(req, res);
 
-    const y1 = 2018;
-    const y2 = 2022;
+  const y1 = 2018;
+  const y2 = 2022;
 
-    const year = req.query.year || `${y1}-${y2}`;
+  const year = req.query.year || `${y1}-${y2}`;
 
-    let [year1, year2] = year.toString().split('-');
+  let [year1, year2] = year.toString().split('-');
 
-    year1 = clamp(year1, y1, y2);
-    year2 = clamp(year2 || year1, y1, y2);
+  year1 = clamp(year1, y1, y2);
+  year2 = clamp(year2 || year1, y1, y2);
 
-    const lat = lats?.[0] || req.query.lat;
-    const lon = lons?.[0] || req.query.lon;
+  const lat = lats?.[0] || req.query.lat;
+  const lon = lons?.[0] || req.query.lon;
 
-    // SQL query for fetching yearly temperature data.
-    const sq = `
-      SELECT
-        ${year1}${year2 !== year1 ? ` || '-' || ${year2}` : ''} as year,
-        ${lat} as lat, ${lon} as lon,
-        min(min_air_temperature) AS min_air_temperature,
-        max(max_air_temperature) AS max_air_temperature,
-        avg(sum_precipitation) AS avg_precipitation
-      FROM (
-        ${range(year1, year2).map((y) => `
-            SELECT * FROM
-            weather.yearly_${Math.trunc(NLDASlat(lat))}_${Math.trunc(-NLDASlon(lon))}_${y}
-            WHERE lat=${NLDASlat(lat)} and lon=${NLDASlon(lon)}
-          `).join(`
-            UNION ALL
-          `)}
-      ) a
-      GROUP BY lat, lon;
-    `;
+  // SQL query for fetching yearly temperature data.
+  const sq = `
+    SELECT
+      ${year1}${year2 !== year1 ? ` || '-' || ${year2}` : ''} as year,
+      ${lat} as lat, ${lon} as lon,
+      min(min_air_temperature) AS min_air_temperature,
+      max(max_air_temperature) AS max_air_temperature,
+      avg(sum_precipitation) AS avg_precipitation
+    FROM (
+      ${range(year1, year2).map((y) => `
+          SELECT * FROM
+          weather.yearly_${Math.trunc(NLDASlat(lat))}_${Math.trunc(-NLDASlon(lon))}_${y}
+          WHERE lat=${NLDASlat(lat)} and lon=${NLDASlon(lon)}
+        `).join(`
+          UNION ALL
+        `)}
+    ) a
+    GROUP BY lat, lon;
+  `;
 
-    console.log(sq);
+  console.log(sq);
 
-    // Executing the SQL query.
-    pool.query(
-      sq,
-      (err, results) => {
-        if (err) {
-          debug(err, res, 500);
-        } else {
-          send(res, results.rows);
-        }
-      },
-    );
-  }; // query
-
-  if (location) {
-    getLocation(req, query);
-  } else {
-    query();
-  }
+  // Executing the SQL query.
+  pool.query(
+    sq,
+    (err, results) => {
+      if (err) {
+        debug(err, req, res, 500);
+      } else {
+        sendResults(req, res, results.rows);
+      }
+    },
+  );
 }; // routeYearly
 
 async function routeTest(req, res) {
+  testRequest = {
+    headers: req.headers,
+    socket: req.socket,
+    body: {},
+    query: {
+      nosave: true,
+      lat: '39',
+      lon: '-76',
+      mlra: '136',
+      start: '2020-01-01',
+      end: '2020-01-02',
+      limit: 10,
+      offset: 0,
+      num: 100,
+      // location: 'texas', // routeNvm
+      location: '',
+      year: 2018,
+      condition: 'mvm', // routeNvm2Query
+      state: 'georgia', // routeCountySpecies
+      symbol: 'ABAB,Abac', // routePlants
+    },
+  };
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
@@ -3261,27 +3256,8 @@ async function routeTest(req, res) {
       results = `FAILED: ${results}`;
     }
     console.log(results);
-    send(res, results);
+    sendResults(req, res, results);
   } // GoogleMapsAPI
-
-  testRequest = {
-    body: {},
-    query: {
-      lat: '39',
-      lon: '-76',
-      mlra: '136',
-      start: '2020-01-01',
-      end: '2020-01-02',
-      limit: 10,
-      offset: 0,
-      num: 100,
-      location: 'texas', // routeNvm
-      year: 2018,
-      condition: 'mvm', // routeNvm2Query
-      state: 'georgia', // routeCountySpecies
-      symbol: 'ABAB,Abac', // routePlants
-    },
-  };
 
   // options = 'nomrms';
 
@@ -3304,7 +3280,7 @@ async function routeTest(req, res) {
     routeHits,
     routeHourly,
     function routeHourlyPredicted() {
-      const tr = JSON.parse(JSON.stringify(testRequest));
+      const tr = { ...testRequest };
       tr.query.predicted = 'true';
       routeHourly(tr);
     },
@@ -3330,10 +3306,6 @@ async function routeTest(req, res) {
 } // routeTest
 
 module.exports = {
-  initializeVariables: (req, res, next) => {
-    init(req);
-    next();
-  },
   routeAddresses,
   routeAverages,
   routeCountIndexes,

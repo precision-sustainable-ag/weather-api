@@ -45,19 +45,19 @@ app.get('/tables', db.routeTables); // list database tables, for use in Data Exp
 app.get('/counttablesrows', db.routeCountTablesRows); // number of tables and rows, for use in Data Explorer
 app.get('/countindexes', db.routeCountIndexes); // number of indexes, for use in Data Explorer
 app.get('/databasesize', db.routeDatabasesize); // size of the database
-app.get('/averages', db.initializeVariables, db.routeAverages); // 5-year hourly averages
-app.get('/hourly', db.initializeVariables, db.routeHourly); // real hourly data
-app.get('/daily', db.initializeVariables, db.routeDaily); // daily statistics
+app.get('/averages', db.routeAverages); // 5-year hourly averages
+app.get('/hourly', db.routeHourly); // real hourly data
+app.get('/daily', db.routeDaily); // daily statistics
 
 // Georgia Weather Station data for output in Data Explorer (http://aesl.ces.uga.edu/weatherapp/de)
 app.get('/GAWeatherStations', db.routeGAWeatherStations);
 
 // query for discrepancies between MRMS and NLDAS-2 precipitation.  Example: https://weather.covercrop-data.org/nvm?location=texas.
 // Likely superceded by nvm2.
-app.get('/nvm', db.initializeVariables, db.routeNvm);
+app.get('/nvm', db.routeNvm);
 
-app.get('/nvm2', db.initializeVariables, db.routeNvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
-app.get('/nvm2Data', db.initializeVariables, db.routeNvm2Data); // "
+app.get('/nvm2', db.routeNvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
+app.get('/nvm2Data', db.routeNvm2Data); // "
 app.get('/nvm2Update', db.routeNvm2Update); // "
 app.get('/nvm2Query', db.routeNvm2Query); // "
 
@@ -67,10 +67,10 @@ app.get('/mvm', db.routeMvm);
 
 app.post('/rosetta', db.routeRosetta); // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
-app.all('/watershed', db.initializeVariables, db.routeWatershed);
-app.all('/mlra', db.initializeVariables, db.routeMLRA);
-app.all('/county', db.initializeVariables, db.routeCounty);
-app.all('/frost', db.initializeVariables, db.routeFrost);
+app.all('/watershed', db.routeWatershed);
+app.all('/mlra', db.routeMLRA);
+app.all('/county', db.routeCounty);
+app.all('/frost', db.routeFrost);
 app.all('/countyspecies', db.routeCountySpecies);
 app.all('/mlraspecies', db.routeMlraSpecies);
 app.all('/mlraspecies2', db.routeMlraSpecies2);
@@ -80,34 +80,34 @@ app.all('/plants', db.routePlants);
 
 app.all('/plants2', db.routePlants2);
 
-app.all('/plantsrecords', db.initializeVariables, db.routeVegspecRecords);
-app.all('/vegspec/records', db.initializeVariables, db.routeVegspecRecords);
+app.all('/plantsrecords', db.routeVegspecRecords);
+app.all('/vegspec/records', db.routeVegspecRecords);
 
-app.all('/plantscharacteristics', db.initializeVariables, db.routeVegspecCharacteristics);
-app.all('/vegspec/characteristics', db.initializeVariables, db.routeVegspecCharacteristics);
+app.all('/plantscharacteristics', db.routeVegspecCharacteristics);
+app.all('/vegspec/characteristics', db.routeVegspecCharacteristics);
 
-app.all('/plantsstructure', db.initializeVariables, db.routeVegspecStructure);
-app.all('/vegspec/structure', db.initializeVariables, db.routeVegspecStructure);
+app.all('/plantsstructure', db.routeVegspecStructure);
+app.all('/vegspec/structure', db.routeVegspecStructure);
 
-app.all('/plantstable', db.initializeVariables, db.routePlantsTable);
-app.all('/vegspec/table', db.initializeVariables, db.routePlantsTable);
+app.all('/plantstable', db.routePlantsTable);
+app.all('/vegspec/table', db.routePlantsTable);
 
-app.all('/plantsemptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
-app.all('/vegspec/emptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
-app.all('/vegspec/props', db.initializeVariables, db.routeVegspecProps);
-app.all('/vegspec/symbols', db.initializeVariables, db.routeVegspecSymbols);
-app.all('/vegspec/newspecies', db.initializeVariables, db.routeVegspecNewSpecies);
-app.all('/vegspec/renamecultivar', db.initializeVariables, db.routeVegspecRenameCultivar);
+app.all('/plantsemptycolumns', db.routePlantsEmptyColumns);
+app.all('/vegspec/emptycolumns', db.routePlantsEmptyColumns);
+app.all('/vegspec/props', db.routeVegspecProps);
+app.all('/vegspec/symbols', db.routeVegspecSymbols);
+app.all('/vegspec/newspecies', db.routeVegspecNewSpecies);
+app.all('/vegspec/renamecultivar', db.routeVegspecRenameCultivar);
 
 app.all('/vegspec/savestate', db.routeVegspecSaveState);
 app.all('/vegspec/state', db.routeVegspecState);
 app.all('/vegspec/deletestate', db.routeVegspecDeleteState);
 app.all('/vegspec/editstate', db.routeVegspecEditState);
-app.all('/vegspec/missingcultivars', db.initializeVariables, db.routeMissingCultivars);
+app.all('/vegspec/missingcultivars', db.routeMissingCultivars);
 
-app.all('/yearly', db.initializeVariables, db.routeYearly);
+app.all('/yearly', db.routeYearly);
 
-app.get('/test', db.initializeVariables, db.routeTest);
+app.get('/test', db.routeTest);
 
 app.listen(80);
 
