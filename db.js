@@ -81,31 +81,6 @@ const axios = require('axios');
 const myip = require('ip');
 const { pool, googleAPIKey } = require('./pools');
 
-let testing;
-let tests;
-
-let testRequest;
-let testResponse;
-
-const parms = [
-  'date',
-  'lat',
-  'lon',
-  'air_temperature',
-  'humidity',
-  'relative_humidity',
-  'pressure',
-  'zonal_wind_speed',
-  'meridional_wind_speed',
-  'wind_speed',
-  'longwave_radiation',
-  'convective_precipitation',
-  'potential_energy',
-  'potential_evaporation',
-  'shortwave_radiation',
-  'precipitation',
-];
-
 /**
  * Cleans a string by removing specific characters and forbidden keywords.
  * @param {string} s - The string to clean.
@@ -175,7 +150,7 @@ const range = (start, end) => {
 }; // range
 
 const sendResults = (req, res, results, opt = {}) => {
-  if (testing) {
+  if (req.testing) {
     if (typeof results === 'object') {
       res.write('SUCCESS');
     } else {
@@ -183,14 +158,14 @@ const sendResults = (req, res, results, opt = {}) => {
     }
     // res.write(`\n${'_'.repeat(200)}\n`);
 
-    if (!tests.length) {
+    if (!req.tests.length) {
       res.write('\nFinished');
-      testing = false;
+      req.testing = false;
       res.end();
     } else {
-      testing = true;
-      res.write(`\n${tests[0].name.padEnd(25)}: `);
-      tests.shift()();
+      req.testing = true;
+      res.write(`\n${req.tests[0].name.padEnd(25)}: `);
+      req.tests.shift()(req, req.testResponse);
     }
   } else if (req.query.output === 'html') {
     if (!Array.isArray(results)) {
@@ -322,10 +297,10 @@ ${JSON.stringify(s, null, 2).replace(/\\n/g, '\n')}
     console.log(result);
     console.log('_'.repeat(process.stdout.columns));
 
-    if (res && !testing) {
+    if (res && !req.testing) {
       res.type('text/plain');
       res.status(status).send(result);
-    } else if (res && testing) {
+    } else if (res && req.testing) {
       sendResults(req, res, `ERROR\n${result}\n`);
     }
   }
@@ -541,12 +516,7 @@ const init = async (req, res) => {
     await getLocation();
   }
 
-  console.log(544, { results });
-
-  console.log(1);
   await getTimeZone();
-  console.log(results.timeOffset);
-  console.log(2);
 
   debug(results);
 
@@ -687,6 +657,25 @@ const unindent = (s) => {
 }; // unindent
 
 const runQuery = async (req, res, type, start, end, format2, daily) => {
+  const parms = [
+    'date',
+    'lat',
+    'lon',
+    'air_temperature',
+    'humidity',
+    'relative_humidity',
+    'pressure',
+    'zonal_wind_speed',
+    'meridional_wind_speed',
+    'wind_speed',
+    'longwave_radiation',
+    'convective_precipitation',
+    'potential_energy',
+    'potential_evaporation',
+    'shortwave_radiation',
+    'precipitation',
+  ];
+
   let years;
   let mrms;
   const {
@@ -793,7 +782,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
             });
           } else if (req.callback) {
             req.callback(rows);
-          } else if (testing) {
+          } else if (req.testing) {
             sendResults(req, res, 'SUCCESS');
           } else {
             res.json(rows);
@@ -1242,7 +1231,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
   query(timeOffset);
 }; // runQuery
 
-const routeHourly = (req = testRequest, res = testResponse) => {
+const routeHourly = (req, res) => {
   const start = req.query.start || '2000-01-01';
   const end = req.query.end ? req.query.end + (/:/.test(req.query.end) ? '' : ' 23:59')
     : '2099-12-31 23:59';
@@ -1252,7 +1241,7 @@ const routeHourly = (req = testRequest, res = testResponse) => {
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD HH24:MI');
 }; // routeHourly
 
-const routeDaily = (req = testRequest, res = testResponse) => {
+const routeDaily = (req, res) => {
   const start = req.query.start || '2000-01-01';
   const end = req.query.end ? `${req.query.end} 23:59` : '2099-12-31 23:59';
 
@@ -1261,7 +1250,7 @@ const routeDaily = (req = testRequest, res = testResponse) => {
   runQuery(req, res, 'nldas_hourly_', start, end, 'YYYY-MM-DD', true);
 }; // routeDaily
 
-const routeAverages = (req = testRequest, res = testResponse) => {
+const routeAverages = (req, res) => {
   let start = req.query.start || '01-01';
   let end = req.query.end ? `${req.query.end} 23:59` : '12-31 23:59';
 
@@ -1287,7 +1276,7 @@ const queryJSON = (req, res, sq) => {
     (err, results) => {
       if (err) {
         debug(err, req, res, 500);
-      } else if (testing) {
+      } else if (req.testing) {
         sendResults(req, res, 'SUCCESS');
       } else {
         res.json(results.rows);
@@ -1296,19 +1285,19 @@ const queryJSON = (req, res, sq) => {
   );
 }; // queryJSON
 
-const routeGAWeatherStations = (req = testRequest, res = testResponse) => {
+const routeGAWeatherStations = (req, res) => {
   queryJSON(req, res, 'select * from weather.stations order by County');
 }; // routeGAWeatherStations
 
-const routeAddresses = (req = testRequest, res = testResponse) => {
+const routeAddresses = (req, res) => {
   queryJSON(req, res, 'select * from weather.addresses order by address');
 }; // routeAddresses
 
-const routeIndexes = (req = testRequest, res = testResponse) => {
+const routeIndexes = (req, res) => {
   queryJSON(req, res, 'select * from pg_indexes where tablename not like \'pg%\' order by indexname');
 }; // routeIndexes
 
-const routeTables = (req = testRequest, res = testResponse) => {
+const routeTables = (req, res) => {
   queryJSON(req, res, `
     select table_name as table, reltuples as rows from (
       select * from information_schema.tables
@@ -1321,7 +1310,7 @@ const routeTables = (req = testRequest, res = testResponse) => {
   `);
 }; // routeTables
 
-const routeCountTablesRows = (req = testRequest, res = testResponse) => {
+const routeCountTablesRows = (req, res) => {
   queryJSON(req, res, `
     select
       count(*) as tables,
@@ -1336,7 +1325,7 @@ const routeCountTablesRows = (req = testRequest, res = testResponse) => {
   `);
 }; // routeCountTablesRows
 
-const routeCountIndexes = (req = testRequest, res = testResponse) => {
+const routeCountIndexes = (req, res) => {
   queryJSON(req, res, `
     select count(*) as indexes
     from pg_indexes
@@ -1344,13 +1333,13 @@ const routeCountIndexes = (req = testRequest, res = testResponse) => {
   `);
 }; // routeCountIndexes
 
-const routeDatabasesize = (req = testRequest, res = testResponse) => {
+const routeDatabasesize = (req, res) => {
   queryJSON(req, res, `
     select pg_size_pretty(pg_database_size('postgres')) as size
   `);
 }; // routeDatabasesize
 
-const routeHits = (req = testRequest, res = testResponse) => {
+const routeHits = (req, res) => {
   queryJSON(
     req,
     res,
@@ -1364,7 +1353,7 @@ const routeHits = (req = testRequest, res = testResponse) => {
   );
 }; // routeHits
 
-const routeMvm = (req = testRequest, res = testResponse) => {
+const routeMvm = (req, res) => {
   const sq = `
     select a.sum - b.sum as delta,
            a.lat as alat, a.lon as alon, a.sum as asum,
@@ -1386,7 +1375,7 @@ const routeMvm = (req = testRequest, res = testResponse) => {
   pool.query(sq, (err, results) => {
     if (err) {
       sendResults(req, res, `ERROR:<br>${sq.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
-    } else if (testing) {
+    } else if (req.testing) {
       sendResults(req, res, 'SUCCESS');
     } else {
       sendResults(req, res, JSON.stringify(results.rows));
@@ -1394,7 +1383,7 @@ const routeMvm = (req = testRequest, res = testResponse) => {
   });
 }; // routeMvm
 
-const routeNvm = async (req = testRequest, res = testResponse) => {
+const routeNvm = async (req, res) => {
   let mlat;
   let mlon;
   let nlat;
@@ -1538,7 +1527,7 @@ const routeNvm = async (req = testRequest, res = testResponse) => {
       pool.query(sq2, (e, results2) => {
         if (e) {
           sendResults(req, res, `ERROR:<br>${sq2.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')}`);
-        } else if (testing) {
+        } else if (req.testing) {
           sendResults(req, res, 'SUCCESS');
         } else {
           s += data(results2);
@@ -1551,7 +1540,7 @@ const routeNvm = async (req = testRequest, res = testResponse) => {
   NVMprocess();
 }; // routeNvm
 
-const routeNvm2 = (req = testRequest, res = testResponse) => {
+const routeNvm2 = (req, res) => {
   const lat = Math.round(req.query.lat);
   const lon = Math.round(req.query.lon);
   const { year } = req.query;
@@ -1684,7 +1673,7 @@ const routeNvm2 = (req = testRequest, res = testResponse) => {
       (err, results) => {
         if (err) {
           sendResults(req, res, err);
-        } else if (testing) {
+        } else if (req.testing) {
           sendResults(req, res, 'SUCCESS');
         } else if (results.rowCount) {
           sendResults(req, res, results.rows[0].data);
@@ -1698,13 +1687,13 @@ const routeNvm2 = (req = testRequest, res = testResponse) => {
   }
 }; // routeNvm2
 
-const routeNvm2Data = (req, res = testResponse) => {
+const routeNvm2Data = (req, res) => {
   pool.query(
     'select distinct lat, lon, year from weather.nvm2',
     (err, results) => {
       if (err) {
         sendResults(req, res, 'ERROR');
-      } else if (testing) {
+      } else if (req.testing) {
         sendResults(req, res, 'SUCCESS');
       } else {
         sendResults(req, res, JSON.stringify(results.rows));
@@ -1730,7 +1719,7 @@ const routeNvm2Update = (req, res) => {
   sendResults(req, res, sq);
 }; // routeNvm2Update
 
-const routeNvm2Query = (req = testRequest, res = testResponse) => {
+const routeNvm2Query = (req, res) => {
   try {
     const sq = `select lat, lon from weather.nvm2
               where ${req.query.condition.replace(/select|insert|update|drop|delete/ig, '')}
@@ -1742,7 +1731,7 @@ const routeNvm2Query = (req = testRequest, res = testResponse) => {
       (err, results) => {
         if (err) {
           sendResults(req, res, err);
-        } else if (testing) {
+        } else if (req.testing) {
           sendResults(req, res, 'SUCCESS');
         } else if (results.rowCount) {
           sendResults(req, res, JSON.stringify(results.rows));
@@ -1754,7 +1743,7 @@ const routeNvm2Query = (req = testRequest, res = testResponse) => {
   }
 }; // routeNvm2Query
 
-const routeRosetta = (req = testRequest, res = testResponse) => {
+const routeRosetta = (req, res) => {
   axios.post(
     'https://www.handbook60.org/api/v1/rosetta/1',
     {
@@ -1765,7 +1754,7 @@ const routeRosetta = (req = testRequest, res = testResponse) => {
   });
 }; // routeRosetta
 
-const routeWatershed = async (req = testRequest, res = testResponse) => {
+const routeWatershed = async (req, res) => {
   const { location, lats, lons } = await init(req, res);
 
   const query = (sq) => {
@@ -1881,7 +1870,7 @@ const routeWatershed = async (req = testRequest, res = testResponse) => {
   }
 }; // routeWatershed
 
-const routeMLRA = async (req = testRequest, res = testResponse) => {
+const routeMLRA = async (req, res) => {
   const {
     lats,
     lons,
@@ -1961,7 +1950,7 @@ const routeMLRA = async (req = testRequest, res = testResponse) => {
   latLon();
 }; // routeMLRA
 
-const routeCounty = async (req = testRequest, res = testResponse) => {
+const routeCounty = async (req, res) => {
   const {
     lats,
     lons,
@@ -2017,7 +2006,7 @@ const routeCounty = async (req = testRequest, res = testResponse) => {
   latLon();
 }; // routeCounty
 
-const routeCountySpecies = (req = testRequest, res = testResponse) => {
+const routeCountySpecies = (req, res) => {
   const county = req.query.county || '%';
   const { state } = req.query;
 
@@ -2040,7 +2029,7 @@ const routeCountySpecies = (req = testRequest, res = testResponse) => {
   );
 }; // routeCountySpecies
 
-const routeMlraSpecies = (req = testRequest, res = testResponse) => {
+const routeMlraSpecies = (req, res) => {
   // from Access database
   const { mlra } = req.query;
 
@@ -2072,7 +2061,7 @@ const routeMlraSpecies = (req = testRequest, res = testResponse) => {
   );
 }; // routeMlraSpecies
 
-const routeMlraSpecies2 = (req = testRequest, res = testResponse) => {
+const routeMlraSpecies2 = (req, res) => {
   // from Access database
   const { mlra } = req.query;
 
@@ -2103,7 +2092,7 @@ const routeMlraSpecies2 = (req = testRequest, res = testResponse) => {
   );
 }; // routeMlraSpecies2
 
-const routeMLRAErrors = (req, res = testResponse) => {
+const routeMLRAErrors = (req, res) => {
   const sq = `
     select * from (
       select distinct mlrarsym as newmlra from mlra.mlra
@@ -2127,7 +2116,7 @@ const routeMLRAErrors = (req, res = testResponse) => {
   );
 }; // routeMLRAErrors
 
-const routePlants = (req = testRequest, res = testResponse) => {
+const routePlants = (req, res) => {
   const symbols = safeQuotes(req.query.symbol, 'toLowerCase');
 
   if (!symbols) {
@@ -2155,7 +2144,7 @@ const routePlants = (req = testRequest, res = testResponse) => {
   );
 }; // routePlants
 
-const routePlants2 = (req, res = testResponse) => {
+const routePlants2 = (req, res) => {
   const sq = `SELECT * FROM plants2 WHERE alepth_ind is not null`;
 
   // pretty(sq);
@@ -2198,7 +2187,7 @@ const simpleQuery = (sq, parameters, req, res, hideUnused) => {
   );
 }; // simpleQuery
 
-const routeVegspecStructure = (req = testRequest, res = testResponse) => {
+const routeVegspecStructure = (req, res) => {
   const { table } = req.query;
 
   const sq = `
@@ -2262,7 +2251,7 @@ const routeMissingCultivars = async (req, res) => {
   );
 }; // routeMissingCultivars
 
-const routeVegspecRecords = (req = testRequest, res = testResponse) => {
+const routeVegspecRecords = (req, res) => {
   // https://stackoverflow.com/a/38684225/3903374 and Chat-GPT
   const sq = `
     WITH table_stats AS (
@@ -2294,7 +2283,7 @@ const routeVegspecRecords = (req = testRequest, res = testResponse) => {
   simpleQuery(sq, [], req, res);
 }; // routeVegspecRecords
 
-const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) => {
+const routePlantsEmptyColumns = async (req, res) => {
   if (!req.query.generate) {
     const empty = {
       // eslint-disable-next-line max-len
@@ -2345,7 +2334,7 @@ const routePlantsEmptyColumns = async (req = testRequest, res = testResponse) =>
   sendResults(req, res, empty);
 }; // routePlantsEmptyColumns
 
-const routeVegspecCharacteristics = async (req = testRequest, res = testResponse) => {
+const routeVegspecCharacteristics = async (req, res) => {
   const createCharacteristics = async () => {
     const sq = `
       CREATE TABLE IF NOT EXISTS plants3.plant_morphology_physiology_backup AS SELECT * FROM plants3.plant_morphology_physiology;
@@ -2888,7 +2877,7 @@ const routeVegspecSaveState = async (req, res) => {
   }
 }; // routeVegspecSaveState
 
-const routeVegspecState = async (req = testRequest, res = testResponse) => {
+const routeVegspecState = async (req, res) => {
   simpleQuery(
     'select * from plants3.states where state=$1',
     [req.query.state],
@@ -2897,7 +2886,7 @@ const routeVegspecState = async (req = testRequest, res = testResponse) => {
   );
 }; // routeVegspecState
 
-const routeVegspecEditState = async (req = testRequest, res = testResponse) => {
+const routeVegspecEditState = async (req, res) => {
   const {
     value, state, symbol, cultivar, parameter,
   } = req.query;
@@ -2951,7 +2940,7 @@ function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 
-const routeVegspecProps = async (req = testRequest, res = testResponse) => {
+const routeVegspecProps = async (req, res) => {
   await sleep(10000);
   /* eslint-disable max-len */
   const results = await pool.query(`
@@ -3037,14 +3026,14 @@ const routeVegspecProps = async (req = testRequest, res = testResponse) => {
   sendResults(req, res, obj);
 }; // routeVegspecProps
 
-const routePlantsTable = (req = testRequest, res = testResponse) => {
+const routePlantsTable = (req, res) => {
   const table = safeQuery(req, 'table');
   const sq = `select * from plants3.${table}`;
 
   simpleQuery(sq, [], req, res, true);
 }; // routePlantsTable
 
-const routeVegspecSymbols = async (req = testRequest, res = testResponse) => {
+const routeVegspecSymbols = async (req, res) => {
   pool.query(
     'SELECT TRIM(plant_symbol) AS plant_symbol FROM plants3.plant_master_tbl',
     (err, results) => {
@@ -3057,7 +3046,7 @@ const routeVegspecSymbols = async (req = testRequest, res = testResponse) => {
   );
 }; // routeVegspecSymbols
 
-const routeVegspecNewSpecies = async (req = testRequest, res = testResponse) => {
+const routeVegspecNewSpecies = async (req, res) => {
   const { state, symbol, cultivar } = req.query;
   pool.query(
     'SELECT * FROM plants3.states WHERE state=$1 AND plant_symbol=$2 AND cultivar_name=$3',
@@ -3084,7 +3073,7 @@ const routeVegspecNewSpecies = async (req = testRequest, res = testResponse) => 
   );
 }; // routeVegspecNewSpecies
 
-const routeFrost = async (req = testRequest, res = testResponse) => {
+const routeFrost = async (req, res) => {
   const {
     lats,
     lons,
@@ -3160,7 +3149,7 @@ const routeFrost = async (req = testRequest, res = testResponse) => {
  *     END LOOP;
  * END $$;
 */
-const routeYearly = async (req = testRequest, res = testResponse) => {
+const routeYearly = async (req, res) => {
   const { lats, lons } = await init(req, res);
 
   const y1 = 2018;
@@ -3212,12 +3201,15 @@ const routeYearly = async (req = testRequest, res = testResponse) => {
 }; // routeYearly
 
 async function routeTest(req, res) {
-  testRequest = {
+  const testRequest = {
+    testing: true,
+    testResponse: res,
     headers: req.headers,
     socket: req.socket,
     body: {},
     query: {
       nosave: true,
+      // explain: true,
       lat: '39',
       lon: '-76',
       mlra: '136',
@@ -3256,15 +3248,12 @@ async function routeTest(req, res) {
       results = `FAILED: ${results}`;
     }
     console.log(results);
-    sendResults(req, res, results);
+    sendResults(testRequest, res, results);
   } // GoogleMapsAPI
 
   // options = 'nomrms';
 
-  testResponse = res;
-
-  testing = true;
-  tests = [
+  testRequest.tests = [
     // routeNvm, // slow
     // routeRosetta, // todo
     routeAddresses,
@@ -3282,7 +3271,7 @@ async function routeTest(req, res) {
     function routeHourlyPredicted() {
       const tr = { ...testRequest };
       tr.query.predicted = 'true';
-      routeHourly(tr);
+      routeHourly(tr, res);
     },
     routeIndexes,
     routeMLRA,
