@@ -146,7 +146,7 @@ const init = async (req, res) => {
       }
     } catch (err) {
       debug({
-        trigger: 'timezone', lat: results.lats?.[0], lon: results.lons?.[0], err,
+        trigger: 'timezone', lat: results.lats[0], lon: results.lons[0], err,
       }, req, res, 400);
       return;
     }
@@ -1655,29 +1655,6 @@ const routeCounty = async (req, res) => {
   latLon();
 }; // routeCounty
 
-const routeCountySpecies = (req, res) => {
-  const county = req.query.county || '%';
-  const { state } = req.query;
-
-  const sq = `
-    SELECT DISTINCT symbol
-    FROM countyspecies
-    WHERE county ILIKE '${county}' and state ILIKE '${state}'
-    ORDER by symbol
-  `;
-
-  pool.query(
-    sq,
-    (err, results) => {
-      if (err) {
-        debug(err, req, res, 500);
-      } else {
-        sendResults(req, res, results.rows.map((row) => row.symbol));
-      }
-    },
-  );
-}; // routeCountySpecies
-
 const routeMLRA = async (req, res) => {
   const {
     lats,
@@ -1907,7 +1884,6 @@ async function routeTest(req, res) {
       location: '',
       year: 2018,
       condition: 'mvm', // routeNvm2Query
-      state: 'georgia', // routeCountySpecies
     },
   };
 
@@ -1948,7 +1924,6 @@ async function routeTest(req, res) {
     routeCountIndexes,
     routeCountTablesRows,
     routeCounty,
-    routeCountySpecies,
     routeDaily,
     routeDatabasesize,
     routeFrost,
@@ -1980,7 +1955,6 @@ module.exports = {
   routeCountIndexes,
   routeCountTablesRows,
   routeCounty,
-  routeCountySpecies,
   routeDaily,
   routeDatabasesize,
   routeFrost,

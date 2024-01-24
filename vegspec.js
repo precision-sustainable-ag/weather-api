@@ -626,7 +626,11 @@ const routeVegspecSaveState = async (req, res) => {
 
 const routeVegspecState = async (req, res) => {
   simpleQuery(
-    'select * from plants3.states where state=$1',
+    `
+      SELECT * FROM plants3.states
+      WHERE state=$1
+      ORDER BY plant_symbol, cultivar_name, parameter
+    `,
     [req.query.state],
     req,
     res,
@@ -834,7 +838,8 @@ const routeVegspecRecords = (req, res) => {
       ts.row_count as "rows",
       pg_total_relation_size(format('%I.%I', ts.table_schema, ts.table_name)) as size,
       pg_size_pretty(pg_total_relation_size(format('%I.%I', ts.table_schema, ts.table_name))) AS prettysize
-    FROM table_stats ts;
+    FROM table_stats ts
+    ORDER BY table_name;
   `;
 
   simpleQuery(sq, [], req, res);

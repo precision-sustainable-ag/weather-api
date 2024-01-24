@@ -71,7 +71,6 @@ app.post('/rosetta', weather.routeRosetta); // bypass CORS issue of https://www.
 app.all('/watershed', weather.routeWatershed);
 app.all('/county', weather.routeCounty);
 app.all('/frost', weather.routeFrost);
-app.all('/countyspecies', weather.routeCountySpecies);
 app.all('/mlra', weather.routeMLRA);
 app.all('/yearly', weather.routeYearly);
 
