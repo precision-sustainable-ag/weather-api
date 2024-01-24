@@ -129,7 +129,7 @@ const init = async (req, res) => {
   };
 
   const getTimeZone = async () => {
-    if (options.includes('gmt') || options.includes('utc')) {
+    if (options.includes('gmt') || options.includes('utc') || !results.lats || !results.lons) {
       results.timeOffset = 0;
       return;
     }
@@ -146,7 +146,7 @@ const init = async (req, res) => {
       }
     } catch (err) {
       debug({
-        trigger: 'timezone', lat: results.lats[0], lon: results.lons[0], err,
+        trigger: 'timezone', lat: results.lats?.[0], lon: results.lons?.[0], err,
       }, req, res, 400);
       return;
     }
