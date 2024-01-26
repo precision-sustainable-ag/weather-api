@@ -34,77 +34,73 @@ app.use(express.static(`${__dirname}/static`, { dotfiles: 'allow' })); // from A
 
 app.use(express.static(`${__dirname}/public/client/build`));
 
-const db = require('./db');
+const weather = require('./weather');
+const vegspec = require('./vegspec');
 
 app.get('/', (req, res) => res.sendFile(`${__dirname}/public/client/build/index.html`)); // send API
 
-app.get('/addresses', db.routeAddresses); // list of addresses that have been geocoded, for use in Data Explorer
-app.get('/hits', db.routeHits); // list database queries, for use in Data Explorer
-app.get('/indexes', db.routeIndexes); // list database indexes, for use in Data Explorer
-app.get('/tables', db.routeTables); // list database tables, for use in Data Explorer
-app.get('/counttablesrows', db.routeCountTablesRows); // number of tables and rows, for use in Data Explorer
-app.get('/countindexes', db.routeCountIndexes); // number of indexes, for use in Data Explorer
-app.get('/databasesize', db.routeDatabasesize); // size of the database
-app.get('/averages', db.initializeVariables, db.routeAverages); // 5-year hourly averages
-app.get('/hourly', db.initializeVariables, db.routeHourly); // real hourly data
-app.get('/daily', db.initializeVariables, db.routeDaily); // daily statistics
+app.get('/addresses', weather.routeAddresses); // list of addresses that have been geocoded, for use in Data Explorer
+app.get('/hits', weather.routeHits); // list database queries, for use in Data Explorer
+app.get('/indexes', weather.routeIndexes); // list database indexes, for use in Data Explorer
+app.get('/tables', weather.routeTables); // list database tables, for use in Data Explorer
+app.get('/counttablesrows', weather.routeCountTablesRows); // number of tables and rows, for use in Data Explorer
+app.get('/countindexes', weather.routeCountIndexes); // number of indexes, for use in Data Explorer
+app.get('/databasesize', weather.routeDatabasesize); // size of the database
+app.get('/averages', weather.routeAverages); // 5-year hourly averages
+app.get('/hourly', weather.routeHourly); // real hourly data
+app.get('/daily', weather.routeDaily); // daily statistics
 
 // Georgia Weather Station data for output in Data Explorer (http://aesl.ces.uga.edu/weatherapp/de)
-app.get('/GAWeatherStations', db.routeGAWeatherStations);
+app.get('/GAWeatherStations', weather.routeGAWeatherStations);
 
 // query for discrepancies between MRMS and NLDAS-2 precipitation.  Example: https://weather.covercrop-data.org/nvm?location=texas.
 // Likely superceded by nvm2.
-app.get('/nvm', db.initializeVariables, db.routeNvm);
+app.get('/nvm', weather.routeNvm);
 
-app.get('/nvm2', db.initializeVariables, db.routeNvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
-app.get('/nvm2Data', db.initializeVariables, db.routeNvm2Data); // "
-app.get('/nvm2Update', db.routeNvm2Update); // "
-app.get('/nvm2Query', db.routeNvm2Query); // "
+app.get('/nvm2', weather.routeNvm2); // NLDAS-2 vs. MRMS (http://aesl.ces.uga.edu/weatherapp/src/nvm2)
+app.get('/nvm2Data', weather.routeNvm2Data); // "
+app.get('/nvm2Update', weather.routeNvm2Update); // "
+app.get('/nvm2Query', weather.routeNvm2Query); // "
 
 // query for inconsistencies between adjacent MRMS locations during 2019.
 // Example: https://weather.covercrop-data.org/mvm?lat=39&lon=-76&num=100
-app.get('/mvm', db.routeMvm);
+app.get('/mvm', weather.routeMvm);
 
-app.post('/rosetta', db.routeRosetta); // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
+app.post('/rosetta', weather.routeRosetta); // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
-app.all('/watershed', db.initializeVariables, db.routeWatershed);
-app.all('/mlra', db.initializeVariables, db.routeMLRA);
-app.all('/county', db.initializeVariables, db.routeCounty);
-app.all('/frost', db.initializeVariables, db.routeFrost);
-app.all('/countyspecies', db.routeCountySpecies);
-app.all('/mlraspecies', db.routeMlraSpecies);
-app.all('/mlraspecies2', db.routeMlraSpecies2);
-app.all('/mlraerrors', db.routeMLRAErrors);
+app.all('/watershed', weather.routeWatershed);
+app.all('/county', weather.routeCounty);
+app.all('/frost', weather.routeFrost);
+app.all('/mlra', weather.routeMLRA);
+app.all('/yearly', weather.routeYearly);
 
-app.all('/plants', db.routePlants);
+app.get('/test', weather.routeTest);
 
-app.all('/plants2', db.routePlants2);
+// Vegspec
+app.all('/plantsrecords', vegspec.routeVegspecRecords);
+app.all('/vegspec/records', vegspec.routeVegspecRecords);
 
-app.all('/plantsrecords', db.initializeVariables, db.routeVegspecRecords);
-app.all('/vegspec/records', db.initializeVariables, db.routeVegspecRecords);
+app.all('/plantscharacteristics', vegspec.routeVegspecCharacteristics);
+app.all('/vegspec/characteristics', vegspec.routeVegspecCharacteristics);
 
-app.all('/plantscharacteristics', db.initializeVariables, db.routeVegspecCharacteristics);
-app.all('/vegspec/characteristics', db.initializeVariables, db.routeVegspecCharacteristics);
+app.all('/plantsstructure', vegspec.routeVegspecStructure);
+app.all('/vegspec/structure', vegspec.routeVegspecStructure);
 
-app.all('/plantsstructure', db.initializeVariables, db.routeVegspecStructure);
-app.all('/vegspec/structure', db.initializeVariables, db.routeVegspecStructure);
+app.all('/plantstable', vegspec.routePlantsTable);
+app.all('/vegspec/table', vegspec.routePlantsTable);
 
-app.all('/plantstable', db.initializeVariables, db.routePlantsTable);
-app.all('/vegspec/table', db.initializeVariables, db.routePlantsTable);
+app.all('/plantsemptycolumns', vegspec.routePlantsEmptyColumns);
+app.all('/vegspec/emptycolumns', vegspec.routePlantsEmptyColumns);
+app.all('/vegspec/props', vegspec.routeVegspecProps);
+app.all('/vegspec/symbols', vegspec.routeVegspecSymbols);
+app.all('/vegspec/newspecies', vegspec.routeVegspecNewSpecies);
+app.all('/vegspec/renamecultivar', vegspec.routeVegspecRenameCultivar);
 
-app.all('/plantsemptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
-app.all('/vegspec/emptycolumns', db.initializeVariables, db.routePlantsEmptyColumns);
-app.all('/vegspec/props', db.initializeVariables, db.routeVegspecProps);
-
-app.all('/vegspec/savestate', db.routeVegspecSaveState);
-app.all('/vegspec/state', db.routeVegspecState);
-app.all('/vegspec/deletestate', db.routeVegspecDeleteState);
-app.all('/vegspec/editstate', db.routeVegspecEditState);
-app.all('/vegspec/missingcultivars', db.initializeVariables, db.routeMissingCultivars);
-
-app.all('/yearly', db.initializeVariables, db.routeYearly);
-
-app.get('/test', db.initializeVariables, db.routeTest);
+app.all('/vegspec/savestate', vegspec.routeVegspecSaveState);
+app.all('/vegspec/state', vegspec.routeVegspecState);
+app.all('/vegspec/deletestate', vegspec.routeVegspecDeleteState);
+app.all('/vegspec/editstate', vegspec.routeVegspecEditState);
+app.all('/vegspec/missingcultivars', vegspec.routeMissingCultivars);
 
 app.listen(80);
 
