@@ -363,7 +363,7 @@ const routeVegspecCharacteristics = async (req, res) => {
       await pool.query(`
         SELECT
           plant_master_id,
-          b.plant_symbol,
+          COALESCE(a.plant_symbol, b.plant_symbol) as plant_symbol,
           parameter,
           value,
           cultivar_name,
@@ -386,6 +386,7 @@ const routeVegspecCharacteristics = async (req, res) => {
         ORDER BY a.plant_symbol, parameter
       `, [state])
     ).rows;
+
     if (stateData.length) {
       if (mlra) {
         const stateSymbols = stateData
@@ -507,6 +508,7 @@ const routeVegspecCharacteristics = async (req, res) => {
     finalResults = finalResults.filter((row) => !row.cultivar || allowedCultivars[row.plant_symbol]?.includes(row.cultivar));
   }
 
+  // console.log(symbols);
   stateData.forEach((row) => {
     if (symbols.includes(row.plant_symbol)) {
       let obj = finalResults.find((frow) => (
