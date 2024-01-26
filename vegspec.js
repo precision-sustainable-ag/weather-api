@@ -84,6 +84,7 @@ const {
 const routeVegspecCharacteristics = async (req, res) => {
   const createCharacteristics = async () => {
     const sq = `
+      CREATE TABLE IF NOT EXISTS plants3.plant_master_tbl_backup AS SELECT * FROM plants3.plant_master_tbl;
       CREATE TABLE IF NOT EXISTS plants3.plant_morphology_physiology_backup AS SELECT * FROM plants3.plant_morphology_physiology;
       CREATE TABLE IF NOT EXISTS plants3.plant_growth_requirements_backup AS SELECT * FROM plants3.plant_growth_requirements;
       CREATE TABLE IF NOT EXISTS plants3.plant_reproduction_backup AS SELECT * FROM plants3.plant_reproduction;
@@ -326,7 +327,7 @@ const routeVegspecCharacteristics = async (req, res) => {
       WHERE
         a.plant_symbol = b.plant_symbol
         AND a.full_scientific_name_without_author IS NULL AND b.full_scientific_name_without_author IS NOT NULL;
-    
+
       CREATE INDEX ON plants3.characteristics (plant_symbol);
       CREATE INDEX ON plants3.characteristics (plant_master_id);
     `;
@@ -524,9 +525,16 @@ const routeVegspecCharacteristics = async (req, res) => {
       obj.plant_symbol = row.plant_symbol;
       obj.cultivar = row.cultivar_name;
       obj[row.parameter] = row.value;
-      obj.full_scientific_name_without_author = row.sci_name;
+
+      obj.full_scientific_name_without_author = row.sci_name || {
+        zAGCR80: 'Agropyron cristatum x Agropyron desertorum',
+      }[row.plant_symbol];
+
+      obj.primary_vernacular = row.primary_vernacular || {
+        zAGCR80: 'crested wheatgrass',
+      }[row.plant_symbol];
+
       obj.plant_master_id = row.plant_master_id;
-      obj.primary_vernacular = row.primary_vernacular;
 
       const add = (parm) => {
         if (
@@ -547,12 +555,31 @@ const routeVegspecCharacteristics = async (req, res) => {
         }
       }; // add
 
+      if (/^(zAGCR80)$/.test(row.plant_symbol)) {
+        row.plant_nativity_region_name = 'Lower 48 States';
+      }
+
       if (row.plant_nativity_region_name === 'Lower 48 States') {
         obj.plant_nativity_region_name = row.plant_nativity_region_name;
-        add('plant_duration_name');
+        if (!row.plant_duration_name) {
+          obj.plant_duration_name = {
+            zAGCR80: 'Perennial',
+          }[row.plant_symbol];
+        } else {
+          add('plant_duration_name');
+        }
+
         add('plant_nativity_type');
-        add('plant_growth_habit_name');
-        obj.cover_crop = row.cover_crop;
+
+        if (!row.plant_growth_habit_name) {
+          obj.plant_growth_habit_name = {
+            zAGCR80: 'Graminoid',
+          }[row.plant_symbol];
+        } else {
+          add('plant_growth_habit_name');
+        }
+
+        obj.cover_crop = row.cover_crop || false;
       }
     }
   });

@@ -13,11 +13,11 @@ const { routeVegspecRecords, routeVegspecStructure } = require('./vegspec');
  */
 const clean = (s) => {
   const t = decodeURI(s)
-    .replace(/["()+\-*/<>,= 0-9.]/ig, '')
-    .replace(/doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not/ig, '')
-    .replace(/between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd/ig, '')
-    .replace(/meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap|/ig, '')
-    .replace(/potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd/ig, '');
+    .replace(/\b(doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not)\b/ig, '')
+    .replace(/\b(between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd)\b/ig, '')
+    .replace(/\b(meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap)\b/ig, '')
+    .replace(/\b(potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd)\b/ig, '')
+    .replace(/["()+\-*/<>,= 0-9.]/ig, '');
 
   if (t) {
     console.error('*'.repeat(80));
