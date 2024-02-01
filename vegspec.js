@@ -383,7 +383,13 @@ const routeVegspecCharacteristics = async (req, res) => {
         LEFT JOIN plants3.nativity USING (plant_master_id)
         LEFT JOIN plants3.plant_growth_habit USING (plant_master_id)
         LEFT JOIN plants3.d_plant_growth_habit USING (plant_growth_habit_id)
-        WHERE (state = $1 OR (parameter <> 'mlra' AND state = 'all'))
+        WHERE (
+          state = $1 OR (
+            state = 'all' AND a.plant_symbol IN (
+              SELECT plant_symbol FROM plants3.states WHERE state = $1 AND parameter = 'mlra'
+            )
+          )
+        )
         ORDER BY a.plant_symbol, parameter
       `, [state])
     ).rows;
@@ -526,14 +532,6 @@ const routeVegspecCharacteristics = async (req, res) => {
       obj.cultivar = row.cultivar_name;
       obj[row.parameter] = row.value;
 
-      obj.full_scientific_name_without_author = row.sci_name || {
-        zAGCR80: 'Agropyron cristatum x Agropyron desertorum',
-      }[row.plant_symbol];
-
-      obj.primary_vernacular = row.primary_vernacular || {
-        zAGCR80: 'crested wheatgrass',
-      }[row.plant_symbol];
-
       obj.plant_master_id = row.plant_master_id;
 
       const add = (parm) => {
@@ -555,29 +553,11 @@ const routeVegspecCharacteristics = async (req, res) => {
         }
       }; // add
 
-      if (/^(zAGCR80)$/.test(row.plant_symbol)) {
-        row.plant_nativity_region_name = 'Lower 48 States';
-      }
-
       if (row.plant_nativity_region_name === 'Lower 48 States') {
         obj.plant_nativity_region_name = row.plant_nativity_region_name;
-        if (!row.plant_duration_name) {
-          obj.plant_duration_name = {
-            zAGCR80: 'Perennial',
-          }[row.plant_symbol];
-        } else {
-          add('plant_duration_name');
-        }
-
+        add('plant_duration_name');
         add('plant_nativity_type');
-
-        if (!row.plant_growth_habit_name) {
-          obj.plant_growth_habit_name = {
-            zAGCR80: 'Graminoid',
-          }[row.plant_symbol];
-        } else {
-          add('plant_growth_habit_name');
-        }
+        add('plant_growth_habit_name');
 
         obj.cover_crop = row.cover_crop || false;
       }
