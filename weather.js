@@ -13,8 +13,8 @@ const { routeVegspecRecords, routeVegspecStructure } = require('./vegspec');
  */
 const clean = (s) => {
   const t = decodeURI(s)
-    .replace(/\b(doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or|not)\b/ig, '')
-    .replace(/\b(between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd)\b/ig, '')
+    .replace(/\b(doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or)\b/ig, '')
+    .replace(/\b(not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd)\b/ig, '')
     .replace(/\b(meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap)\b/ig, '')
     .replace(/\b(potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd)\b/ig, '')
     .replace(/["()+\-*/<>,= 0-9.]/ig, '');
@@ -151,25 +151,18 @@ const init = async (req, res) => {
       return;
     }
 
-    console.time('Getting timezone');
     try {
-      const data = await axios.get(
+      const data = await (await axios.get(
         // eslint-disable-next-line max-len
         `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(results.lats[0])},${NLDASlon(results.lons[0])}&timestamp=0&key=${googleAPIKey}`,
-      );
-      console.timeEnd('Getting timezone');
+      )).data;
+
       if (data.status === 'ZERO_RESULTS') { // Google API can't determine timezone for some locations over water, such as (28, -76)
         results.timeOffset = 0;
         return;
       }
 
       pool.query(`
-        insert into weather.timezone (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
-        values (
-          ${NLDASlat(lats[0])}, ${NLDASlon(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}'
-        )
-      `);
-      console.log(`
         insert into weather.timezone (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
         values (
           ${NLDASlat(lats[0])}, ${NLDASlon(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}'
@@ -286,7 +279,7 @@ const init = async (req, res) => {
 
   await getTimeZone();
 
-  debug(results);
+  // debug(results);
 
   return results;
 }; // init
