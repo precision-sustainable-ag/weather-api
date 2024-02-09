@@ -102,6 +102,7 @@ app.all('/vegspec/deletestate', vegspec.routeDeleteState);
 app.all('/vegspec/editstate', vegspec.routeEditState);
 app.all('/vegspec/missingcultivars', vegspec.routeMissingCultivars);
 app.all('/vegspec/movecultivar', vegspec.routeMoveCultivar);
+app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);
 
 app.listen(80);
 

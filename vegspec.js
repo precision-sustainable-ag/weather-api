@@ -1,3 +1,6 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-prototype-builtins */
 const { pool } = require('./pools');
 const {
   debug, sendResults, simpleQuery, safeQuery,
@@ -1035,6 +1038,110 @@ const routeMoveCultivar = async (req, res) => {
   res.send(query);
 }; // routeMoveCultivar
 
+const routeDatabaseChanges = async (req, res) => {
+  const fetchData = async (query) => {
+    const result = await pool.query(query);
+    const id = result.fields[0].name;
+    return {
+      id,
+      data: result.rows.reduce((acc, row) => {
+        acc[row[id]] = row;
+        return acc;
+      }, {}),
+    };
+  };
+
+  const symbols = (await pool.query('SELECT plant_master_id, plant_symbol FROM plants3.plant_master_tbl'))
+    .rows.reduce((acc, row) => {
+      acc[row.plant_master_id] = row.plant_symbol;
+      return acc;
+    }, {});
+
+  // Number.isNaN doesn't try to coerce to numeric like isNaN does.
+  // eslint-disable-next-line no-restricted-globals
+  const format = (s) => (isNaN(s) ? `'${s}'` : s);
+
+  let output = `
+    <style>
+      body, table {
+        font: 13px arial;
+      }
+         
+      table {
+        border: 1px solid black;
+        border-spacing: 0; 
+        empty-cells: show;
+      }
+      
+      td, th {
+        padding: 0.2em 0.5em;
+        border-right: 1px solid #ddd;
+        border-bottom: 1px solid #bbb;
+      }
+
+      th {
+        background: #def;
+      }
+
+      section {
+        display: inline-block;
+      }
+    </style>
+  `;
+
+  for (const table of ['plant_growth_requirements', 'plant_morphology_physiology', 'plant_reproduction', 'plant_suitability_use']) {
+    const rows = [];
+    let id;
+    let data;
+    ({ id, data } = await fetchData(`SELECT * FROM plants3.${table}_backup ORDER BY 1`));
+    const data1 = data;
+    ({ id, data } = await fetchData(`SELECT * FROM plants3.${table} ORDER BY 1`));
+    const data2 = data;
+
+    output += `
+      <section>
+        <h3>${table}</h3>
+        <table>
+          <tr><th>${id}<th>plant_master_id<th>Cultivar<th>Column<th>Original<th>New<th>SQL
+    `;
+    for (const pid in data1) {
+      if (Object.prototype.hasOwnProperty.call(data1, pid) && Object.prototype.hasOwnProperty.call(data2, pid)) {
+        const keys = Object.keys(data1[pid]);
+        for (const key of keys) {
+          const value = (s, k) => (
+            k === 'plant_master_id' ? `${s} <small>(${symbols[s]})</small>` : s?.toString()
+          );
+
+          const v1 = data1[pid][key]?.toString();
+          const v2 = data2[pid][key]?.toString();
+          if ((v1 || v2) && v1 !== v2) {
+            rows.push([
+              pid,
+              value(data1[pid].plant_master_id, 'plant_master_id'),
+              data1[pid].cultivar_name,
+              key,
+              value(data1[pid][key], key),
+              value(data2[pid][key], key),
+              `UPDATE ${table} SET ${key} = ${format(v2)} WHERE ${id} = ${pid};`,
+            ]);
+          }
+        }
+      }
+    }
+
+    output += rows
+      .sort((a, b) => a[3].localeCompare(b[3]))
+      .map((row) => `<tr><td>${row.join('<td>')}`)
+      .join('');
+
+    output += `
+        </table>
+      </section>
+    `;
+  }
+  res.send(output);
+}; // routeDatabaseChanges
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1051,4 +1158,5 @@ module.exports = {
   routePlantsTable,
   routeMissingCultivars,
   routeMoveCultivar,
+  routeDatabaseChanges,
 };

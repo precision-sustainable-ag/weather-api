@@ -1855,7 +1855,7 @@ const routeYearly = async (req, res) => {
   );
 }; // routeYearly
 
-async function routeTest(req, res) {
+const routeTest = async (req, res) => {
   const testRequest = {
     testing: true,
     testResponse: res,
@@ -1940,7 +1940,7 @@ async function routeTest(req, res) {
   ];
 
   await testGoogleMapsAPI();
-} // routeTest
+}; // routeTest
 
 module.exports = {
   routeAddresses,
