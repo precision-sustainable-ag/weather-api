@@ -4,7 +4,7 @@ const myip = require('ip');
 const { pool, googleAPIKey } = require('./pools');
 const { debug, sendResults, safeQuery } = require('./database');
 
-const { routeVegspecRecords, routeVegspecStructure } = require('./vegspec');
+const { routeRecords, routeStructure } = require('./vegspec');
 
 /**
  * Cleans a string by removing specific characters and forbidden keywords.
@@ -1909,8 +1909,8 @@ async function routeTest(req, res) {
   testRequest.tests = [
     // routeNvm, // slow
     // routeRosetta, // todo
-    routeVegspecRecords,
-    routeVegspecStructure,
+    routeRecords,
+    routeStructure,
 
     routeAddresses,
     routeAverages,
