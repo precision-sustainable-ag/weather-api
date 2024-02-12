@@ -1,3 +1,6 @@
+/* eslint-disable no-await-in-loop */
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-prototype-builtins */
 const { pool } = require('./pools');
 const {
   debug, sendResults, simpleQuery, safeQuery,
@@ -81,7 +84,7 @@ const {
   );
 */
 
-const routeVegspecCharacteristics = async (req, res) => {
+const routeCharacteristics = async (req, res) => {
   const createCharacteristics = async () => {
     const sq = `
       CREATE TABLE IF NOT EXISTS plants3.plant_master_tbl_backup AS SELECT * FROM plants3.plant_master_tbl;
@@ -409,13 +412,15 @@ const routeVegspecCharacteristics = async (req, res) => {
         }
         if (row.cultivar_name) {
           allowedCultivars[row.plant_symbol] = allowedCultivars[row.plant_symbol] || [];
-          allowedCultivars[row.plant_symbol].push(row.cultivar_name);
+          if (!allowedCultivars[row.plant_symbol].includes(row.cultivar_name)) {
+            allowedCultivars[row.plant_symbol].push(row.cultivar_name);
+          }
         }
       });
     }
   }
 
-  // res.send({ symbols, synonyms }); return;
+  // res.send({ symbols }); return;
 
   if (mlra && !symbols.length) {
     // from Access database
@@ -428,6 +433,8 @@ const routeVegspecCharacteristics = async (req, res) => {
   } else if (req.query.symbols) {
     symbols = req.query.symbols.split(',');
   }
+
+  // res.send({ symbols }); return;
 
   const querySymbols = symbols.map((symbol) => `'${symbol}'`);
 
@@ -497,7 +504,7 @@ const routeVegspecCharacteristics = async (req, res) => {
         ${groupBy}
       `;
 
-  // console.log(sq);
+  // console.log(sq); process.exit();
   console.time('query');
   const results = (await pool.query(sq)).rows;
   console.timeEnd('query'); // 1s
@@ -511,11 +518,19 @@ const routeVegspecCharacteristics = async (req, res) => {
     finalResults = finalResults.filter((a) => symbols.includes(a.plant_symbol));
   }
 
+  // res.send(finalResults); return;
+
+  // res.send({ allowedCultivars }); return;
   if (Object.keys(allowedCultivars).length) {
-    finalResults = finalResults.filter((row) => !row.cultivar || allowedCultivars[row.plant_symbol]?.includes(row.cultivar));
+    finalResults = finalResults.filter((row) => {
+      // console.log(row.cultivar, allowedCultivars[row.plant_symbol], allowedCultivars[row.plant_symbol]?.includes(row.cultivar));
+      const result = !row.cultivar || allowedCultivars[row.plant_symbol]?.includes(row.cultivar);
+      return result;
+    });
   }
 
-  // console.log(symbols);
+  // res.send(finalResults); return;
+
   stateData.forEach((row) => {
     if (symbols.includes(row.plant_symbol)) {
       let obj = finalResults.find((frow) => (
@@ -574,27 +589,51 @@ const routeVegspecCharacteristics = async (req, res) => {
   }
 
   sendResults(req, res, finalResults);
-}; // routeVegspecCharacteristics
+}; // routeCharacteristics
 
-const routeVegspecDeleteState = (req, res) => {
+const routeDeleteState = (req, res) => {
   simpleQuery(
     'DELETE FROM plants3.states WHERE state=$1',
     [req.query.state],
     req,
     res,
   );
-}; // routeVegspecDeleteState
+}; // routeDeleteState
 
-const routeVegspecRenameCultivar = (req, res) => {
-  simpleQuery(
-    'UPDATE plants3.states SET cultivar_name=$1 WHERE plant_symbol=$2 AND cultivar_name=$3',
-    [req.query.newname, req.query.symbol, req.query.oldname],
-    req,
-    res,
-  );
-}; // routeVegspecRenameCultivar
+const routeRenameCultivar = async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE plants3.states SET cultivar_name=$1 WHERE plant_symbol=$2 AND cultivar_name=$3;`,
+      [req.query.newname, req.query.symbol, req.query.oldname],
+    );
 
-const routeVegspecSaveState = async (req, res) => {
+    [
+      'plant_morphology_physiology',
+      'plant_growth_requirements',
+      'plant_reproduction',
+      'plant_suitability_use',
+    ].forEach((table) => {
+      pool.query(
+        `
+          UPDATE plants3.${table} a
+          SET cultivar_name=$1
+          FROM plants3.plant_master_tbl b
+          WHERE
+            a.plant_master_id = b.plant_master_id
+            AND b.plant_symbol = $2
+            AND a.cultivar_name = $3;
+        `,
+        [req.query.newname, req.query.symbol, req.query.oldname],
+      );
+    });
+
+    res.send({ status: 'Success' });
+  } catch (error) {
+    res.send({ error });
+  }
+}; // routeRenameCultivar
+
+const routeSaveState = async (req, res) => {
   const {
     state, symbol, cultivar, parameter, value, note,
   } = req.query;
@@ -631,9 +670,9 @@ const routeVegspecSaveState = async (req, res) => {
     console.error(error);
     sendResults(req, res, { error });
   }
-}; // routeVegspecSaveState
+}; // routeSaveState
 
-const routeVegspecState = async (req, res) => {
+const routeState = async (req, res) => {
   simpleQuery(
     `
       SELECT * FROM plants3.states
@@ -644,9 +683,9 @@ const routeVegspecState = async (req, res) => {
     req,
     res,
   );
-}; // routeVegspecState
+}; // routeState
 
-const routeVegspecEditState = async (req, res) => {
+const routeEditState = async (req, res) => {
   const {
     value, state, symbol, cultivar, parameter,
   } = req.query;
@@ -694,9 +733,9 @@ const routeVegspecEditState = async (req, res) => {
       }
     },
   );
-}; // routeVegspecEditState
+}; // routeEditState
 
-const routeVegspecProps = async (req, res) => {
+const routeProps = async (req, res) => {
   /* eslint-disable max-len */
   const results = await pool.query(`
     SELECT 'coppice_potential_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
@@ -779,9 +818,9 @@ const routeVegspecProps = async (req, res) => {
     }
   });
   sendResults(req, res, obj);
-}; // routeVegspecProps
+}; // routeProps
 
-const routeVegspecSymbols = async (req, res) => {
+const routeSymbols = async (req, res) => {
   pool.query(
     'SELECT TRIM(plant_symbol) AS plant_symbol FROM plants3.plant_master_tbl',
     (err, results) => {
@@ -792,9 +831,9 @@ const routeVegspecSymbols = async (req, res) => {
       }
     },
   );
-}; // routeVegspecSymbols
+}; // routeSymbols
 
-const routeVegspecNewSpecies = async (req, res) => {
+const routeNewSpecies = async (req, res) => {
   const { state, symbol, cultivar } = req.query;
   pool.query(
     'SELECT * FROM plants3.states WHERE state=$1 AND plant_symbol=$2 AND cultivar_name=$3',
@@ -819,9 +858,9 @@ const routeVegspecNewSpecies = async (req, res) => {
       }
     },
   );
-}; // routeVegspecNewSpecies
+}; // routeNewSpecies
 
-const routeVegspecRecords = (req, res) => {
+const routeRecords = (req, res) => {
   // https://stackoverflow.com/a/38684225/3903374 and Chat-GPT
   const sq = `
     WITH table_stats AS (
@@ -852,9 +891,9 @@ const routeVegspecRecords = (req, res) => {
   `;
 
   simpleQuery(sq, [], req, res);
-}; // routeVegspecRecords
+}; // routeRecords
 
-const routeVegspecStructure = (req, res) => {
+const routeStructure = (req, res) => {
   const { table } = req.query;
 
   const sq = `
@@ -866,7 +905,7 @@ const routeVegspecStructure = (req, res) => {
   `;
 
   simpleQuery(sq, table ? [table] : [], req, res);
-}; // routeVegspecStructure
+}; // routeStructure
 
 const routePlantsEmptyColumns = async (req, res) => {
   if (!req.query.generate) {
@@ -976,19 +1015,172 @@ const routeMissingCultivars = async (req, res) => {
   );
 }; // routeMissingCultivars
 
+const routeMoveCultivar = async (req, res) => {
+  const {
+    cultivar, from, to, plants,
+  } = req.query;
+
+  const schema = plants ? '' : 'plants3.';
+
+  let query = '';
+
+  if (!plants) {
+    query += `
+      DROP TABLE IF EXISTS plants3.characteristics;
+      ----------------------------------------------
+      
+      UPDATE plants3.states
+      SET plant_symbol = '${to}'
+      WHERE plant_symbol = '${from}' AND cultivar_name = '${cultivar}';
+      ----------------------------------------------
+    `.replace(/ {6}/g, '');
+  }
+
+  [
+    'plant_morphology_physiology',
+    'plant_growth_requirements',
+    'plant_reproduction',
+    'plant_suitability_use',
+  ].forEach((table) => {
+    query += `
+      UPDATE ${schema}${table} a
+      SET plant_master_id = (
+        SELECT plant_master_id
+        FROM ${schema}plant_master_tbl
+        WHERE plant_symbol = '${to}'
+      )
+      FROM ${schema}plant_master_tbl b
+      WHERE
+        a.plant_master_id = b.plant_master_id
+        AND b.plant_symbol = '${from}'
+        AND a.cultivar_name = '${cultivar}';
+      ----------------------------------------------
+    `.replace(/ {6}/g, '');
+  });
+
+  res.type('text/plain');
+  res.send(query);
+}; // routeMoveCultivar
+
+const routeDatabaseChanges = async (req, res) => {
+  const fetchData = async (query) => {
+    const result = await pool.query(query);
+    const id = result.fields[0].name;
+    return {
+      id,
+      data: result.rows.reduce((acc, row) => {
+        acc[row[id]] = row;
+        return acc;
+      }, {}),
+    };
+  };
+
+  const symbols = (await pool.query('SELECT plant_master_id, plant_symbol FROM plants3.plant_master_tbl'))
+    .rows.reduce((acc, row) => {
+      acc[row.plant_master_id] = row.plant_symbol;
+      return acc;
+    }, {});
+
+  // Number.isNaN doesn't try to coerce to numeric like isNaN does.
+  // eslint-disable-next-line no-restricted-globals
+  const format = (s) => (isNaN(s) ? `'${s}'` : s);
+
+  let output = `
+    <style>
+      body, table {
+        font: 13px arial;
+      }
+         
+      table {
+        border: 1px solid black;
+        border-spacing: 0; 
+        empty-cells: show;
+      }
+      
+      td, th {
+        padding: 0.2em 0.5em;
+        border-right: 1px solid #ddd;
+        border-bottom: 1px solid #bbb;
+      }
+
+      th {
+        background: #def;
+      }
+
+      section {
+        display: inline-block;
+      }
+    </style>
+  `;
+
+  for (const table of ['plant_growth_requirements', 'plant_morphology_physiology', 'plant_reproduction', 'plant_suitability_use']) {
+    const rows = [];
+    let id;
+    let data;
+    ({ id, data } = await fetchData(`SELECT * FROM plants3.${table}_backup ORDER BY 1`));
+    const data1 = data;
+    ({ id, data } = await fetchData(`SELECT * FROM plants3.${table} ORDER BY 1`));
+    const data2 = data;
+
+    output += `
+      <section>
+        <h3>${table}</h3>
+        <table>
+          <tr><th>${id}<th>plant_master_id<th>Cultivar<th>Column<th>Original<th>New<th>SQL
+    `;
+    for (const pid in data1) {
+      if (Object.prototype.hasOwnProperty.call(data1, pid) && Object.prototype.hasOwnProperty.call(data2, pid)) {
+        const keys = Object.keys(data1[pid]);
+        for (const key of keys) {
+          const value = (s, k) => (
+            k === 'plant_master_id' ? `${s} <small>(${symbols[s]})</small>` : s?.toString()
+          );
+
+          const v1 = data1[pid][key]?.toString();
+          const v2 = data2[pid][key]?.toString();
+          if ((v1 || v2) && v1 !== v2) {
+            rows.push([
+              pid,
+              value(data1[pid].plant_master_id, 'plant_master_id'),
+              data1[pid].cultivar_name,
+              key,
+              value(data1[pid][key], key),
+              value(data2[pid][key], key),
+              `UPDATE ${table} SET ${key} = ${format(v2)} WHERE ${id} = ${pid};`,
+            ]);
+          }
+        }
+      }
+    }
+
+    output += rows
+      .sort((a, b) => a[3].localeCompare(b[3]))
+      .map((row) => `<tr><td>${row.join('<td>')}`)
+      .join('');
+
+    output += `
+        </table>
+      </section>
+    `;
+  }
+  res.send(output);
+}; // routeDatabaseChanges
+
 module.exports = {
-  routeVegspecCharacteristics,
-  routeVegspecProps,
-  routeVegspecSymbols,
-  routeVegspecNewSpecies,
-  routeVegspecRenameCultivar,
-  routeVegspecRecords,
-  routeVegspecStructure,
-  routeVegspecSaveState,
-  routeVegspecDeleteState,
-  routeVegspecState,
-  routeVegspecEditState,
+  routeCharacteristics,
+  routeProps,
+  routeSymbols,
+  routeNewSpecies,
+  routeRenameCultivar,
+  routeRecords,
+  routeStructure,
+  routeSaveState,
+  routeDeleteState,
+  routeState,
+  routeEditState,
   routePlantsEmptyColumns,
   routePlantsTable,
   routeMissingCultivars,
+  routeMoveCultivar,
+  routeDatabaseChanges,
 };

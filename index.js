@@ -77,30 +77,32 @@ app.all('/yearly', weather.routeYearly);
 app.get('/test', weather.routeTest);
 
 // Vegspec
-app.all('/plantsrecords', vegspec.routeVegspecRecords);
-app.all('/vegspec/records', vegspec.routeVegspecRecords);
+app.all('/plantsrecords', vegspec.routeRecords);
+app.all('/vegspec/records', vegspec.routeRecords);
 
-app.all('/plantscharacteristics', vegspec.routeVegspecCharacteristics);
-app.all('/vegspec/characteristics', vegspec.routeVegspecCharacteristics);
+app.all('/plantscharacteristics', vegspec.routeCharacteristics);
+app.all('/vegspec/characteristics', vegspec.routeCharacteristics);
 
-app.all('/plantsstructure', vegspec.routeVegspecStructure);
-app.all('/vegspec/structure', vegspec.routeVegspecStructure);
+app.all('/plantsstructure', vegspec.routeStructure);
+app.all('/vegspec/structure', vegspec.routeStructure);
 
 app.all('/plantstable', vegspec.routePlantsTable);
 app.all('/vegspec/table', vegspec.routePlantsTable);
 
 app.all('/plantsemptycolumns', vegspec.routePlantsEmptyColumns);
 app.all('/vegspec/emptycolumns', vegspec.routePlantsEmptyColumns);
-app.all('/vegspec/props', vegspec.routeVegspecProps);
-app.all('/vegspec/symbols', vegspec.routeVegspecSymbols);
-app.all('/vegspec/newspecies', vegspec.routeVegspecNewSpecies);
-app.all('/vegspec/renamecultivar', vegspec.routeVegspecRenameCultivar);
+app.all('/vegspec/props', vegspec.routeProps);
+app.all('/vegspec/symbols', vegspec.routeSymbols);
+app.all('/vegspec/newspecies', vegspec.routeNewSpecies);
+app.all('/vegspec/renamecultivar', vegspec.routeRenameCultivar);
 
-app.all('/vegspec/savestate', vegspec.routeVegspecSaveState);
-app.all('/vegspec/state', vegspec.routeVegspecState);
-app.all('/vegspec/deletestate', vegspec.routeVegspecDeleteState);
-app.all('/vegspec/editstate', vegspec.routeVegspecEditState);
+app.all('/vegspec/savestate', vegspec.routeSaveState);
+app.all('/vegspec/state', vegspec.routeState);
+app.all('/vegspec/deletestate', vegspec.routeDeleteState);
+app.all('/vegspec/editstate', vegspec.routeEditState);
 app.all('/vegspec/missingcultivars', vegspec.routeMissingCultivars);
+app.all('/vegspec/movecultivar', vegspec.routeMoveCultivar);
+app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);
 
 app.listen(80);
 
