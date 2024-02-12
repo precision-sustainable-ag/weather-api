@@ -600,13 +600,37 @@ const routeDeleteState = (req, res) => {
   );
 }; // routeDeleteState
 
-const routeRenameCultivar = (req, res) => {
-  simpleQuery(
-    'UPDATE plants3.states SET cultivar_name=$1 WHERE plant_symbol=$2 AND cultivar_name=$3',
-    [req.query.newname, req.query.symbol, req.query.oldname],
-    req,
-    res,
-  );
+const routeRenameCultivar = async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE plants3.states SET cultivar_name=$1 WHERE plant_symbol=$2 AND cultivar_name=$3;`,
+      [req.query.newname, req.query.symbol, req.query.oldname],
+    );
+
+    [
+      'plant_morphology_physiology',
+      'plant_growth_requirements',
+      'plant_reproduction',
+      'plant_suitability_use',
+    ].forEach((table) => {
+      pool.query(
+        `
+          UPDATE plants3.${table} a
+          SET cultivar_name=$1
+          FROM plants3.plant_master_tbl b
+          WHERE
+            a.plant_master_id = b.plant_master_id
+            AND b.plant_symbol = $2
+            AND a.cultivar_name = $3;
+        `,
+        [req.query.newname, req.query.symbol, req.query.oldname],
+      );
+    });
+
+    res.send({ status: 'Success' });
+  } catch (error) {
+    res.send({ error });
+  }
 }; // routeRenameCultivar
 
 const routeSaveState = async (req, res) => {
