@@ -442,13 +442,13 @@ const routeCharacteristics = async (req, res) => {
   let regionRegex = 'plant_nativity_region_name';
   let groupBy = '';
   if (state === 'AK') {
-    stateCond = ` AND plant_nativity_region_name ~ 'Alaska'`;
+    stateCond = ` AND plant_nativity_region_name ~ 'Alaska' OR plant_nativity_region_name IS NULL)`;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Alaska.*', 'Alaska')`;
   } else if (state === 'HI') {
-    stateCond = ` AND plant_nativity_region_name ~ 'Hawaii'`;
+    stateCond = ` AND (plant_nativity_region_name ~ 'Hawaii' OR plant_nativity_region_name IS NULL)`;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Hawaii.*', 'Hawaii')`;
   } else if (state) {
-    stateCond = ` AND plant_nativity_region_name ~ 'Lower 48'`;
+    stateCond = ` AND (plant_nativity_region_name ~ 'Lower 48' OR plant_nativity_region_name IS NULL)`;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Lower 48 States.*', 'Lower 48 States')`;
   }
 
@@ -504,7 +504,8 @@ const routeCharacteristics = async (req, res) => {
         ${groupBy}
       `;
 
-  // console.log(sq); process.exit();
+  // res.send(sq); return;
+
   console.time('query');
   const results = (await pool.query(sq)).rows;
   console.timeEnd('query'); // 1s
