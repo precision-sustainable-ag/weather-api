@@ -442,13 +442,22 @@ const routeCharacteristics = async (req, res) => {
   let regionRegex = 'plant_nativity_region_name';
   let groupBy = '';
   if (state === 'AK') {
-    stateCond = ` AND plant_nativity_region_name ~ 'Alaska' OR plant_nativity_region_name IS NULL)`;
+    stateCond = ` AND (plant_nativity_region_name ~ 'Alaska' OR plant_nativity_region_name IS NULL OR plant_symbol in (
+                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+                  )
+                `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Alaska.*', 'Alaska')`;
   } else if (state === 'HI') {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Hawaii' OR plant_nativity_region_name IS NULL)`;
+    stateCond = ` AND (plant_nativity_region_name ~ 'Hawaii' OR plant_nativity_region_name IS NULL OR plant_symbol in (
+                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+                  )
+                `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Hawaii.*', 'Hawaii')`;
   } else if (state) {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Lower 48' OR plant_nativity_region_name IS NULL)`;
+    stateCond = ` AND (plant_nativity_region_name ~ 'Lower 48' OR plant_nativity_region_name IS NULL OR plant_symbol in (
+                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+                  )
+                `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Lower 48 States.*', 'Lower 48 States')`;
   }
 
