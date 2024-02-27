@@ -220,9 +220,11 @@ const routeCharacteristics = async (req, res) => {
 
             frost_free_days_min,
             planting_density_min,
-            root_depth_min
+            root_depth_min,
+            vegetation
 
           FROM plants3.plant_master_tbl p
+          LEFT JOIN plants3.vegetation USING (plant_symbol)
           
           LEFT JOIN plants3.plant_classifications_tbl USING (plant_master_id)
           LEFT JOIN (
@@ -442,13 +444,22 @@ const routeCharacteristics = async (req, res) => {
   let regionRegex = 'plant_nativity_region_name';
   let groupBy = '';
   if (state === 'AK') {
-    stateCond = ` AND plant_nativity_region_name ~ 'Alaska' OR plant_nativity_region_name IS NULL)`;
+    stateCond = ` AND (plant_nativity_region_name ~ 'Alaska' OR plant_nativity_region_name IS NULL OR plant_symbol in (
+                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+                  )
+                `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Alaska.*', 'Alaska')`;
   } else if (state === 'HI') {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Hawaii' OR plant_nativity_region_name IS NULL)`;
+    stateCond = ` AND (plant_nativity_region_name ~ 'Hawaii' OR plant_nativity_region_name IS NULL OR plant_symbol in (
+                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+                  )
+                `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Hawaii.*', 'Hawaii')`;
   } else if (state) {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Lower 48' OR plant_nativity_region_name IS NULL)`;
+    stateCond = ` AND (plant_nativity_region_name ~ 'Lower 48' OR plant_nativity_region_name IS NULL OR plant_symbol in (
+                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+                  )
+                `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Lower 48 States.*', 'Lower 48 States')`;
   }
 
@@ -467,7 +478,7 @@ const routeCharacteristics = async (req, res) => {
     precipitation_tolerance_max,salinity_tolerance,shade_tolerance_name,temperature_tolerance_min,bloom_period,fruit_seed_period_start,
     fruit_seed_period_end,fruit_seed_persistence_ind,seed_per_pound,seed_spread_rate,seedling_vigor,vegetative_spread_rate,
     berry_nut_seed_product_ind,fodder_product_ind,palatability_browse,palatability_graze,palatability_human_ind,protein_potential,
-    frost_free_days_min,planting_density_min,root_depth_min
+    frost_free_days_min,planting_density_min,root_depth_min,vegetation
   `;
 
   if (state) {
@@ -486,7 +497,7 @@ const routeCharacteristics = async (req, res) => {
       precipitation_tolerance_max,salinity_tolerance,shade_tolerance_name,temperature_tolerance_min,bloom_period,fruit_seed_period_start,
       fruit_seed_period_end,fruit_seed_persistence_ind,seed_per_pound,seed_spread_rate,seedling_vigor,vegetative_spread_rate,
       berry_nut_seed_product_ind,fodder_product_ind,palatability_browse,palatability_graze,palatability_human_ind,protein_potential,
-      frost_free_days_min,planting_density_min,root_depth_min
+      frost_free_days_min,planting_density_min,root_depth_min,vegetation
     `;
   }
 
