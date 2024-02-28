@@ -1178,6 +1178,27 @@ const routeDatabaseChanges = async (req, res) => {
   res.send(output);
 }; // routeDatabaseChanges
 
+const routeRetention = async (req, res) => {
+  const sql = `
+    SELECT DISTINCT
+      CONCAT('<a target="_blank" href="https://plants.sc.egov.usda.gov/home/plantProfile?symbol=', plant_symbol, '">', plant_symbol, '</a>'),
+      full_scientific_name_without_author, plant_vernacular_name, leaf_retention_ind, vegetation
+    FROM plants3.plant_morphology_physiology
+    INNER JOIN plants3.plant_master_tbl
+    USING (plant_master_id)
+    LEFT JOIN plants3.vegetation
+    USING (plant_symbol)
+    LEFT JOIN plants3.d_plant_vernacular
+    ON plant_primary_vernacular_id=plant_vernacular_id
+    WHERE
+      (vegetation ILIKE '%Decid%' AND leaf_retention_ind)
+      OR (vegetation ILIKE '%Ever%' AND NOT leaf_retention_ind)
+    ORDER BY 4, 1;
+  `;
+
+  simpleQuery(sql, null, req, res);
+};
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1195,4 +1216,5 @@ module.exports = {
   routeMissingCultivars,
   routeMoveCultivar,
   routeDatabaseChanges,
+  routeRetention,
 };
