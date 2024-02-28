@@ -1181,7 +1181,8 @@ const routeDatabaseChanges = async (req, res) => {
 const routeRetention = async (req, res) => {
   const sql = `
     SELECT DISTINCT
-      CONCAT('<a target="_blank" href="https://plants.sc.egov.usda.gov/home/plantProfile?symbol=', plant_symbol, '">', plant_symbol, '</a>'),
+      CONCAT('<a target="_blank" href="https://plants.sc.egov.usda.gov/home/plantProfile?symbol=', plant_symbol, '">', plant_symbol, '</a>')
+      AS symbol,
       full_scientific_name_without_author, plant_vernacular_name, leaf_retention_ind, vegetation
     FROM plants3.plant_morphology_physiology
     INNER JOIN plants3.plant_master_tbl
