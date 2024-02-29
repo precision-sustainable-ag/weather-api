@@ -599,9 +599,10 @@ const routeCharacteristics = async (req, res) => {
 
   finalResults = finalResults.sort((a, b) => a.plant_symbol?.localeCompare(b.plant_symbol) || (a.cultivar || '').localeCompare((b.cultivar || '')));
 
-  if (state) {
-    finalResults = finalResults.filter((row) => row.mlra);
-  }
+  // this removes common from the editor!!!:
+  // if (state) {
+  //   finalResults = finalResults.filter((row) => row.mlra);
+  // }
 
   if (!finalResults.length) {
     res.send([]);
