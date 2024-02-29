@@ -315,7 +315,11 @@ const routeCharacteristics = async (req, res) => {
       INSERT INTO plants3.characteristics (plant_symbol, cultivar, plant_nativity_region_name, plant_nativity_type) (
         SELECT DISTINCT
           a.plant_symbol, a.cultivar_name,
-          CASE WHEN state IN ('HI', 'AK') THEN state ELSE 'Lower 48 States' END,
+          CASE
+            WHEN state = 'HI' THEN 'Hawaii'
+            WHEN state = 'AK' THEN 'Alaska'
+            ELSE 'Lower 48 States'
+          END,
           'Native'
         FROM plants3.states a
         LEFT JOIN plants3.characteristics b
