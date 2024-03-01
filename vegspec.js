@@ -372,6 +372,7 @@ const routeCharacteristics = async (req, res) => {
     stateData = (
       await pool.query(`
         SELECT
+          state,
           plant_master_id,
           COALESCE(a.plant_symbol, b.plant_symbol) as plant_symbol,
           parameter,
@@ -393,9 +394,15 @@ const routeCharacteristics = async (req, res) => {
         LEFT JOIN plants3.plant_growth_habit USING (plant_master_id)
         LEFT JOIN plants3.d_plant_growth_habit USING (plant_growth_habit_id)
         WHERE (
-          state = $1 OR (
-            state = 'all' AND a.plant_symbol IN (
-              SELECT plant_symbol FROM plants3.states WHERE state = $1 AND parameter = 'mlra'
+          state = $1
+          OR (
+            state = 'all' AND COALESCE(cultivar_name, '') = ''
+          )
+          OR (
+            state = 'all' AND CONCAT(a.plant_symbol, a.cultivar_name) IN (
+              SELECT CONCAT(plant_symbol, cultivar_name)
+              FROM plants3.states
+              WHERE state = $1 AND parameter = 'mlra'
             )
           )
         )
@@ -597,12 +604,39 @@ const routeCharacteristics = async (req, res) => {
 
   console.timeEnd('filter'); // 300ms
 
-  finalResults = finalResults.sort((a, b) => a.plant_symbol?.localeCompare(b.plant_symbol) || (a.cultivar || '').localeCompare((b.cultivar || '')));
+  finalResults = finalResults.sort((a, b) => (
+    a.plant_symbol?.localeCompare(b.plant_symbol)
+    || (a.cultivar || '').localeCompare(b.cultivar || '')
+    || (b.mlra || '').localeCompare(a.mlra || '')
+  ));
 
-  // this removes common from the editor!!!:
+  // this may remove common from the editor!!!:
   // if (state) {
   //   finalResults = finalResults.filter((row) => row.mlra);
   // }
+
+  if (state) {
+    const done = {};
+    finalResults = finalResults.filter((row1) => {
+      // if (!stateData.find((row2) => (
+      //   row1.plant_symbol === row2.plant_symbol
+      //   && (row1.cultivar || '') === (row2.cultivar_name || '')
+      // ))) {
+      //   return false;
+      // }
+
+      const fs = row1.plant_symbol + (row1.cultivar || '');
+
+      if (row1.mlra || !done[fs]) {
+        done[fs] = true;
+        return true;
+      }
+
+      return false;
+    });
+  }
+
+  console.log(stateData.filter((row) => row.plant_symbol === 'BRBI2'));
 
   if (!finalResults.length) {
     res.send([]);
@@ -842,16 +876,18 @@ const routeProps = async (req, res) => {
 }; // routeProps
 
 const routeSymbols = async (req, res) => {
-  pool.query(
-    'SELECT TRIM(plant_symbol) AS plant_symbol FROM plants3.plant_master_tbl',
-    (err, results) => {
-      if (err) {
-        debug(err, req, res, 500);
-      } else {
-        sendResults(req, res, results.rows.map((row) => row.plant_symbol));
-      }
-    },
-  );
+  let results;
+
+  if (req.query.state) {
+    results = await pool.query(
+      `SELECT DISTINCT plant_symbol FROM plants3.states WHERE state = $1 ORDER BY 1`,
+      [req.query.state.toUpperCase()],
+    );
+  } else {
+    results = await pool.query('SELECT TRIM(plant_symbol) AS plant_symbol FROM plants3.plant_master_tbl');
+  }
+
+  sendResults(req, res, results.rows.map((row) => row.plant_symbol));
 }; // routeSymbols
 
 const routeNewSpecies = async (req, res) => {
