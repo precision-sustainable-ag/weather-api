@@ -1237,9 +1237,13 @@ const routeRetention = async (req, res) => {
     USING (plant_symbol)
     LEFT JOIN plants3.d_plant_vernacular
     ON plant_primary_vernacular_id=plant_vernacular_id
+    LEFT JOIN plants3.states
+    USING (plant_symbol)
     WHERE
-      (vegetation ILIKE '%Decid%' AND leaf_retention_ind)
-      OR (vegetation ILIKE '%Ever%' AND NOT leaf_retention_ind)
+      (
+        (vegetation ILIKE '%Decid%' AND leaf_retention_ind)
+        OR (vegetation ILIKE '%Ever%' AND NOT leaf_retention_ind)
+      ) ${req.query.state ? `AND state = '${req.query.state.slice(0, 2)}'` : ''}
     ORDER BY 4, 1;
   `;
 
