@@ -618,6 +618,9 @@ const routeCharacteristics = async (req, res) => {
 
   if (state) {
     const done = {};
+
+    finalResults = finalResults.filter((a) => a.full_scientific_name_without_author); // AGCR80
+
     finalResults = finalResults.filter((row1) => {
       // if (!stateData.find((row2) => (
       //   row1.plant_symbol === row2.plant_symbol
