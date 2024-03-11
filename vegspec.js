@@ -3,6 +3,7 @@
 /* eslint-disable no-prototype-builtins */
 
 const { pool } = require('./pools');
+
 const {
   debug, sendResults, simpleQuery, safeQuery,
 } = require('./database');
