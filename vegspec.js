@@ -322,7 +322,7 @@ const routeCharacteristics = async (req, res) => {
             WHEN state = 'AK' THEN 'Alaska'
             ELSE 'Lower 48 States'
           END,
-          'Native'
+          COALESCE(b.plant_nativity_type, 'Native')
         FROM plants3.states a
         LEFT JOIN plants3.characteristics b
         ON a.plant_symbol = b.plant_symbol AND COALESCE(a.cultivar_name, '') = COALESCE(b.cultivar, '')
@@ -387,19 +387,25 @@ const routeCharacteristics = async (req, res) => {
           plant_nativity_region_name,
           plant_growth_habit_name,
           cover_crop
-        FROM plants3.states a
+        FROM (
+          SELECT
+            *,
+            CASE
+              WHEN state = 'HI' THEN 'Hawaii'
+              WHEN state = 'AK' THEN 'Alaska'
+              ELSE 'Lower 48 States'
+            END AS plant_nativity_region_name
+          FROM plants3.states
+        ) a
         LEFT JOIN plants3.plant_classifications_tbl b USING (plant_symbol)
         LEFT JOIN plants3.plant_master_tbl USING (plant_master_id)
         LEFT JOIN plants3.plant_duration USING (plant_master_id)
         LEFT JOIN plants3.d_plant_duration USING (plant_duration_id)
-        LEFT JOIN plants3.nativity USING (plant_master_id)
+        LEFT JOIN plants3.nativity USING (plant_master_id, plant_nativity_region_name)
         LEFT JOIN plants3.plant_growth_habit USING (plant_master_id)
         LEFT JOIN plants3.d_plant_growth_habit USING (plant_growth_habit_id)
         WHERE (
           state = $1
-          OR (
-            state = 'all' AND COALESCE(cultivar_name, '') = ''
-          )
           OR (
             state = 'all' AND CONCAT(a.plant_symbol, a.cultivar_name) IN (
               SELECT CONCAT(plant_symbol, cultivar_name)
@@ -457,20 +463,29 @@ const routeCharacteristics = async (req, res) => {
   let regionRegex = 'plant_nativity_region_name';
   let groupBy = '';
   if (state === 'AK') {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Alaska' OR plant_nativity_region_name IS NULL OR plant_symbol in (
-                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+    stateCond = ` AND (plant_nativity_region_name ~ 'Alaska' OR plant_nativity_region_name IS NULL)
+                  AND plant_symbol in (
+                    SELECT plant_symbol
+                    FROM plants3.states
+                    WHERE state = '${state}'
                   )
                 `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Alaska.*', 'Alaska')`;
   } else if (state === 'HI') {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Hawaii' OR plant_nativity_region_name IS NULL OR plant_symbol in (
-                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+    stateCond = ` AND (plant_nativity_region_name ~ 'Hawaii' OR plant_nativity_region_name IS NULL)
+                  AND plant_symbol in (
+                    SELECT plant_symbol
+                    FROM plants3.states
+                    WHERE state = '${state}'
                   )
                 `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Hawaii.*', 'Hawaii')`;
   } else if (state) {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Lower 48' OR plant_nativity_region_name IS NULL OR plant_symbol in (
-                    SELECT plant_symbol FROM plants3.states WHERE state in ('all', '${state}'))
+    stateCond = ` AND (plant_nativity_region_name ~ 'Lower 48' OR plant_nativity_region_name IS NULL)
+                  AND plant_symbol in (
+                    SELECT plant_symbol
+                    FROM plants3.states
+                    WHERE state = '${state}'
                   )
                 `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Lower 48 States.*', 'Lower 48 States')`;
@@ -640,8 +655,6 @@ const routeCharacteristics = async (req, res) => {
       return false;
     });
   }
-
-  console.log(stateData.filter((row) => row.plant_symbol === 'BRBI2'));
 
   if (!finalResults.length) {
     res.send([]);
