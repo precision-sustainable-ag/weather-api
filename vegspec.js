@@ -314,6 +314,21 @@ const routeCharacteristics = async (req, res) => {
         ORDER BY 1, 2, 3
       ) alias;
 
+      -- INSERT INTO plants3.characteristics (plant_symbol, cultivar, plant_nativity_region_name, plant_nativity_type) (
+      --   SELECT DISTINCT
+      --     a.plant_symbol, a.cultivar_name,
+      --     CASE
+      --       WHEN state = 'HI' THEN 'Hawaii'
+      --       WHEN state = 'AK' THEN 'Alaska'
+      --       ELSE 'Lower 48 States'
+      --     END,
+      --     COALESCE(b.plant_nativity_type, 'Introduced')
+      --   FROM plants3.states a
+      --   LEFT JOIN plants3.characteristics b
+      --   ON a.plant_symbol = b.plant_symbol AND COALESCE(a.cultivar_name, '') = COALESCE(b.cultivar, '')
+      --   WHERE b.plant_symbol IS NULL
+      -- );
+
       INSERT INTO plants3.characteristics (plant_symbol, cultivar, plant_nativity_region_name, plant_nativity_type) (
         SELECT DISTINCT
           a.plant_symbol, a.cultivar_name,
@@ -322,12 +337,16 @@ const routeCharacteristics = async (req, res) => {
             WHEN state = 'AK' THEN 'Alaska'
             ELSE 'Lower 48 States'
           END,
-          COALESCE(b.plant_nativity_type, 'Native')
+          b.plant_nativity_type
         FROM plants3.states a
         LEFT JOIN plants3.characteristics b
         ON a.plant_symbol = b.plant_symbol AND COALESCE(a.cultivar_name, '') = COALESCE(b.cultivar, '')
         WHERE b.plant_symbol IS NULL
       );
+
+      UPDATE plants3.characteristics
+      SET cultivar = NULL
+      WHERE cultivar = '';
 
       UPDATE plants3.characteristics a
       SET  (plant_master_id,   full_scientific_name_without_author,   primary_vernacular,   plant_duration_name,   plant_growth_habit_name,
@@ -463,7 +482,13 @@ const routeCharacteristics = async (req, res) => {
   let regionRegex = 'plant_nativity_region_name';
   let groupBy = '';
   if (state === 'AK') {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Alaska' OR plant_nativity_region_name IS NULL)
+    stateCond = ` AND (
+                    plant_nativity_region_name ~ 'Alaska'
+                    OR (
+                      SELECT count(plant_nativity_region_name) FROM plants3.nativity
+                      WHERE plant_master_id = characteristics.plant_master_id AND plant_nativity_region_name ~ 'Alaska'
+                    ) = 0
+                  )
                   AND plant_symbol in (
                     SELECT plant_symbol
                     FROM plants3.states
@@ -472,7 +497,13 @@ const routeCharacteristics = async (req, res) => {
                 `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Alaska.*', 'Alaska')`;
   } else if (state === 'HI') {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Hawaii' OR plant_nativity_region_name IS NULL)
+    stateCond = ` AND (
+                    plant_nativity_region_name ~ 'Hawaii'
+                    OR (
+                      SELECT count(plant_nativity_region_name) FROM plants3.nativity
+                      WHERE plant_master_id = characteristics.plant_master_id AND plant_nativity_region_name ~ 'Hawaii'
+                    ) = 0
+                  )
                   AND plant_symbol in (
                     SELECT plant_symbol
                     FROM plants3.states
@@ -481,13 +512,20 @@ const routeCharacteristics = async (req, res) => {
                 `;
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Hawaii.*', 'Hawaii')`;
   } else if (state) {
-    stateCond = ` AND (plant_nativity_region_name ~ 'Lower 48' OR plant_nativity_region_name IS NULL)
+    stateCond = ` AND (
+                    plant_nativity_region_name ~ 'Lower 48'
+                    OR (
+                      SELECT count(plant_nativity_region_name) FROM plants3.nativity
+                      WHERE plant_master_id = characteristics.plant_master_id AND plant_nativity_region_name ~ 'Lower 48'
+                    ) = 0
+                  )
                   AND plant_symbol in (
                     SELECT plant_symbol
                     FROM plants3.states
                     WHERE state = '${state}'
                   )
                 `;
+
     regionRegex = `REGEXP_REPLACE(plant_nativity_region_name, '.*Lower 48 States.*', 'Lower 48 States')`;
   }
 
