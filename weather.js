@@ -1942,6 +1942,15 @@ const routeTest = async (req, res) => {
   await testGoogleMapsAPI();
 }; // routeTest
 
+const routeElevation = async (req, res) => {
+  try {
+    const results = await (await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${req.query.lat},${req.query.lon}`)).json();
+    res.send(results.results[0]);
+  } catch {
+    res.status(500).send({ error: 'Could not determine elevation' });
+  }
+}; // routeElevation
+
 module.exports = {
   routeAddresses,
   routeAverages,
@@ -1950,6 +1959,7 @@ module.exports = {
   routeCounty,
   routeDaily,
   routeDatabasesize,
+  routeElevation,
   routeFrost,
   routeGAWeatherStations,
   routeHits,
