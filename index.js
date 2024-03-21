@@ -75,6 +75,7 @@ app.all('/mlra', weather.routeMLRA);
 app.all('/yearly', weather.routeYearly);
 
 app.get('/test', weather.routeTest);
+app.get('/elevation', weather.routeElevation);
 
 // Vegspec
 app.all('/plantsrecords', vegspec.routeRecords);
