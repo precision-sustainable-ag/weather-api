@@ -1942,13 +1942,28 @@ const routeTest = async (req, res) => {
   await testGoogleMapsAPI();
 }; // routeTest
 
+const elevations = {};
 const routeElevation = async (req, res) => {
-  try {
-    const results = await (await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${req.query.lat},${req.query.lon}`)).json();
-    res.send(results.results[0]);
-  } catch {
-    res.status(500).send({ error: 'Could not determine elevation' });
+  const lat = (+req.query.lat).toFixed(6);
+  const lon = (+req.query.lon).toFixed(6);
+  const latLon = `${lat} ${lon}`;
+
+  if (!elevations[latLon]) {
+    try {
+      const url = `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lon}`;
+      // eslint-disable-next-line prefer-destructuring
+      elevations[latLon] = (await (
+        await fetch(url)
+      ).json()).results[0];
+      console.log('fetched', url, elevations[latLon]);
+    } catch {
+      res.status(500).send({
+        latitude: lat, longitude: lon, elevation: 'NA', error: 'failed',
+      });
+    }
   }
+
+  res.send(elevations[latLon]);
 }; // routeElevation
 
 module.exports = {
