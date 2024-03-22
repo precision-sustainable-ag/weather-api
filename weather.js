@@ -1827,6 +1827,8 @@ const routeYearly = async (req, res) => {
       ${lat} as lat, ${lon} as lon,
       min(min_air_temperature) AS min_air_temperature,
       max(max_air_temperature) AS max_air_temperature,
+      min(sum_precipitation) AS min_precipitation,
+      max(sum_precipitation) AS max_precipitation,
       avg(sum_precipitation) AS avg_precipitation
     FROM (
       ${range(year1, year2).map((y) => `
