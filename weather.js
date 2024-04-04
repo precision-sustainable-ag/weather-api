@@ -1648,6 +1648,29 @@ const routeCounty = async (req, res) => {
   latLon();
 }; // routeCounty
 
+const routeHardinessZone = async (req, res) => {
+  const {
+    lat,
+    lon,
+    polygon,
+  } = req.query;
+
+  const sq = `
+    SELECT
+      id, gridcode, zone, trange, zonetitle
+      ${polygon?.toString() === 'true' ? ', (ST_AsGeoJSON(ST_Multi(wkb_geometry))::jsonb->\'coordinates\') as polygonarray' : ''}
+    FROM hardiness_zones
+    WHERE ST_Intersects(
+      'SRID=4326;POINT(${lon} ${lat})'::geometry,
+      ST_Transform(wkb_geometry, 4326)
+    );
+  `;
+
+  const results = await pool.query(sq);
+
+  res.send(results.rows[0]);
+}; // routeHardinessZone
+
 const routeMLRA = async (req, res) => {
   const {
     lats,
@@ -1979,6 +2002,7 @@ module.exports = {
   routeElevation,
   routeFrost,
   routeGAWeatherStations,
+  routeHardinessZone,
   routeHits,
   routeHourly,
   routeIndexes,
