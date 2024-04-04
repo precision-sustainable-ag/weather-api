@@ -68,6 +68,8 @@ app.get('/mvm', weather.routeMvm);
 
 app.post('/rosetta', weather.routeRosetta); // bypass CORS issue of https://www.handbook60.org/api/v1/rosetta/1
 
+app.all('/hardinesszone', weather.routeHardinessZone);
+
 app.all('/watershed', weather.routeWatershed);
 app.all('/county', weather.routeCounty);
 app.all('/frost', weather.routeFrost);
