@@ -1311,11 +1311,15 @@ const routeMissingCharacteristics = async (req, res) => {
       '<a target="_blank" href="https://plants.sc.egov.usda.gov/home/plantProfile?symbol=' || a.plant_symbol || '">' || a.plant_symbol || '</a>'
         AS plant_symbol,
       a.cultivar,
+      scientific,
+      vernacular,
       ARRAY_AGG(DISTINCT state ORDER BY state) as states
     FROM (
       SELECT DISTINCT 
         plant_symbol,
-        cultivar
+        cultivar,
+        full_scientific_name_without_author as scientific,
+        primary_vernacular as vernacular
       FROM plants3.characteristics
       WHERE
         CASE WHEN full_scientific_name_without_author IS NULL THEN 0 ELSE 1 END +
@@ -1389,7 +1393,7 @@ const routeMissingCharacteristics = async (req, res) => {
       HAVING COUNT(*) < 20
     ) b
     ON a.plant_symbol = b.plant_symbol AND COALESCE(a.cultivar, '') = COALESCE(b.cultivar_name, '')
-    GROUP BY a.plant_symbol, a.cultivar
+    GROUP BY a.plant_symbol, a.cultivar, scientific, vernacular
     ORDER BY 1, 2 NULLS FIRST;
   `;
 
