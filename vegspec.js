@@ -1305,6 +1305,98 @@ const routeRetention = async (req, res) => {
   simpleQuery(sql, null, req, res);
 };
 
+const routeMissingCharacteristics = async (req, res) => {
+  const sql = `
+    SELECT
+      '<a target="_blank" href="https://plants.sc.egov.usda.gov/home/plantProfile?symbol=' || a.plant_symbol || '">' || a.plant_symbol || '</a>'
+        AS plant_symbol,
+      a.cultivar,
+      ARRAY_AGG(DISTINCT state ORDER BY state) as states
+    FROM (
+      SELECT DISTINCT 
+        plant_symbol,
+        cultivar
+      FROM plants3.characteristics
+      WHERE
+        CASE WHEN full_scientific_name_without_author IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN primary_vernacular IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN plant_duration_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN plant_nativity_type IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN plant_nativity_region_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN plant_growth_habit_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN active_growth_period IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN after_harvest_regrowth_rate IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN bloat_potential IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN c_n_ratio IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN color_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN summer IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN winter IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN foliage_texture_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN growth_form_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN growth_rate IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN height_max_at_base_age IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN height_at_maturity IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN lifespan_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN toxicity_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN pd_max_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN ff_min_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN ph_min_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN ph_max_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN density_min_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN precip_min_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN precip_max_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN root_min_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN temp_min_range IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN anaerobic_tolerance IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN caco3_tolerance IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN drought_tolerance IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN fire_tolerance IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN hedge_tolerance IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN moisture_usage IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN soil_ph_tolerance_min IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN soil_ph_tolerance_max IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN precipitation_tolerance_min IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN precipitation_tolerance_max IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN salinity_tolerance IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN shade_tolerance_name IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN temperature_tolerance_min IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN bloom_period IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN fruit_seed_period_start IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN fruit_seed_period_end IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN seed_spread_rate IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN seedling_vigor IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN vegetative_spread_rate IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN palatability_browse IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN palatability_graze IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN protein_potential IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN frost_free_days_min IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN planting_density_min IS NULL THEN 0 ELSE 1 END +
+        CASE WHEN root_depth_min IS NULL THEN 0 ELSE 1 END
+        < 20
+    ) a
+    INNER JOIN (
+      SELECT state, plant_symbol, cultivar_name
+      FROM plants3.states
+      WHERE
+        plant_symbol || COALESCE(cultivar_name, '') NOT IN (
+          SELECT plant_symbol || COALESCE(cultivar_name, '')
+          FROM plants3.states
+          WHERE state = 'all'
+          GROUP BY plant_symbol || COALESCE(cultivar_name, '')
+          HAVING COUNT(*) >= 20
+        )
+      GROUP BY state, plant_symbol, cultivar_name
+      HAVING COUNT(*) < 20
+    ) b
+    ON a.plant_symbol = b.plant_symbol AND COALESCE(a.cultivar, '') = COALESCE(b.cultivar_name, '')
+    GROUP BY a.plant_symbol, a.cultivar
+    ORDER BY 1, 2 NULLS FIRST;
+  `;
+
+  console.log(sql);
+  simpleQuery(sql, null, req, res);
+};
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1323,4 +1415,5 @@ module.exports = {
   routeMoveCultivar,
   routeDatabaseChanges,
   routeRetention,
+  routeMissingCharacteristics,
 };
