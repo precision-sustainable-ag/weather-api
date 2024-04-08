@@ -1655,20 +1655,28 @@ const routeHardinessZone = async (req, res) => {
     polygon,
   } = req.query;
 
+  // (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray
+
   const sq = `
     SELECT
       id, gridcode, zone, trange, zonetitle
-      ${polygon?.toString() === 'true' ? ', (ST_AsGeoJSON(ST_Multi(wkb_geometry))::jsonb->\'coordinates\') as polygonarray' : ''}
+      ${polygon?.toString() === 'true' ? ', (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray' : ''}
     FROM hardiness_zones
     WHERE ST_Intersects(
       'SRID=4326;POINT(${lon} ${lat})'::geometry,
-      ST_Transform(wkb_geometry, 4326)
+      geometry
     );
   `;
 
+  // console.log(sq);
+
   const results = await pool.query(sq);
 
-  res.send(results.rows[0]);
+  if (results.rows.length) {
+    res.send(results.rows[0]);
+  } else {
+    res.send({ error: 'No results' });
+  }
 }; // routeHardinessZone
 
 const routeMLRA = async (req, res) => {
