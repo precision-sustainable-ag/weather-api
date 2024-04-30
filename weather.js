@@ -91,6 +91,29 @@ const NLDASlon = (n) => (Math.floor(n * 8) / 8).toFixed(3);
  */
 const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
 
+const waitForQueries = async () => (
+  new Promise((resolve, reject) => {
+    const intervalId = setInterval(async () => {
+      try {
+        const result = await pool.query(`
+          SELECT * FROM pg_stat_activity
+          WHERE
+            client_addr IS NOT NULL
+            AND query NOT LIKE '%pg_stat_activity%'
+        `);
+        if (result.rows.length <= 5) {
+          clearInterval(intervalId);
+          resolve();
+        }
+        console.log('waitForQueries', result.rows.length);
+      } catch (error) {
+        clearInterval(intervalId);
+        reject(error);
+      }
+    }, 50);
+  })
+);
+
 /**
  * Initializes various parameters based on the given request object.
  *
@@ -98,6 +121,7 @@ const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3
  * @returns {undefined}
  */
 const init = async (req, res) => {
+  await waitForQueries();
   let location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
   const lats = location ? [] : req.query.lat?.toString().split(',').map((n) => +n);
   const lons = location ? [] : req.query.lon?.toString().split(',').map((n) => +n);
@@ -396,7 +420,56 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     'potential_evaporation',
     'shortwave_radiation',
     'precipitation',
+    // 'nswrs',
+    // 'nlwrs',
+    // 'dswrf',
+    // 'dlwrf',
+    // 'lhtfl',
+    // 'shtfl',
+    // 'gflux',
+    // 'snohf',
+    // 'asnow',
+    // 'arain',
+    // 'evp',
+    // 'ssrun',
+    // 'bgrun',
+    // 'snom',
+    // 'avsft',
+    // 'albdo',
+    // 'weasd',
+    // 'snowc',
+    // 'snod',
+    // 'tsoil',
+    // 'soilm1',
+    // 'soilm2',
+    // 'soilm3',
+    // 'soilm4',
+    // 'soilm5',
+    // 'mstav1',
+    // 'mstav2',
+    // 'soilm6',
+    // 'evcw',
+    // 'trans',
+    // 'evbs',
+    // 'sbsno',
+    // 'cnwat',
+    // 'acond',
+    // 'ccond',
+    // 'lai',
+    // 'veg',
   ];
+
+  const coalesce = (p) => (
+    p.map((parm) => {
+      switch (parm) {
+        case 'date': return 'COALESCE(a.date, b.date) AS date';
+        case 'lat': return 'COALESCE(a.lat, b.lat) AS lat';
+        case 'lon': return 'COALESCE(a.lon, b.lon) AS lon';
+        case 'precipitation': return 'COALESCE(b.precipitation, 0) AS precipitation';
+        default: return parm;
+      }
+    }).join(', ')
+  );
 
   let years;
   let mrms;
@@ -553,8 +626,8 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
             ) {
               const jr = JSON.stringify(results2.rows);
               pool.query(`
-                INSERT INTO weather.queries (date, url, query, results)
-                VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}')
+                INSERT INTO weather.queries (date, url, query, results, ip)
+                VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}', '${ip}')
               `);
             }
 
@@ -683,23 +756,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
               SELECT ${lat} AS rlat, ${lons[i]} AS rlon, *
               FROM (
                 SELECT 
-                  COALESCE(a.date, b.date) AS date,
-                  COALESCE(a.lat, b.lat) AS lat,
-                  COALESCE(a.lon, b.lon) AS lon,
-                  air_temperature,
-                  humidity,
-                  relative_humidity,
-                  pressure,
-                  zonal_wind_speed,
-                  meridional_wind_speed,
-                  wind_speed,
-                  longwave_radiation,
-                  convective_precipitation,
-                  potential_energy,
-                  potential_evaporation,
-                  shortwave_radiation,
-                  coalesce(b.precipitation, 0) AS precipitation,
-                  nldas
+                  ${coalesce(parms)}
                 FROM (
                   ${mainTable}
                 ) a
@@ -798,6 +855,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       `;
     }
 
+    // console.log(sq); process.exit();
     if (req.query.gaws) {
       sq = unindent(`
         select *
@@ -946,7 +1004,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     years.push('new');
   }
 
-  mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options);
+  mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options) && !req.query.stats;
 
   getColumns();
 
@@ -990,11 +1048,14 @@ const routeAverages = (req, res) => {
 }; // routeAverages
 
 const queryJSON = (req, res, sq) => {
+  const sql = `
+    ${req.query.explain ? `EXPLAIN ${sq}` : sq}
+    LIMIT ${req.query.limit || 100000}
+    OFFSET ${req.query.offset || 0}
+  `;
+
   pool.query(
-    `${sq}
-     limit ${req.query.limit || 100000}
-     offset ${req.query.offset || 0}
-    `,
+    sql,
     (err, results) => {
       if (err) {
         debug(err, req, res, 500);
@@ -1873,7 +1934,7 @@ const routeYearly = async (req, res) => {
     GROUP BY lat, lon;
   `;
 
-  console.log(sq);
+  // console.log(sq);
 
   // Executing the SQL query.
   pool.query(
