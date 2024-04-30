@@ -976,30 +976,13 @@ const routeNewSpecies = async (req, res) => {
 const routeRecords = (req, res) => {
   // https://stackoverflow.com/a/38684225/3903374 and Chat-GPT
   const sq = `
-    WITH table_stats AS (
-      SELECT
-        table_name,
-        table_schema,
-        (xpath('/row/cnt/text()', xml_count))[1]::text::int as row_count
-      FROM (
-        SELECT
-          table_name,
-          table_schema,
-          query_to_xml(
-            format('select count(*) as cnt from %I.%I', table_schema, table_name),
-            false, true, ''
-          ) as xml_count
-        FROM information_schema.tables
-        WHERE table_schema = 'plants3'
-      ) t
-    )
-    
     SELECT
-      ts.table_name as "table",
-      ts.row_count as "rows",
-      pg_total_relation_size(format('%I.%I', ts.table_schema, ts.table_name)) as size,
-      pg_size_pretty(pg_total_relation_size(format('%I.%I', ts.table_schema, ts.table_name))) AS prettysize
-    FROM table_stats ts
+      table_name AS "table",
+      (SELECT reltuples::bigint FROM pg_class WHERE relname = ts.table_name) AS "rows",
+      pg_total_relation_size(format('%I.%I', table_schema, table_name)) AS size,
+      pg_size_pretty(pg_total_relation_size(format('%I.%I', table_schema, table_name))) AS prettysize
+    FROM information_schema.tables ts
+    WHERE table_schema = 'plants3'
     ORDER BY table_name;
   `;
 

@@ -91,6 +91,29 @@ const NLDASlon = (n) => (Math.floor(n * 8) / 8).toFixed(3);
  */
 const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
 
+const waitForQueries = async () => (
+  new Promise((resolve, reject) => {
+    const intervalId = setInterval(async () => {
+      try {
+        const result = await pool.query(`
+          SELECT * FROM pg_stat_activity
+          WHERE
+            client_addr IS NOT NULL
+            AND query NOT LIKE '%pg_stat_activity%'
+        `);
+        if (result.rows.length <= 5) {
+          clearInterval(intervalId);
+          resolve();
+        }
+        console.log('waitForQueries', result.rows.length);
+      } catch (error) {
+        clearInterval(intervalId);
+        reject(error);
+      }
+    }, 50);
+  })
+);
+
 /**
  * Initializes various parameters based on the given request object.
  *
@@ -98,6 +121,7 @@ const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3
  * @returns {undefined}
  */
 const init = async (req, res) => {
+  await waitForQueries();
   let location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
   const lats = location ? [] : req.query.lat?.toString().split(',').map((n) => +n);
   const lons = location ? [] : req.query.lon?.toString().split(',').map((n) => +n);
@@ -831,6 +855,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       `;
     }
 
+    // console.log(sq); process.exit();
     if (req.query.gaws) {
       sq = unindent(`
         select *
@@ -979,7 +1004,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     years.push('new');
   }
 
-  mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options);
+  mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options) && !req.query.stats;
 
   getColumns();
 
@@ -1909,7 +1934,7 @@ const routeYearly = async (req, res) => {
     GROUP BY lat, lon;
   `;
 
-  console.log(sq);
+  // console.log(sq);
 
   // Executing the SQL query.
   pool.query(
