@@ -396,7 +396,56 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     'potential_evaporation',
     'shortwave_radiation',
     'precipitation',
+    // 'nswrs',
+    // 'nlwrs',
+    // 'dswrf',
+    // 'dlwrf',
+    // 'lhtfl',
+    // 'shtfl',
+    // 'gflux',
+    // 'snohf',
+    // 'asnow',
+    // 'arain',
+    // 'evp',
+    // 'ssrun',
+    // 'bgrun',
+    // 'snom',
+    // 'avsft',
+    // 'albdo',
+    // 'weasd',
+    // 'snowc',
+    // 'snod',
+    // 'tsoil',
+    // 'soilm1',
+    // 'soilm2',
+    // 'soilm3',
+    // 'soilm4',
+    // 'soilm5',
+    // 'mstav1',
+    // 'mstav2',
+    // 'soilm6',
+    // 'evcw',
+    // 'trans',
+    // 'evbs',
+    // 'sbsno',
+    // 'cnwat',
+    // 'acond',
+    // 'ccond',
+    // 'lai',
+    // 'veg',
   ];
+
+  const coalesce = (p) => (
+    p.map((parm) => {
+      switch (parm) {
+        case 'date': return 'COALESCE(a.date, b.date) AS date';
+        case 'lat': return 'COALESCE(a.lat, b.lat) AS lat';
+        case 'lon': return 'COALESCE(a.lon, b.lon) AS lon';
+        case 'precipitation': return 'COALESCE(b.precipitation, 0) AS precipitation';
+        default: return parm;
+      }
+    }).join(', ')
+  );
 
   let years;
   let mrms;
@@ -553,8 +602,8 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
             ) {
               const jr = JSON.stringify(results2.rows);
               pool.query(`
-                INSERT INTO weather.queries (date, url, query, results)
-                VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}')
+                INSERT INTO weather.queries (date, url, query, results, ip)
+                VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}', '${ip}')
               `);
             }
 
@@ -683,23 +732,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
               SELECT ${lat} AS rlat, ${lons[i]} AS rlon, *
               FROM (
                 SELECT 
-                  COALESCE(a.date, b.date) AS date,
-                  COALESCE(a.lat, b.lat) AS lat,
-                  COALESCE(a.lon, b.lon) AS lon,
-                  air_temperature,
-                  humidity,
-                  relative_humidity,
-                  pressure,
-                  zonal_wind_speed,
-                  meridional_wind_speed,
-                  wind_speed,
-                  longwave_radiation,
-                  convective_precipitation,
-                  potential_energy,
-                  potential_evaporation,
-                  shortwave_radiation,
-                  coalesce(b.precipitation, 0) AS precipitation,
-                  nldas
+                  ${coalesce(parms)}
                 FROM (
                   ${mainTable}
                 ) a
@@ -990,11 +1023,14 @@ const routeAverages = (req, res) => {
 }; // routeAverages
 
 const queryJSON = (req, res, sq) => {
+  const sql = `
+    ${req.query.explain ? `EXPLAIN ${sq}` : sq}
+    LIMIT ${req.query.limit || 100000}
+    OFFSET ${req.query.offset || 0}
+  `;
+
   pool.query(
-    `${sq}
-     limit ${req.query.limit || 100000}
-     offset ${req.query.offset || 0}
-    `,
+    sql,
     (err, results) => {
       if (err) {
         debug(err, req, res, 500);

@@ -1073,7 +1073,7 @@ const routePlantsEmptyColumns = async (req, res) => {
 
 const routePlantsTable = (req, res) => {
   const table = safeQuery(req, 'table');
-  const sq = `select * from plants3.${table}`;
+  const sq = `SELECT * FROM plants3.${table} ORDER BY 1`;
 
   simpleQuery(sq, [], req, res, true);
 }; // routePlantsTable
@@ -1397,7 +1397,6 @@ const routeMissingCharacteristics = async (req, res) => {
     ORDER BY 1, 2 NULLS FIRST;
   `;
 
-  console.log(sql);
   simpleQuery(sql, null, req, res);
 };
 
