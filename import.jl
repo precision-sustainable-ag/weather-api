@@ -1,5 +1,13 @@
-# Run within /dev/shm, which should have a folder named nldas:
-#   nohup julia import.jl &
+# cd /dev/shm
+# sudo -s
+# nohup julia ~/API/import.jl > output.log 2>&1 &
+
+# julia ~/API/import.jl
+
+# psql:
+#   SET work_mem = '100MB';   -- 8MB
+#   SET work_mem = '128MB';   -- 64MB
+#   SELECT pg_reload_conf();
 
 # auth = Base64.base64encode("user:pwd")
 # params_diction = Dict("fields"=>fields)
@@ -28,93 +36,89 @@ using GZip
 # using Base64
 # using Base: run
 # using Base
-# using HTTP
 
-
-if !isdir("./nldas")
-  mkdir("./nldas")
+open("/home/administrator/API/.env") do f
+  s = readline(f)
+  type, user, pwd = split(s, "|")
+  host="localhost"
+  db="postgres"
+  global conn = LibPQ.Connection("host=$host dbname=$db user=$user password=$pwd")
+  execute(conn, "SET client_min_messages TO WARNING;")  
 end
 
-host="localhost"
-db="postgres"
-
-f = open("/home/administrator/API/.env")
-s = readline(f)
-type, user, pwd = split(s, "|")
-close
-
-port="5432"
-conn = LibPQ.Connection("host=$host dbname=$db user=$user password=$pwd")
-execute(conn, "SET client_min_messages TO WARNING;")
+files = Dict()
 
 # ________________________________________________________________________________________________________________________
 function writeToPostgres(fname, files, year)
-  println(fname)
-  flush(stdout)
+  @time begin
+    println("writeToPostgres start")
+    flush(stdout)
 
-  for file in keys(files)
-    # table = "nldas_hourly_$(file)_$(year)"
-    table = "hourly_$(file)_$(year)"
-    result = execute(conn, """
-      CREATE TABLE IF NOT EXISTS newweather.$(table) (
-        date timestamp without time zone,
-        lat real,
-        lon real,
-        air_temperature real,
-        humidity real,
-        pressure real,
-        zonal_wind_speed real,
-        meridional_wind_speed real,
-        longwave_radiation real,
-        convective_precipitation real,
-        potential_energy real,
-        potential_evaporation real,
-        precipitation real,
-        shortwave_radiation real,
-        relative_humidity real,
-        wind_speed real,
-        nswrs real,
-        nlwrs real,
-        dswrf real,
-        dlwrf real,
-        lhtfl real,
-        shtfl real,
-        gflux real,
-        snohf real,
-        asnow real,
-        arain real,
-        evp real,
-        ssrun real,
-        bgrun real,
-        snom real,
-        avsft real,
-        albdo real,
-        weasd real,
-        snowc real,
-        snod real,
-        tsoil real,
-        soilm1 real,
-        soilm2 real,
-        soilm3 real,
-        soilm4 real,
-        soilm5 real,
-        mstav1 real,
-        mstav2 real,
-        soilm6 real,
-        evcw real,
-        trans real,
-        evbs real,
-        sbsno real,
-        cnwat real,
-        acond real,
-        ccond real,
-        lai real,
-        veg real
-      );
-    """)
+    for file in keys(files)
+      # table = "nldas_hourly_$(file)_$(year)"
+      table = "hourly_$(file)_$(year)"
+      result = execute(conn, """
+        CREATE TABLE IF NOT EXISTS weather.$(table) (
+          date timestamp without time zone,
+          lat real,
+          lon real,
+          air_temperature real,
+          humidity real,
+          pressure real,
+          zonal_wind_speed real,
+          meridional_wind_speed real,
+          longwave_radiation real,
+          convective_precipitation real,
+          potential_energy real,
+          potential_evaporation real,
+          precipitation real,
+          shortwave_radiation real,
+          relative_humidity real,
+          wind_speed real,
+          nswrs real,
+          nlwrs real,
+          dswrf real,
+          dlwrf real,
+          lhtfl real,
+          shtfl real,
+          gflux real,
+          snohf real,
+          asnow real,
+          arain real,
+          evp real,
+          ssrun real,
+          bgrun real,
+          snom real,
+          avsft real,
+          albdo real,
+          weasd real,
+          snowc real,
+          snod real,
+          tsoil real,
+          soilm1 real,
+          soilm2 real,
+          soilm3 real,
+          soilm4 real,
+          soilm5 real,
+          mstav1 real,
+          mstav2 real,
+          soilm6 real,
+          evcw real,
+          trans real,
+          evbs real,
+          sbsno real,
+          cnwat real,
+          acond real,
+          ccond real,
+          lai real,
+          veg real
+        );
+      """)
 
-    result = execute(conn, "COPY newweather.$(table) FROM '/mnt/weather/julia/nldas/$(file).csv' delimiter ',' CSV HEADER ;")
+      result = execute(conn, "COPY weather.$(table) FROM '/dev/shm/$(file).csv' delimiter ',' CSV HEADER ;")
+    end
   end
+  # exit()
 end
 
 # ________________________________________________________________________________________________________________________
@@ -193,11 +197,11 @@ function readMRMSOK(fname)
   println(vals)
   return vals
 end
-# ________________________________________________________________________________________________________________________
 
+# ________________________________________________________________________________________________________________________
 function readMRMS(fname)  # Chat-GPT
-  println("MRMS" * fname)
   @time begin
+    println("MRMS" * fname)
     vals = sparse(zeros(Float64, 360 * 8, 180 * 8))
     fh = GZip.open(fname, "r")
     d = read(fh)
@@ -226,100 +230,59 @@ function readMRMS(fname)  # Chat-GPT
 end
 
 # ________________________________________________________________________________________________________________________
-files = Dict()
-
-function readNLDASold(fname1, fname2, year, hour)
-  @time begin
-    global files
-
-    vals = [[], []]
-
-    vn = 0
-
-    for fname in [fname1, fname2]
-      vn += 1
-      m = 0
-      GribFile(fname) do f
-        for message in f
-          m += 1
-
-          lons, lats, v = data(message)
-
-          # Convert Kelvin to Celsius
-          if vn == 1 && m == 1
-            v = map(x -> x - 273.15, v)
-          end
-
-          push!(vals[vn], v)
-
-          if (fname == fname1 && m == 11)
-            relative_humidity = []
-            wind_speed = []
-            for (air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed) in zip(vals[1][1], vals[1][2], vals[1][3], vals[1][4], vals[1][5])
-              push!(relative_humidity, (((humidity/18)/(((1-humidity)/28.97) + (humidity/18)))*pressure/1000) / (0.61*exp((17.27*air_temperature)/(air_temperature + 237.3))))
-              push!(wind_speed, sqrt(zonal_wind_speed ^ 2 + meridional_wind_speed ^ 2))
-            end
-            push!(vals[1], relative_humidity)
-            push!(vals[1], wind_speed)
-
-            # Chat-GPT, but no faster:
-            #   relative_humidity = similar(vals[1][1])
-            #   wind_speed = similar(vals[1][1])
-            #   for i in eachindex(vals[1][1])
-            #     air_temperature = vals[1][1][i]
-            #     humidity = vals[1][2][i]
-            #     pressure = vals[1][3][i]
-            #     zonal_wind_speed = vals[1][4][i]
-            #     meridional_wind_speed = vals[1][5][i]
-            #     relative_humidity[i] = (((humidity/18)/(((1-humidity)/28.97) + (humidity/18)))*pressure/1000) / (0.61*exp((17.27*air_temperature)/(air_temperature + 237.3)))
-            #     wind_speed[i] = sqrt(zonal_wind_speed ^ 2 + meridional_wind_speed ^ 2)
-            #   end
-            #   push!(vals[1], relative_humidity)
-            #   push!(vals[1], wind_speed)
-          end
-
-          if (fname == fname2 && m == 37)
-            date = string(message["date"])
-            time = string(Int(message["time"] / 100))
-            datetime = "$(date[1:4])-$(date[5:6])-$(date[7:8]) $(lpad(time, 2, "0")):00:00"
-
-            # println(length(vals[1][1]), " ", length(vals[2][1]))
-            i = 0
-            for (lon, lat) in zip(lons, lats)
-              lon = round(floor(lon * 8) / 8; digits = 3)
-              lat = round(-(floor(-lat * 8) / 8); digits = 3)
-              i += 1
-              if lon > -90
-                if vals[1][1][i] != 9999.0
-                  fn = "$(trunc(Int, lat))_$(trunc(Int, -lon))"
-                  if !haskey(files, fn)
-                    files[fn] = open("nldas/$fn.csv", "w")
-                    write(files[fn], "date,lat,lon,air_temperature,humidity,pressure,zonal_wind_speed,meridional_wind_speed,longwave_radiation,convective_precipitation,potential_energy,potential_evaporation,precipitation,shortwave_radiation,relative_humidity,wind_speed,nswrs,nlwrs,dswrf,dlwrf,lhtfl,shtfl,gflux,snohf,asnow,arain,evp,ssrun,bgrun,snom,avsft,albdo,weasd,snowc,snod,tsoil,soilm1,soilm2,soilm3,soilm4,soilm5,mstav1,mstav2,soilm6,evcw,trans,evbs,sbsno,cnwat,acond,ccond,lai,veg\n")
-                  end
-                  if (fname == fname2)
-                    write(files[fn], "$(datetime),$(@sprintf("%.4f", lat)),$(@sprintf("%.4f", lon)),$(join(map(x -> round(x[i], sigdigits=6), vcat(vals[1], vals[2])), ","))\n")
-                  end
-                end
-              end
-            end
-          end
-        end
-      end
-    end
-
-    if true || hour == 23
-      for file in values(files)
-        close(file)
-      end
-
-      writeToPostgres(fname1, files, year)
-      files = Dict()
-    end
+function haltIfFileExists(file_path)
+  if isfile(file_path)
+    error("File $file_path already exists. Halting execution.")
   end
 end
 
-function readNLDAS(fname1, fname2, year, hour)
+# ________________________________________________________________________________________________________________________
+function getRunningQueries()
+  result = execute(conn, "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active' AND query NOT LIKE '%sleep%';")
+  return first(result)[1]
+end
+
+# ________________________________________________________________________________________________________________________
+function waitIdleold()
+  print("Waiting for running queries")
+  while getRunningQueries() > 1
+    print(".")
+    sleep(1)
+  end
+  println() 
+end
+
+# ________________________________________________________________________________________________________________________
+function waitIdle()
+  running_queries = getRunningQueries()
+  
+  if running_queries > 0
+    print("Waiting for running queries to complete")
+    
+    while running_queries > 1
+      print(".")
+      sleep(1)
+      running_queries = getRunningQueries()
+    end
+    println()
+  end
+end
+
+# ________________________________________________________________________________________________________________________
+function readNLDAS(fname1, fname2, year, hour, cdate)
+  # for fname in [fname1, fname2]
+  #   f = GribFile(fname)
+  #   println(fname)
+  #   GribFile(fname) do f
+  #     for message in f
+  #       println(message["parameterName"])
+  #     end
+  #   end
+  # end
+  # exit()
+
   @time begin
+    println("readNLDAS")
     @inbounds begin
       global files
 
@@ -371,14 +334,12 @@ function readNLDAS(fname1, fname2, year, hour)
                 lon = round(floor(lon * 8) / 8; digits = 3)
                 lat = round(-(floor(-lat * 8) / 8); digits = 3)
                 i += 1
-                if (
-                  !(38 <= lat <= 40 && -77 <= lon <= -75)    # already got Maryland data
-                  && lon >= -90
-                )
+                if true
+                # if 38 <= lat <= 40 && -77 <= lon <= -75    # Maryland
                   if vals[1][i] != 9999.0
                     fn = "$(trunc(Int, lat))_$(trunc(Int, -lon))"
                     if !haskey(files, fn)
-                      files[fn] = open("nldas/$fn.csv", "w")
+                      files[fn] = open("$fn.csv", "w")
                       write(files[fn], "date,lat,lon,air_temperature,humidity,pressure,zonal_wind_speed,meridional_wind_speed,longwave_radiation,convective_precipitation,potential_energy,potential_evaporation,precipitation,shortwave_radiation,relative_humidity,wind_speed,nswrs,nlwrs,dswrf,dlwrf,lhtfl,shtfl,gflux,snohf,asnow,arain,evp,ssrun,bgrun,snom,avsft,albdo,weasd,snowc,snod,tsoil,soilm1,soilm2,soilm3,soilm4,soilm5,mstav1,mstav2,soilm6,evcw,trans,evbs,sbsno,cnwat,acond,ccond,lai,veg\n")
                     end
                     # write(files[fn], "$(datetime),$(@sprintf("%.4f", lat)),$(@sprintf("%.4f", lon)),$(join(map(x -> round(x[i], sigdigits=6), vcat(vals[1], vals[2])), ","))\n")
@@ -391,108 +352,216 @@ function readNLDAS(fname1, fname2, year, hour)
         end
       end
 
-      if true || hour == 23
+      if true # hour == 23 # && dayofweek(cdate) == 7
         for file in values(files)
           close(file)
         end
+
+        waitIdle()
 
         writeToPostgres(fname1, files, year)
         files = Dict()
       end
     end
   end
+  # exit()
 end
 
 # ________________________________________________________________________________________________________________________
-function processNLDAS()
-  download = false
-  for year=2009:2014
-    # for date in Dates.Date(year, 1, 1):Day(1):today()
-    for date in Dates.Date(year, 1, 1):Day(1):Dates.Date(year, 12, 31)
-      @time begin
-        day = lpad(dayofyear(date),   3, "0")
-        m2  = lpad(Dates.month(date), 2, "0")
-        d2  = lpad(Dates.day(date),   2, "0")
-        # if string(year) * m2 * d2 >= "20100206"
-        if true
-          for hour in 0:23
-            h2 = lpad(hour, 2, "0")
-            mrms   = "MultiSensor_QPE_01H_Pass2_00.00_$(year)$(m2)$(d2)-$(h2)0000.grib2.gz"
-            fname1 = "NLDAS_FORA0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
-            fname2 = "NLDAS_MOS0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
-            file1 = ""
-            file2 = ""
+# Downloads and imports NLDAS data for a given year.
+# Data is stored in weather.hourly_lat_lon_year, but should be renamed to weather.nldas_hourly_lat_lon_year after creating indexes
+function yearlyNLDAS(year)
+  home = homedir()
 
-            if download
-              cd("./nldas")
+  start_date = DateTime(year, 1, 1, 0, 0, 0)
+  try
+    result = execute(conn, "SELECT MAX(date) FROM weather.hourly_53_99_$(year);")
+    start_date = first(result)[1] + Dates.Hour(1)
+  catch
+    
+  end  
+  end_date = DateTime(year, 12, 31, 23, 0, 0)
 
-              # download(year, m2, d2, h2)
-              # url = "https://mtarchive.geol.iastate.edu/$(year)/$(m2)/$(d2)/mrms/ncep/MultiSensor_QPE_01H_Pass2/$(mrms)"
-              # run(`curl -s -O -b ~/.urs_cookies -c ~/.urs_cookies -L -n "$(url)" > /dev/null 2>&1`)
-              # mrmsdata = readMRMS(mrms)
+  # start_date = DateTime(2018, 5, 20, 11, 0, 0)
+  # end_date = start_date
+  # end_date = now()
 
-              if !isfile(fname1)
-                url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.002/$(year)/$(day)/$(fname1)"
-                success = false
-                while !success
-                  try
-                    run(`curl -s -O -b "~/.urs_cookies" -c "~/.urs_cookies" -L -n $(url)`)
-                    success = true
-                  catch e
-                    println("Error: ", e)
-                    flush(stdout)
-                    sleep(5)
-                  end
-                end
-              end
+  date = start_date
+  println(year, date, start_date, end_date)
+  while date <= end_date
+    @time begin
+      println("yearlyNLDAS")
+      day = lpad(dayofyear(date), 3, "0")
+      year = Dates.year(date)
+      m2 = lpad(Dates.month(date), 2, "0")
+      d2 = lpad(Dates.day(date),  2, "0")
+      hour = Dates.hour(date)
+      h2 = lpad(hour, 2, "0")
 
-              if !isfile(fname2)
-                url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.002/$(year)/$(day)/$(fname2)"
-                success = false
-                while !success
-                  try
-                    run(`curl -s -O -b "~/.urs_cookies" -c "~/.urs_cookies" -L -n $(url)`)
-                    success = true
-                  catch e
-                    println("Error: ", e)
-                    flush(stdout)
-                    sleep(5)
-                  end
-                end
-              end
-              
-              cd("..")
+      mrms   = "MultiSensor_QPE_01H_Pass2_00.00_$(year)$(m2)$(d2)-$(h2)0000.grib2.gz"
+      fname1 = "NLDAS_FORA0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
+      fname2 = "NLDAS_MOS0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
 
-              println("Downloaded $fname1, $fname2, $mrms")
-              flush(stdout)
-              # exit()
-            else
-              readNLDAS("nldas/$fname1", "nldas/$fname2", year, hour)
-              # readNLDAS("nldas/for.grb", "nldas/mos.grb", year, hour)
-              # readNLDAS(file1, file2, year, hour)
-              # GC.gc()
-              # rm("nldas/$fname1")
-              # rm("nldas/$fname2")
-              # if isfile("nldas/$mrms")
-              #   rm("nldas/$mrms")
-              # end
-            end
-          end
+      # download(year, m2, d2, h2)
+      # url = "https://mtarchive.geol.iastate.edu/$(year)/$(m2)/$(d2)/mrms/ncep/MultiSensor_QPE_01H_Pass2/$(mrms)"
+      # run(`curl -s -O -b ~/.urs_cookies -c ~/.urs_cookies -L -n "$(url)" > /dev/null 2>&1`)
+      # mrmsdata = readMRMS(mrms)
+      # exit()
+
+      url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.002/$(year)/$(day)/$(fname1)"
+      while true
+        try
+          run(`curl -s -o "file1" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
+          break
+        catch e
+          println("Error: ", e)
+          flush(stdout)
+          sleep(5)
         end
       end
+
+      url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.002/$(year)/$(day)/$(fname2)"
+      while true
+        try
+          run(`curl -s -o "file2" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
+          break
+        catch e
+          println("Error: ", e)
+          flush(stdout)
+          sleep(5)
+        end
+      end
+      
+      println("Downloaded $fname1, $fname2, $mrms")
+      flush(stdout)
+
+      readNLDAS("file1", "file2", year, hour, date)
     end
+    date += Hour(1)
+    haltIfFileExists("/home/administrator/API/halt")
   end
 end
 
 # ________________________________________________________________________________________________________________________
+function tables(match, condition="")
+  return execute(
+    conn,
+    """
+      SELECT t.tablename
+      FROM pg_tables t
+      LEFT JOIN pg_indexes i ON t.schemaname = i.schemaname AND t.tablename = i.tablename
+      WHERE t.tablename LIKE '$(match)'
+      GROUP BY t.tablename
+      $(condition)
+      ORDER BY 1;
+    """
+  )
+end
 
-processNLDAS()
-exit()
+# ________________________________________________________________________________________________________________________
+# Creates date and lat/lon indexes
+# Example: createIndexes("hourly%2016")
+function createIndexes(match)
+  for row in tables(match, "HAVING COUNT(i.indexname) < 2")
+    println("Creating date and lat/lon indexes on $(row[1])")
+    waitIdle()
+    execute(conn, "CREATE INDEX ON weather.$(row[1]) (date)");
+    waitIdle()
+    execute(conn, "CREATE INDEX ON weather.$(row[1]) (lat, lon)");
+    println("__________________________________________________________")
+  end
+end
 
-while true
-  processNLDAS()
-  print("Pausing for 15 minutes")
-  sleep(60 * 15)
+# ________________________________________________________________________________________________________________________
+# Deletes a specific date-time from the weather database.
+# Useful if a GRIB file is aborted during an import.
+# Example: deleteDate("2015-11-01 05:00:00", "hourly%2015")
+function deleteDate(date, match)
+  open("/dev/shm/output.sql", "w") do f
+    for row in tables(match)
+      println(f, "DELETE FROM weather.$(row[1]) WHERE \"date\" = '$(date)';")
+    end
+  end
+  println("Proof /dev/shm/output.sql, then import it using \\i");
+end
+
+# ________________________________________________________________________________________________________________________
+# Drops tables from the weather database.
+# Example: dropTables("hourly%2015")
+function dropTables(match)
+  open("/dev/shm/output.sql", "w") do f
+    for row in tables(match)
+      println(f, "DROP TABLE IF EXISTS weather.$(row[1]);")
+    end
+  end
+  println("Proof /dev/shm/output.sql, then import it using \\i");
+end
+
+# ________________________________________________________________________________________________________________________
+# Renames tables to their nldas equivalent.
+# Use after importing a year's data.
+# Example: renameTables("hourly%2016")
+function renameTables(match)
+  open("/dev/shm/output.sql", "w") do f
+    for row in tables(match)
+      println(f, "DROP TABLE IF EXISTS weather.nldas_$(row[1]);")
+      println(f, "ALTER TABLE weather.$(row[1]) RENAME TO nldas_$(row[1]);")
+    end
+  end
+  println("Proof /dev/shm/output.sql, then import it using \\i");
+end
+
+# ________________________________________________________________________________________________________________________
+function green(string)
+  return "\u001b[1m\u001b[32m$(string)\u001b[0m"
+end
+
+# ________________________________________________________________________________________________________________________
+function showSyntax()
+  println("""
+    Syntax:
+      The following create queries but don't execute them:
+        deleteDate "yyyy-mm-hh hh:mm:ss" "wildcard":  $(green("deleteDate \"2015-11-01 05:00:00\" \"hourly%2015\""))
+        dropTables "wildcard":  $(green("dropTables \"hourly%2015\""))
+        renameTables "wildcard":  $(green("renameTables \"hourly%2015\""))
+
+      The following execute the queries:
+        createIndexes "wildcard":  $(green("createIndexes \"hourly%2015\""))
+        yearlyNLDAS year:  $(green("yearlyNLDAS 2015"))
+  """)
+end
+
+# ________________________________________________________________________________________________________________________
+if (length(ARGS) < 1)
+  showSyntax()
+else
+  if ARGS[1] === "createIndexes" && length(ARGS) == 2
+    createIndexes(ARGS[2])
+  elseif ARGS[1] === "deleteDate" && length(ARGS) == 3
+    deleteDate(ARGS[2], ARGS[3])
+  elseif ARGS[1] === "dropTables" && length(ARGS) === 2
+    dropTables(ARGS[2])
+  elseif ARGS[1] === "renameTables" && length(ARGS) === 2
+    renameTables(ARGS[2])
+  elseif ARGS[1] === "yearlyNLDAS" && length(ARGS) === 2
+    yearlyNLDAS(ARS[2])
+  else
+    showSyntax()
+  end
 end
 
 # readMRMS("mrms.grib2.gz")
+
+# GribFile("/home/administrator/Public/NLDAS_MOS0125_H.A20170101.0000.002.grb") do f
+#   for message in f
+#     date = string(message["date"])
+#     time = string(Int(message["time"] / 100))
+#     lons, lats, values = data(message)
+#     println(message["parameterName"])
+#     # for key in keys(message)
+#     #   println(values)
+#     # end
+#     # exit()
+#   end
+# end
+# exit()
