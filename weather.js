@@ -12,6 +12,23 @@ const exit = (s) => {
   process.exit();
 }; // exit
 
+let validTables;
+
+const getValidTables = async () => {
+  validTables = (await pool.query(`
+    SELECT t.tablename
+    FROM pg_tables t
+    LEFT JOIN pg_indexes i ON t.schemaname = i.schemaname AND t.tablename = i.tablename
+    WHERE t.tablename LIKE 'nldas%hourly%2023'
+    GROUP BY t.tablename
+    ORDER BY 1;
+  `)).rows.map((row) => row.tablename.replace('_2023', ''));
+
+  // console.log(validTables);
+};
+
+getValidTables();
+
 /**
  * Cleans a string by removing specific characters and forbidden keywords.
  * @param {string} s - The string to clean.
@@ -110,13 +127,14 @@ const waitForQueries = async () => (
         if (result.rows.length <= 5) {
           clearInterval(intervalId);
           resolve();
+        } else if (result.rows.length > 0) {
+          console.log('waitForQueries', result.rows.length);
         }
-        console.log('waitForQueries', result.rows.length);
       } catch (error) {
         clearInterval(intervalId);
         reject(error);
       }
-    }, 50);
+    }, 100);
   })
 );
 
@@ -486,7 +504,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     timeOffset,
   } = await init(req, res);
 
-  console.log({
+  console.log(JSON.stringify({
     ip,
     output,
     lats,
@@ -499,7 +517,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     options,
     rect,
     timeOffset,
-  });
+  }));
 
   const outputResults = (rows, sq) => {
     if (!rows.length) {
@@ -578,7 +596,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
    */
   const sendQuery = (sq) => {
     // pretty(sq);
-    const qq = sq.replace(/'/g, '');
+    // const qq = sq.replace(/'/g, '');
 
     // pool.query('delete from weather.queries where date < now() - interval \'30 day\'');
 
@@ -647,6 +665,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     start = new Date(`${start} UTC`);
     start.setSeconds(start.getSeconds() - offset);
     start = start.toISOString();
+
     end = new Date(`${end} UTC`);
     end.setSeconds(end.getSeconds() - offset);
     end = end.toISOString();
@@ -796,7 +815,6 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         GROUP BY TO_CHAR(date::timestamp + interval '${offset} seconds', '${format2}'), rlat, rlon
         ORDER BY ${order}
       `;
-      // exit(sq);
     } else {
       let other = '';
       const gy = `
@@ -926,8 +944,9 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         }
       });
       outputResults(results);
+    } else if (!(sq.match(/nldas_hourly_\d+_\d+/g) || []).every((table) => validTables.includes(table))) {
+      outputResults([]);
     } else {
-      // exit(sq);
       sendQuery(sq);
     }
   }; // query
@@ -981,6 +1000,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
 
         if (!(/\blon\b/).test(dailyColumns)) dailyColumns = `lon,${dailyColumns}`;
         if (!(/\blat\b/).test(dailyColumns)) dailyColumns = `lat,${dailyColumns}`;
+        dailyColumns = dailyColumns.replace(/,$/, '');
       } else {
         dailyColumns = `
           lat, lon,
@@ -1004,7 +1024,6 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       if (gddbase) {
         const mintemp = req.query.gddmin || gddbase;
         const maxtemp = req.query.gddmax || 999;
-
         dailyColumns += `,
           greatest(0, (
             least(${maxtemp}, max(air_temperature)) + greatest(${mintemp}, least(${maxtemp}, min(air_temperature)))) / 2 - ${gddbase}
@@ -1021,18 +1040,20 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
   const year1 = Math.max(+start.slice(0, 4), 2005);
   let year2 = Math.min(+end.slice(0, 4), new Date().getFullYear());
 
-  if (/12-31/.test(end) && timeOffset !== 0) {
+  if (/12-31/.test(end) && timeOffset !== 0 && year2 < new Date().getFullYear()) {
     // account for local time
+    // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-12-31&output=html
     year2 += 1;
   }
 
   years = range(year1, Math.min(year2, new Date().getFullYear()));
 
   if (year2 === new Date().getFullYear()) {
+    // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2023-11-01&output=html
     years.push('new');
   }
 
-  mrms = !daily && years.length && year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options) && !req.query.stats && !rect;
+  mrms = !daily && years.length && year2 > 2014 && /hourly/.test(req.url) && !/nomrms/.test(options) && !req.query.stats && !rect;
 
   getColumns();
 
