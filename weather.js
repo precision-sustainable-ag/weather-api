@@ -6,6 +6,12 @@ const { debug, sendResults, safeQuery } = require('./database');
 
 const { routeRecords, routeStructure } = require('./vegspec');
 
+// eslint-disable-next-line no-unused-vars
+const exit = (s) => {
+  console.log(s);
+  process.exit();
+}; // exit
+
 /**
  * Cleans a string by removing specific characters and forbidden keywords.
  * @param {string} s - The string to clean.
@@ -459,18 +465,6 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     // 'veg',
   ];
 
-  const coalesce = (p) => (
-    p.map((parm) => {
-      switch (parm) {
-        case 'date': return 'COALESCE(a.date, b.date) AS date';
-        case 'lat': return 'COALESCE(a.lat, b.lat) AS lat';
-        case 'lon': return 'COALESCE(a.lon, b.lon) AS lon';
-        case 'precipitation': return 'COALESCE(b.precipitation, 0) AS precipitation';
-        default: return parm;
-      }
-    }).join(', ')
-  );
-
   let years;
   let mrms;
   const {
@@ -507,6 +501,71 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     timeOffset,
   });
 
+  const outputResults = (rows, sq) => {
+    if (!rows.length) {
+      console.warn('No data found');
+      sendResults(req, res, 'No data found');
+      return;
+    }
+
+    // prevent duplicate rows. screws up LIMIT unfortunately. hopefully unnecessary
+    //   let lastJSON;
+    //   rows = rows.filter((row) => lastJSON !== (lastJSON = JSON.stringify(row)));
+
+    let s;
+    switch (output ? output.toLowerCase() : 'json') {
+      case 'csv':
+        s = `${Object.keys(rows[0]).toString()}\n${
+          rows.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
+        // rows.map(r => Object.values(r).toString()).join('<br>');
+
+        res.set('Content-Type', 'text/csv');
+        res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
+        res.send(s);
+        break;
+
+      case 'html':
+        s = `
+          <script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/jqlibrary.js"></script>
+          <script src="https://aesl.ces.uga.edu/scripts/dbGraph.js"></script>
+
+          <link rel="stylesheet" href="/css/dbGraph.css">
+          <link rel="stylesheet" href="/css/weather.css">
+
+          <div id="Graph"></div>
+
+          <table id="Data">
+            <thead>
+              <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
+            </thead>
+            <tbody>
+              <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
+            </tbody>
+          </table>
+
+          <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
+        `;
+        res.send(s);
+        break;
+
+      default:
+        if (req.query.explain) {
+          res.json({
+            query: sq.slice(8).trim(),
+            rows,
+          });
+        } else if (req.callback) {
+          req.callback(rows);
+        } else if (req.testing) {
+          sendResults(req, res, 'SUCCESS');
+        } else {
+          res.json(rows);
+        }
+    }
+  }; // outputResults
+
   /** ____________________________________________________________________________________________________________________________________
    * Processes a query and sends the results to the client in the requested format: csv, html, or json (default).
    * Saves the query to the "hits" table, along with date, IP, and runtime.  This can be avoided using the "nosave" parameter.
@@ -519,136 +578,70 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
    */
   const sendQuery = (sq) => {
     // pretty(sq);
+    const qq = sq.replace(/'/g, '');
 
-    const process = (rows) => {
-      if (!rows.length) {
-        console.warn('No data found');
-        sendResults(req, res, 'No data found');
+    // pool.query('delete from weather.queries where date < now() - interval \'30 day\'');
+
+    // pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
+    //   if (err) {
+    //     debug(err);
+    //   } else if (!req.query.explain && results.rowCount) {
+    //     outputResults(results.rows[0].results, sq);
+    //     pool.query(`update weather.queries set date=now() where query='${qq}'`);
+
+    //     if (!req.query.nosave) {
+    //       const hits = `
+    //         insert into weather.hits
+    //         (date, ip, query, ms)
+    //         values (now(), '${ip}', '${req.url}', 0)
+    //       `;
+    //       pool.query(hits);
+    //     }
+    //   } else {
+    const startTime = new Date();
+
+    if (req.query.explain) {
+      sq = `explain ${sq}`;
+    }
+
+    pool.query(sq, (error, results2) => {
+      if (error) {
+        debug({ sq, error }, req, res, 500);
         return;
       }
 
-      // prevent duplicate rows. screws up LIMIT unfortunately. hopefully unnecessary
-      //   let lastJSON;
-      //   rows = rows.filter((row) => lastJSON !== (lastJSON = JSON.stringify(row)));
+      if (!req.query.explain && !req.query.nosave) {
+        // if (
+        //   /averages?/.test(req.originalUrl)
+        //   || (req.query.end && new Date() - new Date(req.query.end) > 86400000)
+        // ) {
+        //   const jr = JSON.stringify(results2.rows);
+        //   pool.query(`
+        //     INSERT INTO weather.queries (date, url, query, results, ip)
+        //     VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}', '${ip}')
+        //   `);
+        // }
 
-      let s;
-      switch (output ? output.toLowerCase() : 'json') {
-        case 'csv':
-          s = `${Object.keys(rows[0]).toString()}\n${
-            rows.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
-          // rows.map(r => Object.values(r).toString()).join('<br>');
-
-          res.set('Content-Type', 'text/csv');
-          res.setHeader('Content-disposition', `attachment; filename=${lats}.${lons}.HourlyAverages.csv`);
-          res.send(s);
-          break;
-
-        case 'html':
-          s = `
-            <script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
-            <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
-            <script src="https://aesl.ces.uga.edu/scripts/jqlibrary.js"></script>
-            <script src="https://aesl.ces.uga.edu/scripts/dbGraph.js"></script>
-
-            <link rel="stylesheet" href="/css/dbGraph.css">
-            <link rel="stylesheet" href="/css/weather.css">
-
-            <div id="Graph"></div>
-
-            <table id="Data">
-              <thead>
-                <tr><th>${Object.keys(rows[0]).join('<th>')}</tr>
-              </thead>
-              <tbody>
-                <tr>${rows.map((r) => `<td>${Object.keys(r).map((v) => r[v]).join('<td>')}`).join('<tr>')}</tr>
-              </tbody>
-            </table>
-
-            <script src="https://aesl.ces.uga.edu/weatherapp/src/weather.js"></script>
-          `;
-          res.send(s);
-          break;
-
-        default:
-          if (req.query.explain) {
-            res.json({
-              query: sq.slice(8).trim(),
-              rows,
-            });
-          } else if (req.callback) {
-            req.callback(rows);
-          } else if (req.testing) {
-            sendResults(req, res, 'SUCCESS');
-          } else {
-            res.json(rows);
-          }
+        const time = new Date() - startTime;
+        const hits = `
+          INSERT INTO weather.hits (date, ip, query, ms)
+          VALUES (NOW(), '${ip}', '${req.url}', ${time})
+        `;
+        pool.query(hits);
       }
-    }; // process
-
-    const qq = sq.replace(/'/g, '');
-
-    pool.query('delete from weather.queries where date < now() - interval \'30 day\'');
-
-    pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
-      if (err) {
-        debug(err);
-      } else if (!req.query.explain && results.rowCount) {
-        process(results.rows[0].results);
-        pool.query(`update weather.queries set date=now() where query='${qq}'`);
-
-        if (!req.query.nosave) {
-          const hits = `
-            insert into weather.hits
-            (date, ip, query, ms)
-            values (now(), '${ip}', '${req.url}', 0)
-          `;
-          pool.query(hits);
-        }
-      } else {
-        const startTime = new Date();
-
-        if (req.query.explain) {
-          sq = `explain ${sq}`;
-        }
-
-        pool.query(sq, (error, results2) => {
-          if (error) {
-            debug({ sq, error }, req, res, 500);
-            return;
-          }
-
-          if (!req.query.explain && !req.query.nosave) {
-            console.log(!req.query.explain);
-            console.log(!req.query.nosave);
-            if (
-              /averages?/.test(req.originalUrl)
-              || (req.query.end && new Date() - new Date(req.query.end) > 86400000)
-            ) {
-              const jr = JSON.stringify(results2.rows);
-              pool.query(`
-                INSERT INTO weather.queries (date, url, query, results, ip)
-                VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}', '${ip}')
-              `);
-            }
-
-            const time = new Date() - startTime;
-            const hits = `
-              INSERT INTO weather.hits (date, ip, query, ms)
-              VALUES (NOW(), '${ip}', '${req.url}', ${time})
-            `;
-            pool.query(hits);
-          }
-          process(results2.rows);
-        });
-      }
+      outputResults(results2.rows);
     });
+    // });
   }; // sendQuery
 
   let cols;
-  const query = (offset) => {
+  let dailyColumns;
+
+  const query = async (offset) => {
     let byx;
     let byy;
     let rtables = {};
+
     const latlons = [];
 
     start = new Date(`${start} UTC`);
@@ -675,11 +668,41 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     const cond = where ? ` AND (${where})` : '';
     const dateCond = `date BETWEEN '${start}' AND '${end}'`;
 
-    // console.log(dateCond); process.exit();
+    let mrmsResults = [];
+    if (mrms) {
+      let mrmsQuery = lats.map((lat, i) => (
+        years.map((year) => `
+          SELECT
+            TO_CHAR(date::timestamp + interval '${offset} seconds', '${format2}') AS date,
+            precipitation AS mrms,
+            ${lat} AS lat,
+            ${lons[i]} AS lon
+          FROM weather.mrms_${Math.trunc(MRMSround(lat))}_${-Math.trunc(MRMSround(lons[i]))}_${year}
+          WHERE lat = ${MRMSround(lat)} AND lon = ${MRMSround(lons[i])} AND ${dateCond}
+
+          UNION ALL
+          SELECT
+            TO_CHAR(date::timestamp + interval '${offset} seconds', '${format2}') AS date,
+            -999 AS mrms,
+            ${lat} AS lat,
+            ${lons[i]} AS lon
+          FROM weather.mrmsmissing
+          WHERE ${dateCond}
+  
+        `).join('\nUNION ALL\n')
+      )).join('\nUNION ALL\n');
+
+      mrmsQuery += `
+        ORDER BY date
+      `;
+
+      mrmsResults = (await pool.query(mrmsQuery)).rows;
+    }
+
     const tables = rect ? rtables
       .map((table) => unindent(`
         SELECT
-          lat AS rlat, lon AS rlon,
+          date, lat AS rlat, lon AS rlon,
           ${attr.length ? fix(attr.join(','), true) : cols}
         FROM (
           ${years.map((year) => (type === 'ha_' ? `SELECT * FROM ${table}` : `SELECT * FROM ${table}_${year}`)).join(' UNION ALL ')}
@@ -690,122 +713,69 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
           ${cond}
       `))
       .join(' UNION ALL\n')
-      : lats
-        .map((lat, i) => {
-          let mainTable = type === 'nldas_hourly_'
-            ? years.map(
-              (year) => unindent(`
-                SELECT
-                  date,
-                  ${cols}
-                FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
-                WHERE
-                  lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-                  AND ${dateCond}
-              `),
-            ).join(' UNION ALL ')
-            : unindent(`
-              SELECT date, ${cols}
-              FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
+      : (lats.map((lat, i) => {
+        let mainTable = type === 'nldas_hourly_'
+          ? years.map(
+            (year) => unindent(`
+              SELECT
+                date,
+                ${cols}
+              FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
               WHERE
                 lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
                 AND ${dateCond}
-            `);
-
-          if (type === 'nldas_hourly_' && (req.query.predicted === 'true' || options.includes('predicted'))) {
-            let maxdate = '';
-            const year = new Date().getFullYear();
-
-            if (mainTable) {
-              mainTable += ' union all ';
-              maxdate = `
-                date > (
-                  SELECT MAX(date) FROM (
-                    SELECT date FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new UNION ALL
-                    SELECT date FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
-                  ) a
-                )
-                AND
-              `;
-            }
-
-            mainTable += range(+start.slice(0, 4), +end.slice(0, 4) + 1)
-              .map((y) => `
-                SELECT
-                  date,
-                  ${cols}
-                FROM (
-                  SELECT
-                    MAKE_TIMESTAMP(${y},
-                    EXTRACT(month from date)::integer, EXTRACT(day from date)::integer, EXTRACT(hour from date)::integer, 0, 0) AS date,
-                    ${cols}
-                  FROM weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
-                ) a
-                WHERE
-                  lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-                  AND ${maxdate}
-                  ${dateCond}
-              `).join(' UNION ALL ');
-          }
-
-          if (mrms && years.length) {
-            // console.log(years); process.exit();
-            let mrmsTable = '(';
-
-            mrmsTable += years.map((year) => `
-                SELECT date, precipitation AS mrms
-                FROM weather.mrms_${Math.trunc(MRMSround(lat))}_${-Math.trunc(MRMSround(lons[i]))}_${year}
-                WHERE lat = ${MRMSround(lat)} AND lon = ${MRMSround(lons[i])} AND ${dateCond}
-            `).join(' UNION ALL ');
-
-            mrmsTable += `
-                UNION ALL
-
-                SELECT b.date, precipitation AS mrms
-                FROM weather.mrmsmissing a
-                LEFT JOIN (
-                  ${mainTable}
-                ) b
-                USING (date)
-                WHERE lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-              ) m
-            `;
-
-            // originally select distinct:
-            const sq2 = `
-              SELECT ${lat} AS rlat, ${lons[i]} AS rlon, *
-              FROM (
-                SELECT 
-                  ${coalesce(['date', cols.split(',')])}
-                  ${mrms ? ', mrms' : ''}
-                FROM (
-                  ${mainTable}
-                ) a
-                FULL JOIN (
-                  SELECT date, mrms
-                  FROM ${mrmsTable}
-                ) b
-                USING (date)
-              ) alias1
-              WHERE
-                ${dateCond}
-                ${cond}
-            `;
-
-            // pretty(sq2);
-            return sq2;
-          }
-
-          return `
-            SELECT ${lat} AS rlat, ${lons[i]} AS rlon, *
-            FROM (${mainTable}) a
+            `),
+          ).join(' UNION ALL ')
+          : unindent(`
+            SELECT date, ${cols}
+            FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
             WHERE
               lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-              AND date between '${start}' AND '${end}'
-              ${cond}
-          `;
-        })
-        .join(' UNION ALL\n');
+              AND ${dateCond}
+          `);
+
+        if (type === 'nldas_hourly_' && (req.query.predicted === 'true' || options.includes('predicted'))) {
+          let maxdate = '';
+          const year = new Date().getFullYear();
+
+          if (mainTable) {
+            mainTable += ' union all ';
+            maxdate = `
+              date > (
+                SELECT MAX(date) FROM (
+                  SELECT date FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new UNION ALL
+                  SELECT date FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
+                ) a
+              )
+              AND
+            `;
+          }
+
+          mainTable += range(+start.slice(0, 4), +end.slice(0, 4) + 1)
+            .map((y) => `
+              SELECT
+                date,
+                ${cols}
+              FROM (
+                SELECT
+                  MAKE_TIMESTAMP(${y},
+                  EXTRACT(month from date)::integer, EXTRACT(day from date)::integer, EXTRACT(hour from date)::integer, 0, 0) AS date,
+                  ${cols}
+                FROM weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
+              ) a
+              WHERE
+                lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
+                AND ${maxdate}
+                ${dateCond}
+            `).join(' UNION ALL ');
+        }
+
+        return `
+          SELECT ${lat} AS rlat, ${lons[i]} AS rlon, *
+          FROM (${mainTable}) a
+          ${cond ? `WHERE ${cond}` : ''}
+        `;
+      }).join(' UNION ALL\n'));
 
     // if (req.query.predicted === 'true') {
     //    send(res, tables.replace(/[\n\r]+/g, '<br>')); return;
@@ -818,7 +788,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       sq = `
         SELECT
           TO_CHAR(date::timestamp + interval '${offset} seconds', '${format2}') AS date,
-          ${cols.replace(/\blat\b/, 'rlat AS lat').replace(/\blon\b/, 'rlon AS lon')}
+          ${dailyColumns.replace(/\blat\b/, 'rlat AS lat').replace(/\blon\b/, 'rlon AS lon')}
         FROM (
           SELECT date AS GMT, *
           FROM (${tables}) tables
@@ -826,6 +796,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         GROUP BY TO_CHAR(date::timestamp + interval '${offset} seconds', '${format2}'), rlat, rlon
         ORDER BY ${order}
       `;
+      // exit(sq);
     } else {
       let other = '';
       const gy = `
@@ -856,10 +827,6 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
           .replace(/\bmonth\b/g, `EXTRACT(month from date::timestamp + interval '${offset} seconds') AS month, `)
           .replace(/\byear\b/g, `EXTRACT(year from date::timestamp + interval '${offset} seconds') As year, `)
           .replace(/\bgrowingyear\b/g, gy);
-      }
-
-      if (mrms) {
-        cols = cols.replace(/\bprecipitation\b/, 'COALESCE(mrms, 0) AS precipitation');
       }
 
       sq = `
@@ -943,9 +910,26 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       `;
     }
 
-    console.log(pretty(sq)); // process.exit();
+    if (mrmsResults.length) {
+      const results = (await pool.query(sq)).rows;
+      results.forEach((row1) => {
+        const f = mrmsResults.find((row2) => (
+          row1.date === row2.date && row1.lat === row2.lat && row1.lon === row2.lon
+        ));
 
-    sendQuery(sq);
+        if (f) {
+          if (f.mrms !== -999) {
+            row1.precipitation = f.mrms;
+          }
+        } else {
+          row1.precipitation = 0;
+        }
+      });
+      outputResults(results);
+    } else {
+      // exit(sq);
+      sendQuery(sq);
+    }
   }; // query
 
   /**
@@ -974,9 +958,14 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
    * Determines the columns to be selected in the database query based on the provided parameters.
    */
   const getColumns = () => {
+    cols = attr.length ? fix(attr.join(','), true) : parms.slice(1).join(', ');
+    if (!cols.includes('lon')) cols = `lon,${cols}`;
+    if (!cols.includes('lat')) cols = `lat,${cols}`;
+    dailyColumns = cols;
+
     if (daily) {
       if (attr.length) {
-        cols = attr.filter((col) => col !== 'gdd') // included automatically if req.query.gddbase
+        dailyColumns = attr.filter((col) => col !== 'gdd') // included automatically if req.query.gddbase
           .map((col) => {
             if (/^(lat|lon)$/.test(col)) {
               return col;
@@ -989,8 +978,11 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
             return `min(${fix(col, false)}) as min_${col}, max(${fix(col, false)}) as max_${col}, avg(${fix(col, false)}) as avg_${col}`;
           })
           .join(',');
+
+        if (!(/\blon\b/).test(dailyColumns)) dailyColumns = `lon,${dailyColumns}`;
+        if (!(/\blat\b/).test(dailyColumns)) dailyColumns = `lat,${dailyColumns}`;
       } else {
-        cols = `
+        dailyColumns = `
           lat, lon,
           ${sum('precipitation')},
           ${sum('longwave_radiation')},
@@ -1007,21 +999,21 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
           ${statistics('wind_speed')}
         `;
       }
+
       const { gddbase } = req.query;
       if (gddbase) {
         const mintemp = req.query.gddmin || gddbase;
         const maxtemp = req.query.gddmax || 999;
 
-        cols += `,
+        dailyColumns += `,
           greatest(0, (
             least(${maxtemp}, max(air_temperature)) + greatest(${mintemp}, least(${maxtemp}, min(air_temperature)))) / 2 - ${gddbase}
           ) as gdd
         `;
+
+        cols = cols.replace(/,?gdd\b/, '');
+        if (!cols.includes('air_temperature')) cols += ',air_temperature';
       }
-    } else {
-      cols = attr.length ? fix(attr.join(','), true) : parms.slice(1).join(', ');
-      if (!cols.includes('lon')) cols = `lon,${cols}`;
-      if (!cols.includes('lat')) cols = `lat,${cols}`;
     }
   }; // getColumns
 
@@ -1040,7 +1032,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     years.push('new');
   }
 
-  mrms = year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options) && !req.query.stats;
+  mrms = !daily && years.length && year2 > 2014 && /hourly|daily/.test(req.url) && !/nomrms/.test(options) && !req.query.stats && !rect;
 
   getColumns();
 
