@@ -134,7 +134,7 @@ const waitForQueries = async () => (
         clearInterval(intervalId);
         reject(error);
       }
-    }, 100);
+    }, 200);
   })
 );
 
@@ -928,9 +928,21 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       `;
     }
 
-    if (mrmsResults.length) {
+    if (mrms) {
+      const now = new Date();
+      now.setHours(now.getHours() - 2);
+      const moredata = new Date(end) > now;
+      let maxdate = new Date(start);
+      maxdate.setHours(maxdate.getHours() - 2);
+
       const results = (await pool.query(sq)).rows;
       results.forEach((row1) => {
+        if (moredata) {
+          if (new Date(row1.date) > maxdate) {
+            maxdate = new Date(row1.date);
+          }
+        }
+
         const f = mrmsResults.find((row2) => (
           row1.date === row2.date && row1.lat === row2.lat && row1.lon === row2.lon
         ));
@@ -943,6 +955,56 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
           row1.precipitation = 0;
         }
       });
+
+      if (moredata) {
+        const formatDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          return `${year}-${month}-${day} ${hours}:${minutes}`;
+        };
+
+        const enddate = new Date(end);
+        lats.forEach((lat, i) => {
+          const date = maxdate;
+          const lon = lons[i];
+          do {
+            date.setHours(date.getHours() + 1);
+            const f = mrmsResults.find((row2) => (
+              new Date(date).toString() === new Date(row2.date).toString() && lat === +row2.lat && lon === +row2.lon
+            ));
+
+            let obj = {};
+            ['date', ...cols.split(/\s*,\s*/)].forEach((col) => {
+              obj[col] = null;
+            });
+
+            if (f) {
+              if (f.mrms !== -999) {
+                obj = {
+                  ...obj,
+                  date: formatDate(date),
+                  lat,
+                  lon,
+                  precipitation: f.mrms,
+                };
+              }
+            } else {
+              obj = {
+                ...obj,
+                date: formatDate(date),
+                lat,
+                lon,
+                precipitation: 0,
+              };
+            }
+
+            results.push(obj);
+          } while (date < now && date < enddate);
+        });
+      }
       outputResults(results);
     } else if (!(sq.match(/nldas_hourly_\d+_\d+/g) || []).every((table) => validTables.includes(table))) {
       outputResults([]);
