@@ -1114,7 +1114,6 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
 
       hits(ip, req.url, startTime);
       outputResults(results, sq);
-      // sendQuery(sq);
     }
   }; // query
 
@@ -1145,8 +1144,8 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
    */
   const getColumns = () => {
     cols = attr.length ? fix(attr.join(','), true) : parms.slice(1).join(', ');
-    if (!cols.includes('lon')) cols = `lon,${cols}`;
-    if (!cols.includes('lat')) cols = `lat,${cols}`;
+    if (!/\blon\b/.test(cols)) cols = `lon,${cols}`;
+    if (!/\blat\b/.test(cols)) cols = `lat,${cols}`;
     dailyColumns = cols;
 
     if (daily) {
