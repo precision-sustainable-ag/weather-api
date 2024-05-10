@@ -215,6 +215,14 @@ const init = async (req, res) => {
   const lons = location ? [] : req.query.lon?.toString().split(',').map((n) => +n);
   const options = (req.query.options || '').toLowerCase().split(/\s*,\s*/);
 
+  if (lats.length !== lons.length) {
+    // http://localhost/hourly?lat=39.05&lon=-75.87,-76.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
+    res.status(400).send({ error: 'There should be as many lats as there are lons.' });
+    return {
+      error: true,
+    };
+  }
+
   const invalidOption = options.find((col) => !['rect', 'graph', 'gmt', 'utc', 'predicted', 'nomrms'].includes(col));
   if (invalidOption) {
     // http://localhost/hourly?lat=20&lon=-76&start=2018-11-01&end=2018-11-30&options=unknown
@@ -727,8 +735,6 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
   let dailyColumns;
 
   const query = async (offset) => {
-    let byx;
-    let byy;
     let rtables = {};
     const startTime = new Date();
 
@@ -743,8 +749,9 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     end = end.toISOString();
 
     if (rect) {
-      byy = Math.max(0.125, 0.125 * Math.floor(maxLat - minLat));
-      byx = Math.max(0.125, 0.125 * Math.floor(maxLon - minLon));
+      // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=nomrms,graph,rect
+      const byy = Math.max(0.125, 0.125 * Math.floor(maxLat - minLat));
+      const byx = Math.max(0.125, 0.125 * Math.floor(maxLon - minLon));
 
       for (let y = minLat; y <= maxLat; y += byy) {
         for (let x = minLon; x <= maxLon; x += byx) {
@@ -756,7 +763,10 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     }
 
     let sq;
-    const cond = where ? ` AND (${where})` : '';
+
+    // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=graph&attributes=tmp&where=tmp%3C6
+    const cond = where ? ` (${where})` : 'true';
+
     const dateCond = `date BETWEEN '${start}' AND '${end}'`;
 
     let mrmsResults = [];
@@ -779,13 +789,18 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
             ${lons[i]} AS lon
           FROM weather.mrmsmissing
           WHERE ${dateCond}
-  
         `).join('\nUNION ALL\n')
       )).join('\nUNION ALL\n');
 
       mrmsQuery += `
         ORDER BY date
       `;
+
+      if (req.query.limit) {
+        mrmsQuery += `
+          LIMIT ${req.query.limit}
+        `;
+      }
 
       mrmsResults = (await pool.query(mrmsQuery)).rows;
     }
@@ -801,7 +816,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         WHERE
           lat::text || lon IN (${latlons})
           AND date BETWEEN '${start}' AND '${end}'
-          ${cond}
+          AND ${cond}
       `))
       .join(' UNION ALL\n')
       : (lats.map((lat, i) => {
@@ -1074,7 +1089,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
             }
 
             results.push(obj);
-          } while (date < now && date < enddate);
+          } while (date < now && date < enddate && results.length < (req.query.limit || 100000));
         });
       }
 
@@ -1086,11 +1101,12 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       outputResults([], sq);
     } else {
       const results = (await pool.query(explain ? `EXPLAIN ${sq}` : sq)).rows;
-      const nolat = attr.length && !attr.includes('lat');
-      const nolon = attr.length && !attr.includes('lon');
+      const nolat = lats.length === 1 && attr.length && !attr.includes('lat');
+      const nolon = lons.length === 1 && attr.length && !attr.includes('lon');
       if (nolat || nolon) {
         results.forEach((row) => {
-          // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html&options=nomrms&attributes=precipitation
+          // http://localhost/hourly?lat=39.03&lon=-76.87&start=2018-11-01&end=2018-11-30&output=html&options=nomrms&attributes=precipitation
+          // http://localhost/hourly?lat=39.05,40.03&lon=-75.87,-76.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
           if (nolat) delete row.lat;
           if (nolon) delete row.lon;
         });
