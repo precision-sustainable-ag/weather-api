@@ -12,6 +12,62 @@ const exit = (s) => {
   process.exit();
 }; // exit
 
+const parms = [
+  'date',
+  'lat',
+  'lon',
+  'air_temperature',
+  'humidity',
+  'relative_humidity',
+  'pressure',
+  'zonal_wind_speed',
+  'meridional_wind_speed',
+  'wind_speed',
+  'longwave_radiation',
+  'convective_precipitation',
+  'potential_energy',
+  'potential_evaporation',
+  'shortwave_radiation',
+  'precipitation',
+  // 'nswrs',
+  // 'nlwrs',
+  // 'dswrf',
+  // 'dlwrf',
+  // 'lhtfl',
+  // 'shtfl',
+  // 'gflux',
+  // 'snohf',
+  // 'asnow',
+  // 'arain',
+  // 'evp',
+  // 'ssrun',
+  // 'bgrun',
+  // 'snom',
+  // 'avsft',
+  // 'albdo',
+  // 'weasd',
+  // 'snowc',
+  // 'snod',
+  // 'tsoil',
+  // 'soilm1',
+  // 'soilm2',
+  // 'soilm3',
+  // 'soilm4',
+  // 'soilm5',
+  // 'mstav1',
+  // 'mstav2',
+  // 'soilm6',
+  // 'evcw',
+  // 'trans',
+  // 'evbs',
+  // 'sbsno',
+  // 'cnwat',
+  // 'acond',
+  // 'ccond',
+  // 'lai',
+  // 'veg',
+];
+
 let validTables;
 
 const getValidTables = async () => {
@@ -28,6 +84,14 @@ const getValidTables = async () => {
 };
 
 getValidTables();
+
+const hits = (ip, url, startTime) => {
+  const time = new Date() - startTime;
+  pool.query(`
+    INSERT INTO weather.hits (date, ip, query, ms)
+    VALUES (NOW(), '${ip}', '${url}', ${time})
+  `);
+}; // hits
 
 /**
  * Cleans a string by removing specific characters and forbidden keywords.
@@ -149,18 +213,78 @@ const init = async (req, res) => {
   let location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
   const lats = location ? [] : req.query.lat?.toString().split(',').map((n) => +n);
   const lons = location ? [] : req.query.lon?.toString().split(',').map((n) => +n);
-  const options = req.query.options || '';
+  const options = (req.query.options || '').toLowerCase().split(/\s*,\s*/);
 
-  const rect = req.query.options?.includes('rect') && (req.query.location || lats.length === 2);
+  const invalidOption = options.find((col) => !['rect', 'graph', 'gmt', 'utc', 'predicted', 'nomrms'].includes(col));
+  if (invalidOption) {
+    // http://localhost/hourly?lat=20&lon=-76&start=2018-11-01&end=2018-11-30&options=unknown
+    res.status(400).send({ error: `Invalid option: ${invalidOption}.  See https://weather.covercrop-data.org/` });
+    return {
+      error: true,
+    };
+  }
 
-  let attr = (req.query.attr || req.query.attributes || '').toLowerCase().split(/\s*,\s*/).filter((col) => col);
-  if (attr.length && /averages|daily/.test(req.url)) {
-    attr = attr.filter((col) => !/frost|nldas/.test(col));
+  // rect,graph,gmt,utc,predicted,nomrms
+
+  const rect = /\brect\b/.test(options) && (req.query.location > '' || lats.length === 2);
+
+  if (lats.length && lons.length) {
+    const invalidLocation = lats.some((lat) => lons.some((lon) => (
+      !validTables.includes(`nldas_hourly_${parseInt(lat, 10)}_${parseInt(-lon, 10)}`)
+    )));
+
+    if (invalidLocation) {
+      // http://localhost/hourly?lat=20&lon=-76&start=2018-11-01&end=2018-11-30&attributes=date,precipitation
+      res.status(400).send({ error: 'Invalid Location.  See https://ldas.gsfc.nasa.gov/nldas/specifications' });
+      return {
+        error: true,
+      };
+    }
+  }
+
+  // http://localhost/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&attributes=date,tmp,apcp,pevap,cape,frain,dlwrf,dswrf,vgrd,ugrd,pres,spfh
+  // http://localhost/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&attributes=date,apcp,precipitation
+  // http://localhost/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&attributes=date,,apcp,,precipitation
+  const attr = (req.query.attr || req.query.attributes || '').toLowerCase()
+    .split(/\s*,\s*/)
+    .map((col) => (
+      {
+        tmp: 'air_temperature',
+        spfh: 'humidity',
+        pres: 'pressure',
+        ugrd: 'zonal_wind_speed',
+        vgrd: 'meridional_wind_speed',
+        dswrf: 'shortwave_radiation',
+        dlwrf: 'longwave_radiation',
+        frain: 'convective_precipitation',
+        cape: 'potential_energy',
+        pevap: 'potential_evaporation',
+        apcp: 'precipitation',
+      }[col] || col
+    ))
+    .filter((col, i, arr) => col && col !== 'date' && !arr.slice(i + 1).includes(col));
+
+  const invalidAttribute = attr.find((col) => (
+    ![
+      'nswrs', 'nlwrs', 'dswrf', 'dlwrf', 'lhtfl', 'shtfl', 'gflux', 'snohf', 'asnow', 'arain', 'evp', 'ssrun', 'bgrun',
+      'snom', 'avsft', 'albdo', 'weasd', 'snowc', 'snod', 'tsoil', 'soilm1', 'soilm2', 'soilm3', 'soilm4', 'soilm5',
+      'mstav1', 'mstav2', 'soilm6', 'evcw', 'trans', 'evbs', 'sbsno', 'cnwat', 'acond', 'ccond', 'lai', 'veg',
+      'gdd',
+      ...parms,
+    ].includes(col)
+  ));
+
+  if (invalidAttribute) {
+    res.status(400).send({ error: `Unknown attribute: ${invalidAttribute}.  See https://weather.covercrop-data.org` });
+    return {
+      error: true,
+    };
   }
 
   const results = {
     ip: (req.headers?.['x-forwarded-for'] || '').split(',').pop() || req.socket?.remoteAddress,
     output: req.query.explain ? 'json' : req.query.output ?? 'json',
+    explain: req.query.explain,
     lats,
     lons,
     minLat: rect ? Math.min(...lats) : null,
@@ -427,67 +551,12 @@ const unindent = (s) => {
 }; // unindent
 
 const runQuery = async (req, res, type, start, end, format2, daily) => {
-  const parms = [
-    'date',
-    'lat',
-    'lon',
-    'air_temperature',
-    'humidity',
-    'relative_humidity',
-    'pressure',
-    'zonal_wind_speed',
-    'meridional_wind_speed',
-    'wind_speed',
-    'longwave_radiation',
-    'convective_precipitation',
-    'potential_energy',
-    'potential_evaporation',
-    'shortwave_radiation',
-    'precipitation',
-    // 'nswrs',
-    // 'nlwrs',
-    // 'dswrf',
-    // 'dlwrf',
-    // 'lhtfl',
-    // 'shtfl',
-    // 'gflux',
-    // 'snohf',
-    // 'asnow',
-    // 'arain',
-    // 'evp',
-    // 'ssrun',
-    // 'bgrun',
-    // 'snom',
-    // 'avsft',
-    // 'albdo',
-    // 'weasd',
-    // 'snowc',
-    // 'snod',
-    // 'tsoil',
-    // 'soilm1',
-    // 'soilm2',
-    // 'soilm3',
-    // 'soilm4',
-    // 'soilm5',
-    // 'mstav1',
-    // 'mstav2',
-    // 'soilm6',
-    // 'evcw',
-    // 'trans',
-    // 'evbs',
-    // 'sbsno',
-    // 'cnwat',
-    // 'acond',
-    // 'ccond',
-    // 'lai',
-    // 'veg',
-  ];
-
   let years;
   let mrms;
   const {
     ip,
     output,
+    explain,
     attr,
     group,
     where,
@@ -502,11 +571,15 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     options,
     rect,
     timeOffset,
+    error,
   } = await init(req, res);
+
+  if (error) return;
 
   console.log(JSON.stringify({
     ip,
     output,
+    explain,
     lats,
     lons,
     minLat,
@@ -533,6 +606,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     let s;
     switch (output ? output.toLowerCase() : 'json') {
       case 'csv':
+        // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=csv
         s = `${Object.keys(rows[0]).toString()}\n${
           rows.map((r) => Object.keys(r).map((v) => r[v])).join('\n')}`;
         // rows.map(r => Object.values(r).toString()).join('<br>');
@@ -543,6 +617,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         break;
 
       case 'html':
+        // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html
         s = `
           <script src="https://aesl.ces.uga.edu/scripts/d3/d3.js"></script>
           <script src="https://aesl.ces.uga.edu/scripts/jquery/jquery.js"></script>
@@ -569,16 +644,17 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         break;
 
       default:
-        if (req.query.explain) {
-          res.json({
-            query: sq.slice(8).trim(),
-            rows,
-          });
+        if (explain) {
+          // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html&explain=true
+          res.set('Content-Type', 'text/plain');
+          const responseText = `query:\n ${pretty(sq.trim())}\n\n${rows.map((row) => JSON.stringify(row, null, 2)).join('\n')}`;
+          res.send(responseText);
         } else if (req.callback) {
           req.callback(rows);
         } else if (req.testing) {
           sendResults(req, res, 'SUCCESS');
         } else {
+          // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30
           res.json(rows);
         }
     }
@@ -594,63 +670,58 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
    * @param {string} sq - The SQL query to execute.
    * @returns {undefined}
    */
-  const sendQuery = (sq) => {
-    // pretty(sq);
-    // const qq = sq.replace(/'/g, '');
+  // const sendQuery = (sq) => {
+  //   pretty(sq);
+  //   const qq = sq.replace(/'/g, '');
 
-    // pool.query('delete from weather.queries where date < now() - interval \'30 day\'');
+  //   pool.query('delete from weather.queries where date < now() - interval \'30 day\'');
 
-    // pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
-    //   if (err) {
-    //     debug(err);
-    //   } else if (!req.query.explain && results.rowCount) {
-    //     outputResults(results.rows[0].results, sq);
-    //     pool.query(`update weather.queries set date=now() where query='${qq}'`);
+  //   pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
+  //     if (err) {
+  //       debug(err);
+  //     } else if (!req.query.explain && results.rowCount) {
+  //       outputResults(results.rows[0].results, sq);
+  //       pool.query(`update weather.queries set date=now() where query='${qq}'`);
 
-    //     if (!req.query.nosave) {
-    //       const hits = `
-    //         insert into weather.hits
-    //         (date, ip, query, ms)
-    //         values (now(), '${ip}', '${req.url}', 0)
-    //       `;
-    //       pool.query(hits);
-    //     }
-    //   } else {
-    const startTime = new Date();
+  //       if (!req.query.nosave) {
+  //         pool.query(`
+  //           insert into weather.hits
+  //           (date, ip, query, ms)
+  //           values (now(), '${ip}', '${req.url}', 0)
+  //         `);
+  //       }
+  //     } else {
+  //       const startTime = new Date();
 
-    if (req.query.explain) {
-      sq = `explain ${sq}`;
-    }
+  //       if (req.query.explain) {
+  //         sq = `explain ${sq}`;
+  //       }
 
-    pool.query(sq, (error, results2) => {
-      if (error) {
-        debug({ sq, error }, req, res, 500);
-        return;
-      }
+  //       pool.query(sq, (error, results2) => {
+  //         if (error) {
+  //           debug({ sq, error }, req, res, 500);
+  //           return;
+  //         }
 
-      if (!req.query.explain && !req.query.nosave) {
-        // if (
-        //   /averages?/.test(req.originalUrl)
-        //   || (req.query.end && new Date() - new Date(req.query.end) > 86400000)
-        // ) {
-        //   const jr = JSON.stringify(results2.rows);
-        //   pool.query(`
-        //     INSERT INTO weather.queries (date, url, query, results, ip)
-        //     VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}', '${ip}')
-        //   `);
-        // }
+  //         if (!req.query.explain && !req.query.nosave) {
+  //           if (
+  //             /averages?/.test(req.originalUrl)
+  //             || (req.query.end && new Date() - new Date(req.query.end) > 86400000)
+  //           ) {
+  //             const jr = JSON.stringify(results2.rows);
+  //             pool.query(`
+  //               INSERT INTO weather.queries (date, url, query, results, ip)
+  //               VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}', '${ip}')
+  //             `);
+  //           }
 
-        const time = new Date() - startTime;
-        const hits = `
-          INSERT INTO weather.hits (date, ip, query, ms)
-          VALUES (NOW(), '${ip}', '${req.url}', ${time})
-        `;
-        pool.query(hits);
-      }
-      outputResults(results2.rows);
-    });
-    // });
-  }; // sendQuery
+  //           hits(ip, req.url, startTime);
+  //         }
+  //         outputResults(results2.rows, sq);
+  //       });
+  //     }
+  //   });
+  // }; // sendQuery
 
   let cols;
   let dailyColumns;
@@ -659,6 +730,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     let byx;
     let byy;
     let rtables = {};
+    const startTime = new Date();
 
     const latlons = [];
 
@@ -1005,11 +1077,28 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
           } while (date < now && date < enddate);
         });
       }
-      outputResults(results);
+
+      hits(ip, req.url, startTime);
+      outputResults(results, sq);
     } else if (!(sq.match(/nldas_hourly_\d+_\d+/g) || []).every((table) => validTables.includes(table))) {
-      outputResults([]);
+      // http://localhost/hourly?lat=20.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html&options=nomrms&attributes=precipitation
+      hits(ip, req.url, startTime);
+      outputResults([], sq);
     } else {
-      sendQuery(sq);
+      const results = (await pool.query(explain ? `EXPLAIN ${sq}` : sq)).rows;
+      const nolat = attr.length && !attr.includes('lat');
+      const nolon = attr.length && !attr.includes('lon');
+      if (nolat || nolon) {
+        results.forEach((row) => {
+          // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html&options=nomrms&attributes=precipitation
+          if (nolat) delete row.lat;
+          if (nolon) delete row.lon;
+        });
+      }
+
+      hits(ip, req.url, startTime);
+      outputResults(results, sq);
+      // sendQuery(sq);
     }
   }; // query
 
@@ -1115,7 +1204,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     years.push('new');
   }
 
-  mrms = !daily && years.length && year2 > 2014 && /hourly/.test(req.url) && !/nomrms/.test(options) && !req.query.stats && !rect;
+  mrms = !explain && !daily && years.length && year2 > 2014 && /hourly/.test(req.url) && !options.includes('nomrms') && !req.query.stats && !rect;
 
   getColumns();
 
@@ -2110,8 +2199,6 @@ const routeTest = async (req, res) => {
     console.log(results);
     sendResults(testRequest, res, results);
   } // GoogleMapsAPI
-
-  // options = 'nomrms';
 
   testRequest.tests = [
     // routeNvm, // slow
