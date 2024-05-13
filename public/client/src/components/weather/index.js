@@ -118,7 +118,7 @@ export const Weather = () => {
             <td>&options=mrms</td>
             <td>
               Output hourly MRMS precipitation instead of NLDAS.<br/>
-              Ignored for daily, averages, or &options=rect.
+              Ignored for daily, averages, stats, or &options=rect.
             </td>
           </tr>
 
