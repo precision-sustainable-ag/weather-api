@@ -95,7 +95,7 @@ export const Weather = () => {
             <td>
               Given two lat/lons, they will be treated as the corners of a rectangle [NE:SW or NW:SE].<br/>
               Given a location, its northeast and southwest will be treated as the corners of a rectangle.<br/>
-              Data within the rectangle will be retrieved based on resolution.<br/>Currently outputs NLDAS precipitation, but will output MRMS in the future.
+              Data within the rectangle will be retrieved based on resolution.<br/>
             </td>
           </tr>
 
@@ -112,6 +112,14 @@ export const Weather = () => {
           <tr>
             <td>&options=predicted</td>
             <td>Use real hourly data if available; otherwise, use 5-year average data.</td>
+          </tr>
+
+          <tr>
+            <td>&options=mrms</td>
+            <td>
+              Output hourly MRMS precipitation instead of NLDAS.<br/>
+              Ignored for daily, averages, or &options=rect.
+            </td>
           </tr>
 
           <tr>

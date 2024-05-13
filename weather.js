@@ -85,12 +85,17 @@ const getValidTables = async () => {
 
 getValidTables();
 
-const hits = (ip, url, startTime) => {
+const hits = (ip, url, startTime, results, saveResults = true) => {
   const time = new Date() - startTime;
-  pool.query(`
-    INSERT INTO weather.hits (date, ip, query, ms)
-    VALUES (NOW(), '${ip}', '${url}', ${time})
-  `);
+  const json = saveResults ? `${JSON.stringify(results)}` : null;
+
+  pool.query(
+    `
+      INSERT INTO weather.hits (date, ip, query, ms, results)
+      VALUES (NOW(), $1, $2, $3, $4)
+    `,
+    [ip, url, time, json],
+  );
 }; // hits
 
 /**
@@ -223,7 +228,7 @@ const init = async (req, res) => {
     };
   }
 
-  const invalidOption = options.find((col) => !['rect', 'graph', 'gmt', 'utc', 'predicted', 'nomrms'].includes(col));
+  const invalidOption = options.find((col) => !['rect', 'graph', 'gmt', 'utc', 'predicted', 'mrms'].includes(col));
   if (invalidOption) {
     // http://localhost/hourly?lat=20&lon=-76&start=2018-11-01&end=2018-11-30&options=unknown
     res.status(400).send({ error: `Invalid option: ${invalidOption}.  See https://weather.covercrop-data.org/` });
@@ -231,8 +236,6 @@ const init = async (req, res) => {
       error: true,
     };
   }
-
-  // rect,graph,gmt,utc,predicted,nomrms
 
   const rect = /\brect\b/.test(options) && (req.query.location > '' || lats.length === 2);
 
@@ -668,75 +671,31 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     }
   }; // outputResults
 
-  /** ____________________________________________________________________________________________________________________________________
-   * Processes a query and sends the results to the client in the requested format: csv, html, or json (default).
-   * Saves the query to the "hits" table, along with date, IP, and runtime.  This can be avoided using the "nosave" parameter.
-   * Saves the results to the "queries" table for faster retrieval of repeat queries. Deletes any older than 30 days.
-   * If the "explain" parameter exists, sends EXPLAIN details rather than executing the query.
-   *
-   * @function
-   * @param {string} sq - The SQL query to execute.
-   * @returns {undefined}
-   */
-  // const sendQuery = (sq) => {
-  //   pretty(sq);
-  //   const qq = sq.replace(/'/g, '');
+  const startTime = new Date();
 
-  //   pool.query('delete from weather.queries where date < now() - interval \'30 day\'');
+  const cached = (
+    await pool.query(
+      `
+        SELECT results FROM weather.hits
+        WHERE query=$1 AND results IS NOT NULL
+        LIMIT 1
+      `,
+      [req.url],
+    )
+  ).rows[0];
 
-  //   pool.query(`select results from weather.queries where query='${qq}'`, (err, results) => {
-  //     if (err) {
-  //       debug(err);
-  //     } else if (!req.query.explain && results.rowCount) {
-  //       outputResults(results.rows[0].results, sq);
-  //       pool.query(`update weather.queries set date=now() where query='${qq}'`);
-
-  //       if (!req.query.nosave) {
-  //         pool.query(`
-  //           insert into weather.hits
-  //           (date, ip, query, ms)
-  //           values (now(), '${ip}', '${req.url}', 0)
-  //         `);
-  //       }
-  //     } else {
-  //       const startTime = new Date();
-
-  //       if (req.query.explain) {
-  //         sq = `explain ${sq}`;
-  //       }
-
-  //       pool.query(sq, (error, results2) => {
-  //         if (error) {
-  //           debug({ sq, error }, req, res, 500);
-  //           return;
-  //         }
-
-  //         if (!req.query.explain && !req.query.nosave) {
-  //           if (
-  //             /averages?/.test(req.originalUrl)
-  //             || (req.query.end && new Date() - new Date(req.query.end) > 86400000)
-  //           ) {
-  //             const jr = JSON.stringify(results2.rows);
-  //             pool.query(`
-  //               INSERT INTO weather.queries (date, url, query, results, ip)
-  //               VALUES (NOW(), '${req.originalUrl}', '${qq}', '${jr}', '${ip}')
-  //             `);
-  //           }
-
-  //           hits(ip, req.url, startTime);
-  //         }
-  //         outputResults(results2.rows, sq);
-  //       });
-  //     }
-  //   });
-  // }; // sendQuery
+  if (cached) {
+    outputResults(JSON.parse(cached.results), '');
+    console.log('cached');
+    hits(ip, req.url, startTime, null, false);
+    return;
+  }
 
   let cols;
   let dailyColumns;
 
   const query = async (offset) => {
     let rtables = {};
-    const startTime = new Date();
 
     const latlons = [];
 
@@ -749,7 +708,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     end = end.toISOString();
 
     if (rect) {
-      // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=nomrms,graph,rect
+      // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=graph,rect
       const byy = Math.max(0.125, 0.125 * Math.floor(maxLat - minLat));
       const byx = Math.max(0.125, 0.125 * Math.floor(maxLon - minLon));
 
@@ -821,17 +780,19 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       .join(' UNION ALL\n')
       : (lats.map((lat, i) => {
         let mainTable = type === 'nldas_hourly_'
-          ? years.map(
-            (year) => unindent(`
-              SELECT
-                date,
-                ${cols}
-              FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
-              WHERE
-                lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-                AND ${dateCond}
-            `),
-          ).join(' UNION ALL ')
+          ? years
+            .filter((year) => year !== 'new')
+            .map(
+              (year) => unindent(`
+                SELECT
+                  date,
+                  ${cols}
+                FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
+                WHERE
+                  lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
+                  AND ${dateCond}
+              `),
+            ).join(' UNION ALL ')
           : unindent(`
             SELECT date, ${cols}
             FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
@@ -849,7 +810,6 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
             maxdate = `
               date > (
                 SELECT MAX(date) FROM (
-                  SELECT date FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_new UNION ALL
                   SELECT date FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
                 ) a
               )
@@ -888,7 +848,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     // }
 
     const order = req.query.order
-      || `1 ${cols.split(/\s*,\s*/).includes('lat') ? ',lat' : ''} ${cols.split(/\s*,\s*/).includes('lon') ? ',lon' : ''}`;
+      || `date ${cols.split(/\s*,\s*/).includes('lat') ? ',lat' : ''} ${cols.split(/\s*,\s*/).includes('lon') ? ',lon' : ''}`;
 
     if (daily) {
       sq = `
@@ -1093,11 +1053,11 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         });
       }
 
-      hits(ip, req.url, startTime);
+      hits(ip, req.url, startTime, results, !explain && end && new Date() - new Date(end) > 86400000);
       outputResults(results, sq);
     } else if (!(sq.match(/nldas_hourly_\d+_\d+/g) || []).every((table) => validTables.includes(table))) {
-      // http://localhost/hourly?lat=20.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html&options=nomrms&attributes=precipitation
-      hits(ip, req.url, startTime);
+      // http://localhost/hourly?lat=20.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
+      hits(ip, req.url, startTime, [], !explain && end && new Date() - new Date(end) > 86400000);
       outputResults([], sq);
     } else {
       const results = (await pool.query(explain ? `EXPLAIN ${sq}` : sq)).rows;
@@ -1105,16 +1065,18 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
       const nolon = lons.length === 1 && attr.length && !attr.includes('lon');
       if (nolat || nolon) {
         results.forEach((row) => {
-          // http://localhost/hourly?lat=39.03&lon=-76.87&start=2018-11-01&end=2018-11-30&output=html&options=nomrms&attributes=precipitation
+          // http://localhost/hourly?lat=39.03&lon=-76.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
           // http://localhost/hourly?lat=39.05,40.03&lon=-75.87,-76.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
           if (nolat) delete row.lat;
           if (nolon) delete row.lon;
         });
       }
 
-      hits(ip, req.url, startTime);
+      hits(ip, req.url, startTime, results, !explain && end && new Date() - new Date(end) > 86400000);
       outputResults(results, sq);
     }
+
+    // exit(sq);
   }; // query
 
   /**
@@ -1219,7 +1181,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     years.push('new');
   }
 
-  mrms = !explain && !daily && years.length && year2 > 2014 && /hourly/.test(req.url) && !options.includes('nomrms') && !req.query.stats && !rect;
+  mrms = options.includes('mrms') && !explain && !daily && years.length && year2 > 2014 && /hourly/.test(req.url) && !req.query.stats && !rect;
 
   getColumns();
 
