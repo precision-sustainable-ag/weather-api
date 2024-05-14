@@ -1,8 +1,36 @@
+# ________________________________________________________________________________________________________________________
+function showSyntax()
+  function green(string)
+    return "\u001b[1m\u001b[32m$(string)\u001b[0m"
+  end
+  
+  println("""
+    Syntax:
+      These create queries but don't execute them:
+        deleteDate "yyyy-mm-hh hh:mm:ss" "wildcard":  $(green("deleteDate \"2015-11-01 05:00:00\" \"hourly%2015\""))
+        dropTables "wildcard":  $(green("dropTables \"hourly%2015\""))
+        renameTables "wildcard":  $(green("renameTables \"hourly%2015\""))
+
+      These execute queries:
+        createIndexes "wildcard":  $(green("createIndexes \"hourly%2015\""))
+        hourlyAverages
+        schemas
+        showQueries
+        schemaSize schema:  $(green("schemaSize plants3"))
+        yearlyNLDAS year:  $(green("yearlyNLDAS 2024"))
+  """)
+end
+
+if (length(ARGS) < 1)
+  showSyntax()
+  exit()
+end
+
+# ________________________________________________________________________________________________________________________
 # cd /dev/shm
 # sudo -s
 # nohup julia ~/API/import.jl > output.log 2>&1 &
-
-# julia ~/API/import.jl
+# nohup julia ~/API/import.jl yearlyNLDAS 2024 > output.log 2>&1 &
 
 # psql:
 #   SET work_mem = '100MB';   -- 8MB
@@ -55,8 +83,7 @@ function writeToPostgres(fname, files, year)
     flush(stdout)
 
     for file in keys(files)
-      # table = "nldas_hourly_$(file)_$(year)"
-      table = "hourly_$(file)_$(year)"
+      table = "nldas_hourly_$(file)_$(year)"
       result = execute(conn, """
         CREATE TABLE IF NOT EXISTS weather.$(table) (
           date timestamp without time zone,
@@ -243,13 +270,11 @@ function getRunningQueries()
 end
 
 # ________________________________________________________________________________________________________________________
-function waitIdleold()
-  print("Waiting for running queries")
-  while getRunningQueries() > 1
-    print(".")
-    sleep(1)
+function showQueries()
+  result = execute(conn, "SELECT query FROM pg_stat_activity WHERE state = 'active' AND query NOT LIKE '%sleep%';")
+  for row in result
+    println(row[1]);
   end
-  println() 
 end
 
 # ________________________________________________________________________________________________________________________
@@ -261,7 +286,7 @@ function waitIdle()
     
     while running_queries > 1
       print(".")
-      sleep(1)
+      sleep(3)
       running_queries = getRunningQueries()
     end
     println()
@@ -367,15 +392,21 @@ function readNLDAS(fname1, fname2, year, hour, cdate)
   # exit()
 end
 
+function contains(filename, string)
+  file = open(filename, "r")
+  file_contents = read(file, String)
+  close(file)
+  return occursin(string, file_contents)
+end
+
 # ________________________________________________________________________________________________________________________
 # Downloads and imports NLDAS data for a given year.
-# Data is stored in weather.hourly_lat_lon_year, but should be renamed to weather.nldas_hourly_lat_lon_year after creating indexes
 function yearlyNLDAS(year)
   home = homedir()
 
   start_date = DateTime(year, 1, 1, 0, 0, 0)
   try
-    result = execute(conn, "SELECT MAX(date) FROM weather.hourly_53_99_$(year);")
+    result = execute(conn, "SELECT MAX(date) FROM weather.nldas_hourly_53_99_$(year);")
     start_date = first(result)[1] + Dates.Hour(1)
   catch
     
@@ -387,7 +418,7 @@ function yearlyNLDAS(year)
   # end_date = now()
 
   date = start_date
-  println(year, date, start_date, end_date)
+  println("$(start_date) $(end_date)")
   while date <= end_date
     @time begin
       println("yearlyNLDAS")
@@ -412,11 +443,18 @@ function yearlyNLDAS(year)
       while true
         try
           run(`curl -s -o "file1" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
-          break
+          if contains("file1", "DOCTYPE")
+            println("No more data.  Waiting one hour.")
+            flush(stdout)
+            sleep(3600)
+          else
+            break
+          end
         catch e
           println("Error: ", e)
+          println("Waiting one hour.")
           flush(stdout)
-          sleep(5)
+          sleep(3600)
         end
       end
 
@@ -443,16 +481,16 @@ function yearlyNLDAS(year)
 end
 
 # ________________________________________________________________________________________________________________________
-function tables(match, condition="")
+function tables(match, condition="", having="")
   return execute(
     conn,
     """
       SELECT t.tablename
       FROM pg_tables t
       LEFT JOIN pg_indexes i ON t.schemaname = i.schemaname AND t.tablename = i.tablename
-      WHERE t.tablename LIKE '$(match)'
+      WHERE t.tablename LIKE '$(match)' $(condition)
       GROUP BY t.tablename
-      $(condition)
+      $(having)
       ORDER BY 1;
     """
   )
@@ -460,22 +498,21 @@ end
 
 # ________________________________________________________________________________________________________________________
 # Creates date and lat/lon indexes
-# Example: createIndexes("hourly%2016")
+# Example: createIndexes("nldas_hourly%2016")
 function createIndexes(match)
-  for row in tables(match, "HAVING COUNT(i.indexname) < 2")
+  for row in tables(match, "", "HAVING COUNT(i.indexname) < 2")
     println("Creating date and lat/lon indexes on $(row[1])")
     waitIdle()
     execute(conn, "CREATE INDEX ON weather.$(row[1]) (date)");
     waitIdle()
     execute(conn, "CREATE INDEX ON weather.$(row[1]) (lat, lon)");
-    println("__________________________________________________________")
   end
 end
 
 # ________________________________________________________________________________________________________________________
 # Deletes a specific date-time from the weather database.
 # Useful if a GRIB file is aborted during an import.
-# Example: deleteDate("2015-11-01 05:00:00", "hourly%2015")
+# Example: deleteDate("2015-11-01 05:00:00", "nldas_hourly%2015")
 function deleteDate(date, match)
   open("/dev/shm/output.sql", "w") do f
     for row in tables(match)
@@ -487,7 +524,7 @@ end
 
 # ________________________________________________________________________________________________________________________
 # Drops tables from the weather database.
-# Example: dropTables("hourly%2015")
+# Example: dropTables("nldas_hourly%2015")
 function dropTables(match)
   open("/dev/shm/output.sql", "w") do f
     for row in tables(match)
@@ -498,7 +535,7 @@ function dropTables(match)
 end
 
 # ________________________________________________________________________________________________________________________
-# Renames tables to their nldas equivalent.
+# Renames hourly tables to their nldas equivalent.
 # Use after importing a year's data.
 # Example: renameTables("hourly%2016")
 function renameTables(match)
@@ -512,43 +549,126 @@ function renameTables(match)
 end
 
 # ________________________________________________________________________________________________________________________
-function green(string)
-  return "\u001b[1m\u001b[32m$(string)\u001b[0m"
+function schemaSize(schema)
+  # result = execute(conn, """
+  #   SELECT count(*), pg_catalog.pg_size_pretty(sum(pg_catalog.pg_total_relation_size(c.oid)))
+  #   FROM pg_catalog.pg_namespace n
+  #   LEFT JOIN pg_catalog.pg_class c ON n.oid = c.relnamespace
+  #   WHERE n.nspname = '$(schema)';
+  # """)
+
+  result = execute(conn, """
+    SELECT 
+      (SELECT COUNT(*) 
+      FROM pg_catalog.pg_namespace n2
+      LEFT JOIN pg_catalog.pg_class c2 ON n2.oid = c2.relnamespace
+      WHERE n2.nspname = '$(schema)') AS row_count,
+      COUNT(*) AS object_count,
+      pg_catalog.pg_size_pretty(sum(pg_catalog.pg_total_relation_size(c.oid))) AS total_size
+    FROM pg_catalog.pg_namespace n
+    LEFT JOIN pg_catalog.pg_class c ON n.oid = c.relnamespace  
+    WHERE n.nspname = '$(schema)'  
+    """)
+  println(first(result))
+  println(first(result)[1], " tables")
+  println(first(result)[2])
 end
 
 # ________________________________________________________________________________________________________________________
-function showSyntax()
-  println("""
-    Syntax:
-      The following create queries but don't execute them:
-        deleteDate "yyyy-mm-hh hh:mm:ss" "wildcard":  $(green("deleteDate \"2015-11-01 05:00:00\" \"hourly%2015\""))
-        dropTables "wildcard":  $(green("dropTables \"hourly%2015\""))
-        renameTables "wildcard":  $(green("renameTables \"hourly%2015\""))
-
-      The following execute the queries:
-        createIndexes "wildcard":  $(green("createIndexes \"hourly%2015\""))
-        yearlyNLDAS year:  $(green("yearlyNLDAS 2015"))
+function schemas()
+  result = execute(conn, """
+    SELECT nspname AS schema_name 
+    FROM pg_catalog.pg_namespace
+    WHERE nspname NOT IN ('information_schema', 'pg_catalog', 'public')
+    ORDER BY schema_name;  
   """)
-end
-
-# ________________________________________________________________________________________________________________________
-if (length(ARGS) < 1)
-  showSyntax()
-else
-  if ARGS[1] === "createIndexes" && length(ARGS) == 2
-    createIndexes(ARGS[2])
-  elseif ARGS[1] === "deleteDate" && length(ARGS) == 3
-    deleteDate(ARGS[2], ARGS[3])
-  elseif ARGS[1] === "dropTables" && length(ARGS) === 2
-    dropTables(ARGS[2])
-  elseif ARGS[1] === "renameTables" && length(ARGS) === 2
-    renameTables(ARGS[2])
-  elseif ARGS[1] === "yearlyNLDAS" && length(ARGS) === 2
-    yearlyNLDAS(ARS[2])
-  else
-    showSyntax()
+  for row in result
+    println(row[1])
   end
 end
+
+# ________________________________________________________________________________________________________________________
+function hourlyAverages()
+  execute(conn, "DELETE FROM weather.queries WHERE url LIKE '%averages%'")
+
+  year = Dates.year(Dates.today()) - 1
+  
+  columns = join(
+    [
+      "lat", "lon", "air_temperature", "humidity", "pressure", "zonal_wind_speed", "meridional_wind_speed", "longwave_radiation",
+      "convective_precipitation", "potential_energy", "potential_evaporation", "precipitation", "shortwave_radiation",
+      "relative_humidity", "wind_speed"
+    ],
+    ", "
+  )
+
+  # for row in tables("nldas%$(year)")
+  for row in tables("nldas%$(year)", "AND t.tablename > 'nldas_hourly_52_106'")
+    _, hourly, lat, lon = split(row[1], "_")
+    
+    println("weather.ha_$(lat)_$(lon)")
+    
+    execute(conn, "DROP TABLE IF EXISTS weather.ha_$(lat)_$(lon);")
+    
+    waitIdle()
+    execute(conn, """
+      SELECT * INTO weather.ha_$(lat)_$(lon)
+      FROM (
+        SELECT
+          date2 AS date, lat, lon, 
+          avg(air_temperature) AS air_temperature,
+          avg(humidity) AS humidity,
+          avg(pressure) AS pressure,
+          avg(zonal_wind_speed) AS zonal_wind_speed,
+          avg(meridional_wind_speed) AS meridional_wind_speed,
+          avg(longwave_radiation) AS longwave_radiation,
+          avg(convective_precipitation) AS convective_precipitation,
+          avg(potential_energy) AS potential_energy,
+          avg(potential_evaporation) AS potential_evaporation,
+          avg(precipitation) AS precipitation,
+          avg(shortwave_radiation) AS shortwave_radiation,
+          avg(relative_humidity) AS relative_humidity,
+          avg(wind_speed) AS wind_speed
+        FROM (
+          SELECT date + INTERVAL '$(2103 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 4)
+          UNION ALL
+          SELECT date + INTERVAL '$(2102 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 3)
+          UNION ALL
+          SELECT date + INTERVAL '$(2101 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 2)
+          UNION ALL
+          SELECT date + INTERVAL '$(2100 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 1)
+          UNION ALL
+          SELECT date + INTERVAL '$(2099 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 0)
+        ) a
+        GROUP BY date2, lat, lon
+      ) b;
+    """)
+  end
+end
+
+# ________________________________________________________________________________________________________________________
+if ARGS[1] == "createIndexes" && length(ARGS) == 2
+  createIndexes(ARGS[2])
+elseif ARGS[1] == "deleteDate" && length(ARGS) == 3
+  deleteDate(ARGS[2], ARGS[3])
+elseif ARGS[1] == "dropTables" && length(ARGS) == 2
+  dropTables(ARGS[2])
+elseif ARGS[1] == "renameTables" && length(ARGS) == 2
+  renameTables(ARGS[2])
+elseif ARGS[1] == "yearlyNLDAS" && length(ARGS) == 2
+  yearlyNLDAS(parse(Int64, ARGS[2]))
+elseif ARGS[1] == "schemaSize" && length(ARGS) == 2
+  schemaSize(ARGS[2])
+elseif ARGS[1] == "schemas"
+  schemas()
+elseif ARGS[1] == "showQueries"
+  showQueries()
+elseif ARGS[1] == "hourlyAverages"
+  hourlyAverages()
+else
+  showSyntax()
+end
+
 
 # readMRMS("mrms.grib2.gz")
 
