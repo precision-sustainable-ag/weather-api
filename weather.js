@@ -85,16 +85,16 @@ const getValidTables = async () => {
 
 getValidTables();
 
-const hits = (ip, url, startTime, results, saveResults = true) => {
+const hits = (ip, url, startTime, results, saveResults = true, email = null) => {
   const time = new Date() - startTime;
   const json = saveResults ? `${JSON.stringify(results)}` : null;
 
   pool.query(
     `
-      INSERT INTO weather.hits (date, ip, query, ms, results)
-      VALUES (NOW(), $1, $2, $3, $4)
+      INSERT INTO weather.hits (date, ip, query, ms, results, email)
+      VALUES (NOW(), $1, $2, $3, $4, $5)
     `,
-    [ip, url, time, json],
+    [ip, url, time, json, email],
   );
 }; // hits
 
@@ -296,6 +296,7 @@ const init = async (req, res) => {
     ip: (req.headers?.['x-forwarded-for'] || '').split(',').pop() || req.socket?.remoteAddress,
     output: req.query.explain ? 'json' : req.query.output ?? 'json',
     explain: req.query.explain,
+    email: req.query.email || req.headers.origin || req.headers.host,
     lats,
     lons,
     minLat: rect ? Math.min(...lats) : null,
@@ -568,6 +569,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     ip,
     output,
     explain,
+    email,
     attr,
     group,
     where,
@@ -687,7 +689,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
   if (cached) {
     outputResults(JSON.parse(cached.results), '');
     console.log('cached');
-    hits(ip, req.url, startTime, null, false);
+    hits(ip, req.url, startTime, null, false, email);
     return;
   }
 
@@ -1053,11 +1055,11 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         });
       }
 
-      hits(ip, req.url, startTime, results, !explain && end && new Date() - new Date(end) > 86400000);
+      hits(ip, req.url, startTime, results, !explain && end && new Date() - new Date(end) > 86400000, email);
       outputResults(results, sq);
     } else if (!(sq.match(/nldas_hourly_\d+_\d+/g) || []).every((table) => validTables.includes(table))) {
       // http://localhost/hourly?lat=20.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
-      hits(ip, req.url, startTime, [], !explain && end && new Date() - new Date(end) > 86400000);
+      hits(ip, req.url, startTime, [], !explain && end && new Date() - new Date(end) > 86400000, email);
       outputResults([], sq);
     } else {
       const results = (await pool.query(explain ? `EXPLAIN ${sq}` : sq)).rows;
@@ -1072,7 +1074,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         });
       }
 
-      hits(ip, req.url, startTime, results, !explain && end && new Date() - new Date(end) > 86400000);
+      hits(ip, req.url, startTime, results, !explain && end && new Date() - new Date(end) > 86400000, email);
       outputResults(results, sq);
     }
 
@@ -1306,7 +1308,7 @@ const routeHits = (req, res) => {
     req,
     res,
     `
-     select * from weather.hits
+     select date, ip, query, ms, email from weather.hits
      where
        query not like '%explain%' and query not like '%nvm%' and
        (date > current_date - 1 or (ip <> '::ffff:172.18.186.142' and query not like '%25172.18.186%25'))
