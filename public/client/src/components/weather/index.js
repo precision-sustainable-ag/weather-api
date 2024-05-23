@@ -35,6 +35,17 @@ export const Weather = () => {
         <tbody>
           <tr>
             <td>
+              <p>email=<i>email address</i></p>
+            </td>
+            <td>
+              <p>You must pass a valid email address in order to use the API.</p>
+            </td>
+            <td>
+              <strong style={{ color: 'red' }}>required</strong>
+            </td>
+          </tr>
+          <tr>
+            <td>
               <p>lat=<i>latitude</i>[,<i>latitude</i>,&hellip;]&lon=<i>longitude</i>[,<i>longitude</i>&hellip;]</p>
               <p>location=<i>location</i></p>
             </td>
@@ -43,7 +54,7 @@ export const Weather = () => {
               <p>Either <b>lat-lon</b> <em>or</em> <b>location</b> is required.</p>
             </td>
             <td>
-              required
+              <strong style={{ color: 'red' }}>required</strong>
             </td>
           </tr>
 
