@@ -239,7 +239,7 @@ const init = async (req, res) => {
 
   const rect = /\brect\b/.test(options) && (req.query.location > '' || lats.length === 2);
 
-  if (lats.length && lons.length) {
+  if (/^\/(hourly|daily)/.test(req.url) && lats.length && lons.length) {
     const invalidLocation = lats.some((lat) => lons.some((lon) => (
       !validTables.includes(`nldas_hourly_${parseInt(lat, 10)}_${parseInt(-lon, 10)}`)
     )));
