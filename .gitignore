@@ -3,3 +3,4 @@ package-lock.json
 .env
 .git
 build/
+NOAA_files/

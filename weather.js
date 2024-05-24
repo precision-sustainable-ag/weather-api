@@ -2239,6 +2239,25 @@ const routeElevation = async (req, res) => {
   res.send(elevations[latLon]);
 }; // routeElevation
 
+const routeYearlyPrecipitation = async (req, res) => {
+  const { lat, lon } = req.query;
+
+  if (!lat || !lon) {
+    res.status(400).send({ error: 'lat and lon required' });
+  } else {
+    const results = (await pool.query(`
+      SELECT
+        lat, lon, rain,
+        ST_Distance(geog, ST_SetSRID(ST_MakePoint($1, $2), 4326)) AS distance
+      FROM weather.precipitation
+      ORDER BY geog <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)
+      LIMIT 1;
+    `, [lon, lat])).rows;
+
+    res.send(results);
+  }
+}; // routeYearlyPrecipitation
+
 module.exports = {
   routeAddresses,
   routeAverages,
@@ -2266,4 +2285,5 @@ module.exports = {
   routeTest,
   routeWatershed,
   routeYearly,
+  routeYearlyPrecipitation,
 };

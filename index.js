@@ -75,6 +75,7 @@ app.all('/county', weather.routeCounty);
 app.all('/frost', weather.routeFrost);
 app.all('/mlra', weather.routeMLRA);
 app.all('/yearly', weather.routeYearly);
+app.all('/yearlyprecipitation', weather.routeYearlyPrecipitation);
 
 app.get('/test', weather.routeTest);
 app.get('/elevation', weather.routeElevation);
