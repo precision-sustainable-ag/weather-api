@@ -2252,7 +2252,7 @@ const routeYearlyPrecipitation = async (req, res) => {
       FROM weather.precipitation
       ORDER BY geog <-> ST_SetSRID(ST_MakePoint($1, $2), 4326)
       LIMIT 1;
-    `, [lon, lat])).rows;
+    `, [lon, lat])).rows[0];
 
     res.send(results);
   }
