@@ -2163,14 +2163,16 @@ const routeTest = async (req, res) => {
   res.flushHeaders();
 
   async function testGoogleMapsAPI() {
-    const response = await axios.get('https://api64.ipify.org/?format=json');
-    const ip2 = response.data.ip;
+    // stopped working for localhost(?)
+    // const response = await axios.get('https://api64.ipify.org/?format=json');
+    // const ip2 = response.data.ip;
 
     const { data } = await axios.get(
       `https://maps.googleapis.com/maps/api/timezone/json?location=35.43,-95&timestamp=0&key=${googleAPIKey}`,
     );
 
-    let results = `IP: ${myip.address()}  or  ${ip2}\nGoogle Maps API: ${JSON.stringify(data)}\n${googleAPIKey}`;
+    // let results = `IP: ${myip.address()}  or  ${ip2}\nGoogle Maps API: ${JSON.stringify(data)}\n${googleAPIKey}`;
+    let results = `IP: ${myip.address()}\nGoogle Maps API: ${JSON.stringify(data)}\n${googleAPIKey}`;
 
     if (data.status !== 'OK') {
       results = `FAILED: ${results}`;
@@ -2231,7 +2233,7 @@ const routeElevation = async (req, res) => {
       console.log('fetched', url, elevations[latLon]);
     } catch {
       res.status(500).send({
-        latitude: lat, longitude: lon, elevation: 'NA', error: 'failed',
+        latitude: lat, longitude: lon, elevation: null, error: 'failed',
       });
     }
   }
