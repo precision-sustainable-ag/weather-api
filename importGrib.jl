@@ -7,7 +7,6 @@ function showSyntax()
   println("""
     Syntax:
       These create queries but don't execute them:
-        autovacuum "wildcard" true|false :  $(green("autovacuum \"hourly%2015\" true"))
         deleteDate "yyyy-mm-hh hh:mm:ss" "wildcard":  $(green("deleteDate \"2015-11-01 05:00:00\" \"hourly%2015\""))
         dropTables "wildcard":  $(green("dropTables \"hourly%2015\""))
         renameTables "wildcard":  $(green("renameTables \"hourly%2015\""))
@@ -30,6 +29,7 @@ end
 # ________________________________________________________________________________________________________________________
 # cd /dev/shm
 # sudo -s
+# nohup julia ~/API/import.jl > output.log 2>&1 &
 # nohup julia ~/API/import.jl yearlyNLDAS 2024 > output.log 2>&1 &
 
 # psql:
@@ -52,7 +52,7 @@ end
 # println(lon)
 # exit();
 
-# using GRIB
+using GRIB
 using HTTP
 using Downloads
 using SparseArrays
@@ -61,8 +61,6 @@ using LibPQ
 using Printf
 using Dates
 using GZip
-using NCDatasets
-
 # using Base64
 # using Base: run
 # using Base
@@ -144,7 +142,6 @@ function writeToPostgres(fname, files, year)
         );
       """)
 
-      waitIdle()
       result = execute(conn, "COPY weather.$(table) FROM '/dev/shm/$(file).csv' delimiter ',' CSV HEADER ;")
     end
   end
@@ -313,110 +310,71 @@ function readNLDAS(fname1, fname2, year, hour, cdate)
     println("readNLDAS")
     @inbounds begin
       global files
+
+      # vals = [[]]
+      # vals = Vector{Any}(undef, 5_000_000)
+      # for i in 1:length(vals)
+      #   vals[i] = []
+      # end
+
       vals = Vector{Any}(undef, 11 + 2 + 37)
 
+      m = 0
       for fname in [fname1, fname2]
-        ds = Dataset(fname)
-        datetime = Dates.format(ds["time"][1:1][1], "yyyy-mm-dd HH:MM:ss")
+        GribFile(fname) do f
+        # io = IOBuffer(fname)
+        # tk = take!(io)
+        # GribFile(tk) do f
+          for message in f
+            m += 1
 
-        # variables = keys(ds)
-        # println(variables)
+            lons, lats, v = data(message)
 
-        # https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS2_README.pdf
-        # ["lon", "lat", "time", "time_bnds", "Tair", "Qair", "PSurf", "Wind_E", "Wind_N", "LWdown", "CRainf_frac", "CAPE", "PotEvap", "Rainf", "SWdown"]
-        
-        # https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.2.0/doc/NLDAS2_README.pdf
-        # ["lon", "lat", "time", "time_bnds", "SWdown", "LWdown", "SWnet", "LWnet", "Qle", "Qh", "Qg", "Qf", "Snowf", "Rainf",
-        #  "Evap", "Qs", "Qsb", "Qsm", "AvgSurfT", "Albedo", "SWE", "SnowDepth", "SnowFrac", "SoilT",
-        #  "SoilM_0_10cm", "SoilM_10_40cm", "SoilM_40_200cm", "SoilM_0_40cm", "SoilM_0_100cm", "SoilM_0_200cm", "SMAvail_0_40cm", "SMAvail_0_200cm", "ECanop", "TVeg", "ESoil",
-        #  "SubSnow", "CanopInt", "ACond", "CCond", "LAI", "GVEG", "Streamflow"
-        # ]
+            # Convert Kelvin to Celsius
+            if fname == fname1 && m == 1
+              v = map(x -> x == 9999.0 ? x : x - 273.15, v)
+            end
+            vals[m] = v
+            # println('_' ^ 150)
+            # println(m)
+            # println(filter(x -> x != 9999.0, v)[1:30])
 
-        if fname == fname1
-          Tair = map(x -> ismissing(x) ? x : x - 273.15, ds["Tair"][:])
-          relative_humidity = []
-          wind_speed = []
-          for (air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed) in zip(Tair, ds["Qair"][:], ds["PSurf"][:], ds["Wind_E"][:], ds["Wind_N"][:])
-            push!(relative_humidity, (((humidity/18)/(((1-humidity)/28.97) + (humidity/18)))*pressure/1000) / (0.61*exp((17.27*air_temperature)/(air_temperature + 237.3))))
-            push!(wind_speed, sqrt(zonal_wind_speed ^ 2 + meridional_wind_speed ^ 2))
-          end
+            if (fname == fname1 && m == 11)
+              relative_humidity = []
+              wind_speed = []
+              for (air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed) in zip(vals[1], vals[2], vals[3], vals[4], vals[5])
+                push!(relative_humidity, (((humidity/18)/(((1-humidity)/28.97) + (humidity/18)))*pressure/1000) / (0.61*exp((17.27*air_temperature)/(air_temperature + 237.3))))
+                push!(wind_speed, sqrt(zonal_wind_speed ^ 2 + meridional_wind_speed ^ 2))
+              end
+              vals[m + 1:m + 2] = [relative_humidity, wind_speed]
+              m += 2
+            
+            elseif (fname == fname2 && m == 11 + 2 + 37)
+              date = string(message["date"])
+              time = string(Int(message["time"] / 100))
+              datetime = "$(date[1:4])-$(date[5:6])-$(date[7:8]) $(lpad(time, 2, "0")):00:00"
 
-          vals[1:13] = [
-            Tair,                             # air_temperature
-            ds["Qair"][:],                    # humidity
-            ds["PSurf"][:],                   # pressure
-            ds["Wind_E"][:],                  # zonal_wind_speed
-            ds["Wind_N"][:],                  # meridional_wind_speed
-            ds["LWdown"][:],                  # longwave_radiation
-            ds["CRainf_frac"][:],             # convective_precipitation
-            ds["CAPE"][:],                    # potential_energy
-            ds["PotEvap"][:],                 # potential_evaporation
-            ds["Rainf"][:],                   # precipitation
-            ds["SWdown"][:],                  # shortwave_radiation
-            relative_humidity,                # relative_humidity
-            wind_speed                        # wind_speed
-          ]
-        elseif fname == fname2
-          vals[14:50] = [
-            ds["SWnet"][:],                   # nswrs
-            ds["LWnet"][:],                   # nlwrs
-            ds["SWdown"][:],                  # dswrf
-            ds["LWdown"][:],                  # dlwrf
-            ds["Qle"][:],                     # lhtfl
-            ds["Qh"][:],                      # shtfl
-            ds["Qg"][:],                      # gflux
-            ds["Snowf"][:],                   # snohf ?
-            ds["Qf"][:],                      # asnow ?
-            ds["Rainf"][:],                   # arain
-            ds["Evap"][:],                    # evp
-            ds["Qs"][:],                      # ssrun
-            ds["Qsb"][:],                     # bgrun
-            ds["Qsm"][:],                     # snom
-            ds["AvgSurfT"][:],                # avsft
-            ds["Albedo"][:],                  # albdo
-            ds["SWE"][:],                     # weasd
-            ds["SnowFrac"][:],                # snowc
-            ds["SnowDepth"][:],               # snod
-            ds["SoilT"][:],                   # tsoil
-            ds["SoilM_0_10cm"][:],            # soilm1
-            ds["SoilM_10_40cm"][:],           # soilm2
-            ds["SoilM_40_200cm"][:],          # soilm3
-            ds["SoilM_0_100cm"][:],           # soilm4
-            ds["SoilM_0_200cm"][:],           # soilm5
-            ds["SMAvail_0_200cm"][:],         # mstav1
-            ds["SMAvail_0_40cm"][:],          # mstav2
-            ds["SoilM_0_40cm"][:],            # soilm6
-            ds["ECanop"][:],                  # evcw
-            ds["TVeg"][:],                    # trans
-            ds["ESoil"][:],                   # evbs
-            ds["SubSnow"][:],                 # sbsno
-            ds["CanopInt"][:],                # cnwat
-            ds["ACond"][:],                   # acond
-            ds["CCond"][:],                   # ccond
-            ds["LAI"][:],                     # lai
-            ds["GVEG"][:]                     # veg
-            # ds["Streamflow"][:]
-          ]
-          lons = ds["lon"][:]
-          lats = ds["lat"][:]
-          k = 0
-          for i in 1:size(lats)[1]
-            for j in 1:size(lons)[1]
-              lat = round(-(floor(-lats[i] * 8) / 8); digits = 3)
-              lon = round(floor(lons[j] * 8) / 8; digits = 3)
-              k += 1
-              if !ismissing(vals[1][k])
-                fn = "$(trunc(Int, lat))_$(trunc(Int, -lon))"
-                if !haskey(files, fn)
-                  files[fn] = open("$fn.csv", "w")
-                  write(files[fn], "date,lat,lon,air_temperature,humidity,pressure,zonal_wind_speed,meridional_wind_speed,longwave_radiation,convective_precipitation,potential_energy,potential_evaporation,precipitation,shortwave_radiation,relative_humidity,wind_speed,nswrs,nlwrs,dswrf,dlwrf,lhtfl,shtfl,gflux,snohf,asnow,arain,evp,ssrun,bgrun,snom,avsft,albdo,weasd,snowc,snod,tsoil,soilm1,soilm2,soilm3,soilm4,soilm5,mstav1,mstav2,soilm6,evcw,trans,evbs,sbsno,cnwat,acond,ccond,lai,veg\n")
+              i = 0
+              for (lon, lat) in zip(lons, lats)
+                lon = round(floor(lon * 8) / 8; digits = 3)
+                lat = round(-(floor(-lat * 8) / 8); digits = 3)
+                i += 1
+                if true
+                # if 38 <= lat <= 40 && -77 <= lon <= -75    # Maryland
+                  if vals[1][i] != 9999.0
+                    fn = "$(trunc(Int, lat))_$(trunc(Int, -lon))"
+                    if !haskey(files, fn)
+                      files[fn] = open("$fn.csv", "w")
+                      write(files[fn], "date,lat,lon,air_temperature,humidity,pressure,zonal_wind_speed,meridional_wind_speed,longwave_radiation,convective_precipitation,potential_energy,potential_evaporation,precipitation,shortwave_radiation,relative_humidity,wind_speed,nswrs,nlwrs,dswrf,dlwrf,lhtfl,shtfl,gflux,snohf,asnow,arain,evp,ssrun,bgrun,snom,avsft,albdo,weasd,snowc,snod,tsoil,soilm1,soilm2,soilm3,soilm4,soilm5,mstav1,mstav2,soilm6,evcw,trans,evbs,sbsno,cnwat,acond,ccond,lai,veg\n")
+                    end
+                    # write(files[fn], "$(datetime),$(@sprintf("%.4f", lat)),$(@sprintf("%.4f", lon)),$(join(map(x -> round(x[i], sigdigits=6), vcat(vals[1], vals[2])), ","))\n")
+                    write(files[fn], "$(datetime),$(@sprintf("%.4f", lat)),$(@sprintf("%.4f", lon)),$(join(map(x -> round(x[i], sigdigits=6), vals), ","))\n")
+                  end
                 end
-                write(files[fn], "$(datetime),$(@sprintf("%.4f", lat)),$(@sprintf("%.4f", lon)),$(join(map(x -> ismissing(x[k]) ? 9999.0 : round(x[k], sigdigits=6), vals), ","))\n")
               end
             end
           end
         end
-        close(ds)
       end
 
       if true # hour == 23 # && dayofweek(cdate) == 7
@@ -452,7 +410,7 @@ function yearlyNLDAS(year)
     start_date = first(result)[1] + Dates.Hour(1)
   catch
     
-  end
+  end  
   end_date = DateTime(year, 12, 31, 23, 0, 0)
 
   # start_date = DateTime(2018, 5, 20, 11, 0, 0)
@@ -472,11 +430,8 @@ function yearlyNLDAS(year)
       h2 = lpad(hour, 2, "0")
 
       mrms   = "MultiSensor_QPE_01H_Pass2_00.00_$(year)$(m2)$(d2)-$(h2)0000.grib2.gz"
-      # fname1 = "NLDAS_FORA0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
-      # fname2 = "NLDAS_MOS0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
-
-      fname1 = "NLDAS_FORA0125_H.A$(year)$(m2)$(d2).$(h2)00.020.nc"
-      fname2 = "NLDAS_MOS0125_H.A$(year)$(m2)$(d2).$(h2)00.020.nc"
+      fname1 = "NLDAS_FORA0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
+      fname2 = "NLDAS_MOS0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
 
       # download(year, m2, d2, h2)
       # url = "https://mtarchive.geol.iastate.edu/$(year)/$(m2)/$(d2)/mrms/ncep/MultiSensor_QPE_01H_Pass2/$(mrms)"
@@ -484,7 +439,7 @@ function yearlyNLDAS(year)
       # mrmsdata = readMRMS(mrms)
       # exit()
 
-      url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.2.0/$(year)/$(day)/$(fname1)"
+      url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.002/$(year)/$(day)/$(fname1)"
       while true
         try
           run(`curl -s -o "file1" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
@@ -503,7 +458,7 @@ function yearlyNLDAS(year)
         end
       end
 
-      url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.2.0/$(year)/$(day)/$(fname2)"
+      url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.002/$(year)/$(day)/$(fname2)"
       while true
         try
           run(`curl -s -o "file2" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
@@ -565,15 +520,6 @@ function deleteDate(date, match)
     end
   end
   println("Proof /dev/shm/output.sql, then import it using \\i");
-end
-
-function autovacuum(match, bool)
-  open("/dev/shm/vac.sql", "w") do f
-    for row in tables(match)
-      println(f, "ALTER TABLE weather.$(row[1]) SET (autovacuum_enabled = $(bool));")
-    end
-  end
-  println("Proof /dev/shm/vac.sql, then import it using \\i");
 end
 
 # ________________________________________________________________________________________________________________________
@@ -701,40 +647,28 @@ function hourlyAverages()
 end
 
 # ________________________________________________________________________________________________________________________
-try
-  if ARGS[1] == "createIndexes" && length(ARGS) == 2
-    createIndexes(ARGS[2])
-  elseif ARGS[1] == "deleteDate" && length(ARGS) == 3
-    deleteDate(ARGS[2], ARGS[3])
-  elseif ARGS[1] == "dropTables" && length(ARGS) == 2
-    dropTables(ARGS[2])
-  elseif ARGS[1] == "renameTables" && length(ARGS) == 2
-    renameTables(ARGS[2])
-  elseif ARGS[1] == "yearlyNLDAS" && length(ARGS) == 2
-    yearlyNLDAS(parse(Int64, ARGS[2]))
-  elseif ARGS[1] == "schemaSize" && length(ARGS) == 2
-    schemaSize(ARGS[2])
-  elseif ARGS[1] == "schemas"
-    schemas()
-  elseif ARGS[1] == "showQueries"
-    showQueries()
-  elseif ARGS[1] == "hourlyAverages"
-    hourlyAverages()
-  elseif ARGS[1] == "autovacuum" && length(ARGS) == 3
-    autovacuum(ARGS[2], ARGS[3])
-  else
-    showSyntax()
-  end
-catch e
-  Base.show_backtrace(stderr, catch_backtrace())
-  for (i, bt) in enumerate(Base.catch_backtrace())
-    println(bt)
-    if i >= 5  # Limit to the first 5 frames
-      println("... (stack trace truncated)")
-      break
-    end
-  end
+if ARGS[1] == "createIndexes" && length(ARGS) == 2
+  createIndexes(ARGS[2])
+elseif ARGS[1] == "deleteDate" && length(ARGS) == 3
+  deleteDate(ARGS[2], ARGS[3])
+elseif ARGS[1] == "dropTables" && length(ARGS) == 2
+  dropTables(ARGS[2])
+elseif ARGS[1] == "renameTables" && length(ARGS) == 2
+  renameTables(ARGS[2])
+elseif ARGS[1] == "yearlyNLDAS" && length(ARGS) == 2
+  yearlyNLDAS(parse(Int64, ARGS[2]))
+elseif ARGS[1] == "schemaSize" && length(ARGS) == 2
+  schemaSize(ARGS[2])
+elseif ARGS[1] == "schemas"
+  schemas()
+elseif ARGS[1] == "showQueries"
+  showQueries()
+elseif ARGS[1] == "hourlyAverages"
+  hourlyAverages()
+else
+  showSyntax()
 end
+
 
 # readMRMS("mrms.grib2.gz")
 
