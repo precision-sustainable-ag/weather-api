@@ -113,32 +113,36 @@ app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);
 app.all('/vegspec/retention', vegspec.routeRetention);
 
 app.post('/generate-pdf', async (req, res) => {
-  const { html } = req.body;
+  try {
+    const { html } = req.body;
 
-  if (!html) {
-    return res.status(400).send('No HTML provided');
+    if (!html) {
+      return res.status(400).send('No HTML provided');
+    }
+
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+
+    // ✅ Wait for images to load
+    await page.route('**/*', (route) => {
+      route.continue();
+    });
+
+    await page.setContent(html, { waitUntil: 'networkidle' });
+
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+    });
+
+    await browser.close();
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="output.pdf"');
+    res.send(pdfBuffer);
+  } catch (error) {
+    res.status(500).send({ ERROR: error.message });
   }
-
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-
-  // ✅ Wait for images to load
-  await page.route('**/*', (route) => {
-    route.continue();
-  });
-
-  await page.setContent(html, { waitUntil: 'networkidle' });
-
-  const pdfBuffer = await page.pdf({
-    format: 'A4',
-    printBackground: true,
-  });
-
-  await browser.close();
-
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', 'attachment; filename="output.pdf"');
-  res.send(pdfBuffer);
   return true;
 });
 
