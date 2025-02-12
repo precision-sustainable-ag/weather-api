@@ -16,8 +16,6 @@ const bodyParser = require('body-parser'); // make form data available in req.bo
 const cors = require('cors'); // allow cross-origin requests
 const path = require('path'); // to get the current path
 
-const { chromium } = require('playwright');
-
 const app = express();
 
 app.use(cors());
@@ -111,40 +109,6 @@ app.all('/vegspec/missingcharacteristics', vegspec.routeMissingCharacteristics);
 app.all('/vegspec/movecultivar', vegspec.routeMoveCultivar);
 app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);
 app.all('/vegspec/retention', vegspec.routeRetention);
-
-app.post('/generate-pdf', async (req, res) => {
-  try {
-    const { html } = req.body;
-
-    if (!html) {
-      return res.status(400).send('No HTML provided');
-    }
-
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-
-    // ✅ Wait for images to load
-    await page.route('**/*', (route) => {
-      route.continue();
-    });
-
-    await page.setContent(html, { waitUntil: 'networkidle' });
-
-    const pdfBuffer = await page.pdf({
-      format: 'Letter',
-      printBackground: true,
-    });
-
-    await browser.close();
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="output.pdf"');
-    res.send(pdfBuffer);
-  } catch (error) {
-    res.status(500).send({ ERROR: error.message });
-  }
-  return true;
-});
 
 app.listen(80);
 

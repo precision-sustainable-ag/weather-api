@@ -1,3 +1,18 @@
+# using GRIB
+using HTTP
+using Downloads
+using SparseArrays
+using Suppressor
+using LibPQ
+using Printf
+using Dates
+using GZip
+using NCDatasets
+
+# using Base64
+# using Base: run
+# using Base
+
 # ________________________________________________________________________________________________________________________
 function showSyntax()
   function green(string)
@@ -30,7 +45,7 @@ end
 # ________________________________________________________________________________________________________________________
 # cd /dev/shm
 # sudo -s
-# nohup julia ~/API/import.jl yearlyNLDAS 2024 > output.log 2>&1 &
+# nohup julia ~/API/import.jl yearlyNLDAS 2025 > output.log 2>&1 &
 
 # psql:
 #   SET work_mem = '100MB';   -- 8MB
@@ -51,21 +66,6 @@ end
 # println(lat)
 # println(lon)
 # exit();
-
-# using GRIB
-using HTTP
-using Downloads
-using SparseArrays
-using Suppressor
-using LibPQ
-using Printf
-using Dates
-using GZip
-using NCDatasets
-
-# using Base64
-# using Base: run
-# using Base
 
 open("/home/administrator/API/.env") do f
   s = readline(f)
@@ -141,7 +141,7 @@ function writeToPostgres(fname, files, year)
           ccond real,
           lai real,
           veg real
-        );
+        ) WITH (autovacuum_enabled = false);
       """)
 
       waitIdle()
@@ -281,11 +281,12 @@ function showQueries()
 end
 
 # ________________________________________________________________________________________________________________________
-function waitIdle()
+function waitIdle(s = "")
   running_queries = getRunningQueries()
   
   if running_queries > 0
-    print("Waiting for running queries to complete")
+    print("Waiting for running queries to complete $s")
+    sleep(3)
     
     while running_queries > 1
       print(".")
@@ -424,7 +425,7 @@ function readNLDAS(fname1, fname2, year, hour, cdate)
           close(file)
         end
 
-        waitIdle()
+        waitIdle(fname1)
 
         writeToPostgres(fname1, files, year)
         files = Dict()
@@ -448,10 +449,19 @@ function yearlyNLDAS(year)
 
   start_date = DateTime(year, 1, 1, 0, 0, 0)
   try
+    println("SELECT MAX(date) FROM weather.nldas_hourly_53_99_$(year);");
     result = execute(conn, "SELECT MAX(date) FROM weather.nldas_hourly_53_99_$(year);")
-    start_date = first(result)[1] + Dates.Hour(1)
-  catch
+    rows = collect(result)  # Convert the result into a collection
     
+    if !isempty(rows)
+      start_date = rows[1][1] + Dates.Hour(1)  # Extract the MAX(date) value
+      println("Start date determined: ", start_date)
+    else
+      println("No rows returned in the result.")
+    end    
+  catch e
+    println("Couldn't determine max date. Error: ", e)
+    exit();
   end
   end_date = DateTime(year, 12, 31, 23, 0, 0)
 
@@ -485,6 +495,7 @@ function yearlyNLDAS(year)
       # exit()
 
       url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.2.0/$(year)/$(day)/$(fname1)"
+      println(url)
       while true
         try
           run(`curl -s -o "file1" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
@@ -493,6 +504,9 @@ function yearlyNLDAS(year)
             flush(stdout)
             sleep(3600)
           else
+            ds = Dataset(fname)
+            datetime = Dates.format(ds["time"][1:1][1], "yyyy-mm-dd HH:MM:ss")
+    
             break
           end
         catch e
@@ -507,7 +521,13 @@ function yearlyNLDAS(year)
       while true
         try
           run(`curl -s -o "file2" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
-          break
+          if contains("file2", "DOCTYPE")
+            println("No more data.  Waiting one hour.")
+            flush(stdout)
+            sleep(3600)
+          else
+            break
+          end
         catch e
           println("Error: ", e)
           flush(stdout)
