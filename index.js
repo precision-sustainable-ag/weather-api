@@ -2,8 +2,6 @@
 // const ssl = require('ssl');
 // ssl._create_default_https_context = ssl._create_unverified_context
 
-const fs = require('fs');
-
 const ip = require('ip');
 
 console.log('IP:', ip.address()); // if needed for /etc/postgresql/11/main/pg_hba.conf
@@ -17,8 +15,6 @@ const express = require('express'); // simplifies http server development
 const bodyParser = require('body-parser'); // make form data available in req.body
 const cors = require('cors'); // allow cross-origin requests
 const path = require('path'); // to get the current path
-
-const { chromium } = require('playwright');
 
 const app = express();
 
@@ -113,53 +109,6 @@ app.all('/vegspec/missingcharacteristics', vegspec.routeMissingCharacteristics);
 app.all('/vegspec/movecultivar', vegspec.routeMoveCultivar);
 app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);
 app.all('/vegspec/retention', vegspec.routeRetention);
-
-app.post('/generate-pdf', async (req, res) => {
-  try {
-    const { html } = req.body;
-    const filename = decodeURIComponent(req.body.filename) || `output-${Date.now()}.pdf`;
-
-    if (!html) {
-      return res.status(400).send('No HTML provided');
-    }
-
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-
-    // Wait for images to load
-    await page.route('**/*', (route) => route.continue());
-
-    await page.setContent(html, { waitUntil: 'networkidle' });
-
-    const pdfPath = path.join(__dirname, 'public', filename);
-
-    await page.pdf({
-      path: pdfPath,
-      format: 'Letter',
-      printBackground: true,
-    });
-
-    await browser.close();
-
-    const fileUrl = `${req.protocol}://${req.get('host')}/${filename}`;
-
-    res.json({ fileUrl });
-
-    setTimeout(() => {
-      fs.unlink(pdfPath, (unlinkErr) => {
-        if (unlinkErr) {
-          console.error('Error deleting file:', unlinkErr);
-        } else {
-          console.log('File deleted:', pdfPath);
-        }
-      });
-    }, 30000);
-    console.log(fileUrl);
-  } catch (error) {
-    res.status(500).send({ ERROR: error.message });
-  }
-  return true;
-});
 
 app.listen(80);
 
