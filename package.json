@@ -183,8 +183,7 @@
   "scripts": {
     "start": "node index.js",
     "build": "cd public/client && npm install && npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "playwright install --with-deps"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
