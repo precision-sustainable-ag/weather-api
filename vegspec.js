@@ -359,6 +359,17 @@ const routeCharacteristics = async (req, res) => {
         a.plant_symbol = b.plant_symbol
         AND a.full_scientific_name_without_author IS NULL AND b.full_scientific_name_without_author IS NOT NULL;
 
+      UPDATE plants3.states SET state = 'all' WHERE parameter = 'seed_per_pound';
+
+      UPDATE plants3.characteristics c
+      SET seed_per_pound = s.value::NUMERIC
+      FROM plants3.states s
+      WHERE 
+        c.seed_per_pound IS NULL
+        AND c.plant_symbol = s.plant_symbol
+        AND c.cultivar = s.cultivar_name
+        AND s.parameter = 'seed_per_pound';
+        
       CREATE INDEX ON plants3.characteristics (plant_symbol);
       CREATE INDEX ON plants3.characteristics (plant_master_id);
     `;
@@ -1289,6 +1300,22 @@ const routeRetention = async (req, res) => {
   simpleQuery(sql, null, req, res);
 };
 
+const routeValidStates = async (req, res) => {
+  const sql = `
+    SELECT DISTINCT state
+    FROM plants3.states
+    WHERE state <> 'all'
+    ORDER BY state;
+  `;
+
+  pool.query(
+    sql,
+    (err, results) => {
+      sendResults(req, res, results.rows.map((row) => row.state));
+    },
+  );
+};
+
 const routeMissingCharacteristics = async (req, res) => {
   const sql = `
     SELECT
@@ -1403,4 +1430,5 @@ module.exports = {
   routeDatabaseChanges,
   routeRetention,
   routeMissingCharacteristics,
+  routeValidStates,
 };

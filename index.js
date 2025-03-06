@@ -109,6 +109,7 @@ app.all('/vegspec/missingcharacteristics', vegspec.routeMissingCharacteristics);
 app.all('/vegspec/movecultivar', vegspec.routeMoveCultivar);
 app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);
 app.all('/vegspec/retention', vegspec.routeRetention);
+app.all('/vegspec/validstates', vegspec.routeValidStates);
 
 app.listen(80);
 
