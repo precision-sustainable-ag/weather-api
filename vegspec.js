@@ -1449,16 +1449,20 @@ const routeDataErrors = async (req, res) => {
     const unknown = new Set();
     stateData.rows.forEach((row) => {
       const mlras = row.value.split(',');
+      const u = [];
       mlras.forEach((mlra) => {
         if (!validMlra.includes(mlra)) {
-          row.mlra = mlra;
           unknown.add(mlra);
-          rows.push(row);
+          u.push(mlra);
         }
       });
+      if (u.length) {
+        row.mlra = u;
+        rows.push(row);
+      }
     });
 
-    rows.sort((a, b) => (parseInt(a.mlra, 10) - parseInt(b.mlra, 10)) || a.mlra.localeCompare(b.mlra));
+    rows.sort((a, b) => a.mlra.toString().localeCompare(b.mlra.toString()));
 
     const unknownSorted = [...unknown].sort((a, b) => (parseInt(a, 10) - parseInt(b, 10)) || a.localeCompare(b));
 
