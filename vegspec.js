@@ -1411,6 +1411,86 @@ const routeMissingCharacteristics = async (req, res) => {
   simpleQuery(sql, null, req, res);
 };
 
+const routeDataErrors = async (req, res) => {
+  let s = `
+    <style>
+      body, table {
+        font: 13px arial;
+      }
+    
+      table {
+        border: 1px solid black;
+        border-spacing: 0; 
+        empty-cells: show;
+      }
+      
+      td, th {
+        padding: 0.2em 0.5em;
+        border-right: 1px solid #ddd;
+        border-bottom: 1px solid #bbb;
+      }
+
+      th {
+        background: #eee;
+        position: sticky;
+        top: 0;
+      }
+
+      h1 {
+        font-size: 110%;
+      }
+    </style>
+  `;
+
+  const unknownMLRA = async () => {
+    const validMlra = await (await fetch('https://polygons.vegspec.org/validmlra')).json();
+    const stateData = await pool.query(`SELECT * FROM plants3.states WHERE parameter = 'mlra'`);
+    const rows = [];
+    const unknown = new Set();
+    stateData.rows.forEach((row) => {
+      const mlras = row.value.split(',');
+      mlras.forEach((mlra) => {
+        if (!validMlra.includes(mlra)) {
+          row.mlra = mlra;
+          unknown.add(mlra);
+          rows.push(row);
+        }
+      });
+    });
+
+    rows.sort((a, b) => (parseInt(a.mlra, 10) - parseInt(b.mlra, 10)) || a.mlra.localeCompare(b.mlra));
+
+    const unknownSorted = [...unknown].sort((a, b) => (parseInt(a, 10) - parseInt(b, 10)) || a.localeCompare(b));
+
+    s += `
+      <h1>Unknown MLRAs:</h1>
+      <ul>
+        ${[...unknownSorted].map((u) => `<li>${u}</li>`).join('')}
+      </ul>
+      <h1>Complete listing:</h1>
+      <table>
+        <thead>
+          <tr><th>#<th>state<th>plant_symbol<th>cultivar_name<th>MLRAs<th>Unknown</tr>
+        </thead>
+        <tbody>
+          ${rows.map((row, i) => (`
+            <tr>
+              <td>${i + 1}</td>
+              <td>${row.state}</td>
+              <td>${row.plant_symbol}</td>
+              <td>${row.cultivar_name || ''}</td>
+              <td>${row.value}</td>
+              <td>${row.mlra}</td>
+            </tr>
+          `)).join('')}
+        </tbody>
+      </table>
+    `;
+  }; // unknownMLRA
+  await unknownMLRA();
+  res.send(s);
+};
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1431,4 +1511,5 @@ module.exports = {
   routeRetention,
   routeMissingCharacteristics,
   routeValidStates,
+  routeDataErrors,
 };
