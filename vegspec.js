@@ -1462,7 +1462,12 @@ const routeDataErrors = async (req, res) => {
       }
     });
 
-    rows.sort((a, b) => a.mlra.toString().localeCompare(b.mlra.toString()));
+    rows.sort((a, b) => (
+      a.mlra.toString().localeCompare(b.mlra.toString())
+      || a.value.localeCompare(b.value)
+      || a.plant_symbol.localeCompare(b.plant_symbol)
+      || a.state.localeCompare(b.state)
+    ));
 
     const unknownSorted = [...unknown].sort((a, b) => (parseInt(a, 10) - parseInt(b, 10)) || a.localeCompare(b));
 
