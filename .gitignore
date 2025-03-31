@@ -4,3 +4,4 @@ package-lock.json
 .git
 build/
 NOAA_files/
+todo.md
