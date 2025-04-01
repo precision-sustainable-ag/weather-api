@@ -785,15 +785,23 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
           ? years
             .filter((year) => year !== 'new')
             .map(
-              (year) => unindent(`
-                SELECT
-                  date,
-                  ${cols}
-                FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
-                WHERE
-                  lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-                  AND ${dateCond}
-              `),
+              (year) => {
+                let table;
+                if (req.query.beta) {
+                  table = 'weather.nldas_hourly';
+                } else {
+                  table = `weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}`;
+                }
+                return unindent(`
+                  SELECT
+                    date,
+                    ${cols}
+                  FROM ${table}
+                  WHERE
+                    lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
+                    AND ${dateCond}
+                `);
+              },
             ).join(' UNION ALL ')
           : unindent(`
             SELECT date, ${cols}
@@ -844,6 +852,8 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
           ${cond ? `WHERE ${cond}` : ''}
         `;
       }).join(' UNION ALL\n'));
+
+    // console.log(tables);
 
     // if (req.query.predicted === 'true') {
     //    send(res, tables.replace(/[\n\r]+/g, '<br>')); return;
@@ -1176,11 +1186,15 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
     year2 += 1;
   }
 
-  years = range(year1, Math.min(year2, new Date().getFullYear()));
+  if (req.query.beta) {
+    years = [0];
+  } else {
+    years = range(year1, Math.min(year2, new Date().getFullYear()));
 
-  if (year2 === new Date().getFullYear()) {
-    // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2023-11-01&output=html
-    years.push('new');
+    if (year2 === new Date().getFullYear()) {
+      // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2023-11-01&output=html
+      years.push('new');
+    }
   }
 
   mrms = options.includes('mrms') && !explain && !daily && years.length && year2 > 2014 && /hourly/.test(req.url) && !req.query.stats && !rect;
