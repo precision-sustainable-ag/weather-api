@@ -916,6 +916,7 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
         ) a
         ORDER BY ${order}
       `;
+      console.log(sq);
     }
 
     if (stats) {

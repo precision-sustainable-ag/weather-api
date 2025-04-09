@@ -111,6 +111,7 @@ app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);
 app.all('/vegspec/retention', vegspec.routeRetention);
 app.all('/vegspec/validstates', vegspec.routeValidStates);
 app.all('/vegspec/dataerrors', vegspec.routeDataErrors);
+app.all('/vegspec/imagecredits', vegspec.routeImageCredits);
 
 app.listen(80);
 

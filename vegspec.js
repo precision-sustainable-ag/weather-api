@@ -1500,6 +1500,107 @@ const routeDataErrors = async (req, res) => {
   res.send(s);
 };
 
+const routeImageCredits = async (req, res) => {
+  const query = `
+    WITH first_images AS (
+      SELECT DISTINCT ON (plant_symbol)
+        plant_symbol, imagesizepath3
+      FROM plants3.imagedata
+      WHERE
+        plant_symbol IN (
+          SELECT DISTINCT psymbol from plants3.states a
+          JOIN plants3.synonyms b
+          ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+        )
+        OR plant_symbol IN (
+          SELECT DISTINCT ssymbol from plants3.states a
+          JOIN plants3.synonyms b
+          ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+        )
+        OR plant_symbol IN (
+          SELECT DISTINCT plant_symbol from plants3.states
+        )
+      ORDER BY plant_symbol, imageid
+    )
+    SELECT
+      i.plant_symbol, 
+      i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
+      i.hascopyright,
+      i.imagecreationdate, i.prefixname, i.datasourcetype,
+      i.commonname, i.institutionname, i.credittype,
+      i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid
+    FROM plants3.imagedata i
+    JOIN first_images f
+      ON i.plant_symbol = f.plant_symbol
+    AND i.imagesizepath3 = f.imagesizepath3
+    AND i.prefixname <> 'Scanned by'
+    ORDER BY i.plant_symbol;
+  `;
+
+  const results = await pool.query(query);
+
+  const data = {};
+  results.rows.forEach((row) => {
+    data[row.plant_symbol] = data[row.plant_symbol] || {
+      thumbnail: row.imagesizepath3?.split('\\').slice(-1)[0],
+      large: row.imagesizepath2?.split('\\').slice(-1)[0] || row.imagesizepath1?.split('\\').slice(-1)[0],
+      copyright: row.hascopyright === 'HasCopyright',
+      holder: '',
+      artist: '',
+      author: '',
+      prefix: '',
+      other: '',
+    };
+
+    const obj = data[row.plant_symbol];
+
+    obj[row.credittype.toLowerCase()] = row.commonname;
+    obj[row.datasourcetype.toLowerCase()] = row.commonname;
+    obj.prefix = data[row.plant_symbol].prefix || row.prefixname;
+    if (row.artist) obj.artist = row.artist;
+    if (row.author) obj.artist = row.author;
+    if (row.literaturetitle) obj.title = row.literaturetitle;
+    if (+row.literatureyear) obj.year = row.literatureyear;
+    if (row['copyright holder']) obj.holder = row['copyright holder'];
+  });
+
+  const output = {};
+  Object.keys(data).forEach((key) => {
+    output[key] = {
+      thumbnail: data[key].thumbnail,
+      large: data[key].large,
+    };
+    const d = data[key];
+    output[key].description = `
+      ${d.copyright ? `©${[...new Set([d.author, d.artist, d.holder])].filter((s) => s.trim()).join('. ')}.` : `${d.artist || d.author || ''}.`}
+      ${[d.year, d.title, `${d.prefix} ${d.other}`.trim()].filter((s) => s?.toString().trim()).join('. ')}
+    `.replace(/[\n\r]+\s+/g, ' ').trim();
+  });
+
+  const synonyms = await pool.query('SELECT DISTINCT psymbol, ssymbol from plants3.synonyms');
+
+  // res.send(synonyms.rows); return;
+  synonyms.rows.forEach((row) => {
+    if (!output[row.psymbol]) {
+      output[row.psymbol] = output[row.ssymbol];
+    } else if (!output[row.ssymbol]) {
+      output[row.ssymbol] = output[row.psymbol];
+    }
+  });
+
+  synonyms.rows.forEach((row) => {
+    if (!output[row.psymbol]) {
+      output[row.psymbol] = output[row.ssymbol];
+    } else if (!output[row.ssymbol]) {
+      output[row.ssymbol] = output[row.psymbol];
+    }
+  });
+
+  res.send(output);
+  // res.send(data);
+  // res.send(results.rows);
+};
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1521,4 +1622,5 @@ module.exports = {
   routeMissingCharacteristics,
   routeValidStates,
   routeDataErrors,
+  routeImageCredits,
 };
