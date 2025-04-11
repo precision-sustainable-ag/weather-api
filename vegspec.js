@@ -1546,7 +1546,7 @@ const routeImageCredits = async (req, res) => {
     data[row.plant_symbol] = data[row.plant_symbol] || {
       thumbnail: row.imagesizepath3?.split('\\').slice(-1)[0],
       standard: row.imagesizepath1?.split('\\').slice(-1)[0],
-      large: row.imagesizepath2?.split('\\').slice(-1)[0] || row.imagesizepath1?.split('\\').slice(-1)[0],
+      large: row.imagesizepath2?.split('\\').slice(-1)[0],
       copyright: row.hascopyright === 'HasCopyright',
       holder: '',
       artist: '',
