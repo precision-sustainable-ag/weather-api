@@ -1644,6 +1644,12 @@ const routeImageCredits = async (req, res) => {
               margin: auto;
             }
             
+            tr:nth-child(1) th {
+              position: sticky;
+              top: 0;
+              z-index: 1;
+            }
+
             td, th {
               border-right: 1px solid #ddd;
               border-bottom: 1px solid #bbb;
@@ -1661,7 +1667,7 @@ const routeImageCredits = async (req, res) => {
               text-align: center;
             }
 
-            td:nth-child(2) div {
+            td div {
               position: relative;
               overflow: hidden;
               height: 100px;
@@ -1678,6 +1684,39 @@ const routeImageCredits = async (req, res) => {
               object-fit: cover;
             }
 
+            td:nth-child(3) img {
+              position: absolute;
+              top: 0;
+              left: 50%;
+              transform: translateX(-50%);
+              min-width: 100%;
+              min-height: 100%;
+              object-fit: cover;
+              object-position: top;
+            }
+
+            td:nth-child(3) img {
+              position: absolute;
+              top: 0;
+              left: 50%;
+              transform: translateX(-50%);
+              min-width: 100%;
+              min-height: 100%;
+              object-fit: cover;
+              object-position: top;
+            }
+
+            td:nth-child(4) img {
+              position: absolute;
+              top: 0;
+              left: 50%;
+              transform: translateX(-50%);
+              min-width: 100%;
+              min-height: 100%;
+              object-fit: cover;
+              object-position: center 25%;
+            }
+
             table a {
               color: white;
             }
@@ -1685,12 +1724,17 @@ const routeImageCredits = async (req, res) => {
 
           <body>
             <table>
-              <tr><th>Original<th>Landscape
+              <tr>
+                <th>Original</th>
+                <th>Landscape<br>Centered</th>
+                <th>Landscape<br>Top</th>
+                <th>Landscape<br>Down 25%</th>
+              </tr>
       `;
 
       html += Object.entries(sorted).map(([key, value]) => (`
         <tr>
-          <th colspan="2">
+          <th colspan="4">
             <a target="_blank" href="https://plants.sc.egov.usda.gov/plant-profile/${key}/images">
               ${key}
             </a>
@@ -1698,6 +1742,8 @@ const routeImageCredits = async (req, res) => {
         </tr>
         <tr>
           <td><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></td>
+          <td><div><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></div></td>
+          <td><div><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></div></td>
           <td><div><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></div></td>
         </tr>
       `)).join('');
