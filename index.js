@@ -112,6 +112,7 @@ app.all('/vegspec/retention', vegspec.routeRetention);
 app.all('/vegspec/validstates', vegspec.routeValidStates);
 app.all('/vegspec/dataerrors', vegspec.routeDataErrors);
 app.all('/vegspec/imagecredits', vegspec.routeImageCredits);
+app.all('/vegspec/imagesizes', vegspec.routeImageSizes);
 
 app.listen(80);
 

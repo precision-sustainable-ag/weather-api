@@ -2,6 +2,7 @@
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-prototype-builtins */
 
+const sharp = require('sharp');
 const { pool } = require('./pools');
 
 const {
@@ -1520,7 +1521,7 @@ const routeImageCredits = async (req, res) => {
         OR plant_symbol IN (
           SELECT DISTINCT plant_symbol from plants3.states
         )
-      ORDER BY plant_symbol, imageid
+      ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
     )
     SELECT
       i.plant_symbol, 
@@ -1528,12 +1529,13 @@ const routeImageCredits = async (req, res) => {
       i.hascopyright,
       i.imagecreationdate, i.prefixname, i.datasourcetype,
       i.commonname, i.institutionname, i.credittype,
-      i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid
+      i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
+      i.width, i.height
     FROM plants3.imagedata i
     JOIN first_images f
-      ON i.plant_symbol = f.plant_symbol
-    AND i.imagesizepath3 = f.imagesizepath3
-    AND i.prefixname <> 'Scanned by'
+    ON i.plant_symbol = f.plant_symbol
+      AND i.imagesizepath3 = f.imagesizepath3
+      AND i.prefixname IS DISTINCT FROM 'Scanned by'
     ORDER BY i.plant_symbol;
   `;
 
@@ -1543,6 +1545,7 @@ const routeImageCredits = async (req, res) => {
   results.rows.forEach((row) => {
     data[row.plant_symbol] = data[row.plant_symbol] || {
       thumbnail: row.imagesizepath3?.split('\\').slice(-1)[0],
+      standard: row.imagesizepath1?.split('\\').slice(-1)[0],
       large: row.imagesizepath2?.split('\\').slice(-1)[0] || row.imagesizepath1?.split('\\').slice(-1)[0],
       copyright: row.hascopyright === 'HasCopyright',
       holder: '',
@@ -1557,6 +1560,8 @@ const routeImageCredits = async (req, res) => {
     obj[row.credittype.toLowerCase()] = row.commonname;
     obj[row.datasourcetype.toLowerCase()] = row.commonname;
     obj.prefix = data[row.plant_symbol].prefix || row.prefixname;
+    obj.width = row.width;
+    obj.height = row.height;
     if (row.artist) obj.artist = row.artist;
     if (row.author) obj.artist = row.author;
     if (row.literaturetitle) obj.title = row.literaturetitle;
@@ -1568,7 +1573,10 @@ const routeImageCredits = async (req, res) => {
   Object.keys(data).forEach((key) => {
     output[key] = {
       thumbnail: data[key].thumbnail,
+      standard: data[key].standard,
       large: data[key].large,
+      width: data[key].width,
+      height: data[key].height,
     };
     const d = data[key];
     output[key].description = `
@@ -1581,6 +1589,18 @@ const routeImageCredits = async (req, res) => {
 
   // res.send(synonyms.rows); return;
   synonyms.rows.forEach((row) => {
+    // Prioritize on landscape, even if it means changing to a synonym's image. But avoid black and white (svd)
+    if (output[row.psymbol] && output[row.ssymbol]) {
+      if (
+        (output[row.psymbol].width / output[row.psymbol].height < output[row.ssymbol].width / output[row.ssymbol].height)
+        || output[row.psymbol].standard.includes('svd.')
+      ) {
+        output[row.psymbol] = output[row.ssymbol];
+      } else if (output[row.ssymbol].standard.includes('svd.')) {
+        output[row.ssymbol] = output[row.psymbol];
+      }
+    }
+
     if (!output[row.psymbol]) {
       output[row.psymbol] = output[row.ssymbol];
     } else if (!output[row.ssymbol]) {
@@ -1588,18 +1608,141 @@ const routeImageCredits = async (req, res) => {
     }
   });
 
-  synonyms.rows.forEach((row) => {
-    if (!output[row.psymbol]) {
-      output[row.psymbol] = output[row.ssymbol];
-    } else if (!output[row.ssymbol]) {
-      output[row.ssymbol] = output[row.psymbol];
-    }
-  });
+  const sorted = Object.keys(output).sort().filter((key) => output[key]).reduce((obj, key) => {
+    obj[key] = output[key];
+    return obj;
+  }, {});
 
-  res.send(output);
+  const { show } = req.query;
+  if (show) {
+    if (show === 'portrait') {
+      const done = {};
+      Object.entries(sorted).forEach(([key, value]) => {
+        if (value.width > value.height || done[value.standard]) {
+          delete sorted[key];
+        }
+        done[value.standard] = true;
+      });
+
+      let html = `
+        <html>
+          <style>
+            body {
+              background: #ddd;
+            }
+
+            img {
+              height: 100px;
+            }
+
+            table {
+              border: 1px solid black;
+              border-spacing: 0; 
+              empty-cells: show;
+              font-family: verdana;
+              font-size: 13px;
+              margin: auto;
+            }
+            
+            td, th {
+              border-right: 1px solid #ddd;
+              border-bottom: 1px solid #bbb;
+            }
+            
+            th {
+              background: #333;
+              color: #eee;
+              padding: 0.3rem;
+            }
+
+            td:nth-child(1) {
+              border-right: 3px ridge;
+              width: 235px;
+              text-align: center;
+            }
+
+            td:nth-child(2) div {
+              position: relative;
+              overflow: hidden;
+              height: 100px;
+              width: 235px;
+            }
+            
+            td:nth-child(2) img {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              min-width: 100%;
+              min-height: 100%;
+              object-fit: cover;
+            }
+
+            table a {
+              color: white;
+            }
+          </style>
+
+          <body>
+            <table>
+              <tr><th>Original<th>Landscape
+      `;
+
+      html += Object.entries(sorted).map(([key, value]) => (`
+        <tr>
+          <th colspan="2">
+            <a target="_blank" href="https://plants.sc.egov.usda.gov/plant-profile/${key}/images">
+              ${key}
+            </a>
+          </th>
+        </tr>
+        <tr>
+          <td><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></td>
+          <td><div><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></div></td>
+        </tr>
+      `)).join('');
+
+      res.send(html);
+    }
+  } else {
+    res.send(sorted);
+  }
+
   // res.send(data);
   // res.send(results.rows);
 };
+
+const routeImageSizes = async (req, res) => {
+  const results = await pool.query(`
+    SELECT DISTINCT imagesizepath3
+    FROM plants3.imagedata
+    WHERE width IS NULL
+    ORDER BY 1
+  `);
+
+  res.send(`Determining image dimensions for ${results.rows.length} images`);
+
+  let url;
+  for (const row of results.rows) {
+    try {
+      url = `https://plants.sc.egov.usda.gov${row.imagesizepath3}`;
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer); // Convert to Node.js Buffer
+      const { width, height } = await sharp(buffer).metadata();
+
+      await pool.query(
+        `UPDATE plants3.imagedata
+         SET width = $1, height = $2
+         WHERE imagesizepath3 = $3`,
+        [width, height, row.imagesizepath3],
+      );
+      await pool.query('SELECT pg_sleep(0.5);');
+    } catch (err) {
+      console.error(`Error with image ${url}:`, err.message);
+    }
+  }
+}; // routeImageSizes
 
 module.exports = {
   routeCharacteristics,
@@ -1623,4 +1766,5 @@ module.exports = {
   routeValidStates,
   routeDataErrors,
   routeImageCredits,
+  routeImageSizes,
 };
