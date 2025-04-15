@@ -351,10 +351,12 @@ const routeCharacteristics = async (req, res) => {
       WHERE cultivar = '';
 
       UPDATE plants3.characteristics a
-      SET  (plant_master_id,   full_scientific_name_without_author,   primary_vernacular,   plant_duration_name,   plant_growth_habit_name,
-            cover_crop) =
-        ROW(b.plant_master_id, b.full_scientific_name_without_author, b.primary_vernacular, b.plant_duration_name, b.plant_growth_habit_name,
-            b.cover_crop)
+      SET (
+        plant_master_id, full_scientific_name_without_author, primary_vernacular, plant_duration_name, plant_growth_habit_name, cover_crop
+      ) =
+      ROW(
+        b.plant_master_id, b.full_scientific_name_without_author, b.primary_vernacular, b.plant_duration_name, b.plant_growth_habit_name, b.cover_crop
+      )
       FROM plants3.characteristics b
       WHERE
         a.plant_symbol = b.plant_symbol
@@ -362,14 +364,22 @@ const routeCharacteristics = async (req, res) => {
 
       UPDATE plants3.states SET state = 'all' WHERE parameter = 'seed_per_pound';
 
-      UPDATE plants3.characteristics c
-      SET seed_per_pound = s.value::NUMERIC
-      FROM plants3.states s
-      WHERE 
-        c.seed_per_pound IS NULL
-        AND c.plant_symbol = s.plant_symbol
-        AND c.cultivar = s.cultivar_name
-        AND s.parameter = 'seed_per_pound';
+      UPDATE plants3.characteristics a
+      SET primary_vernacular = b.value
+      FROM plants3.states b
+      WHERE
+        a.plant_symbol = b.plant_symbol
+        AND b.state = 'all'
+        AND b.parameter = 'primary_vernacular';
+
+      UPDATE plants3.characteristics a
+      SET seed_per_pound = b.value::numeric
+      FROM plants3.states b
+      WHERE
+        a.plant_symbol = b.plant_symbol
+        AND a.cultivar = b.cultivar_name
+        AND b.state = 'all'
+        AND b.parameter = 'seed_per_pound';
         
       CREATE INDEX ON plants3.characteristics (plant_symbol);
       CREATE INDEX ON plants3.characteristics (plant_master_id);
