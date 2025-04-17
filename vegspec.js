@@ -1587,10 +1587,11 @@ const routeImageCredits = async (req, res) => {
       large: data[key].large,
       width: data[key].width,
       height: data[key].height,
+      author: data[key].author || data[key].artist || data[key].holder,
     };
     const d = data[key];
     output[key].description = `
-      ${d.copyright ? `©${[...new Set([d.author, d.artist, d.holder])].filter((s) => s.trim()).join('. ')}.` : `${d.artist || d.author || ''}.`}
+      ${d.copyright ? `© ${[...new Set([d.author, d.artist, d.holder])].filter((s) => s.trim()).join('. ')}.` : `${d.artist || d.author || ''}.`}
       ${[d.year, d.title, `${d.prefix} ${d.other}`.trim()].filter((s) => s?.toString().trim()).join('. ')}
     `.replace(/[\n\r]+\s+/g, ' ').trim();
   });
