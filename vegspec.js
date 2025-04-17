@@ -1563,6 +1563,7 @@ const routeImageCredits = async (req, res) => {
       author: '',
       prefix: '',
       other: '',
+      provider: '',
     };
 
     const obj = data[row.plant_symbol];
@@ -1574,6 +1575,7 @@ const routeImageCredits = async (req, res) => {
     obj.height = row.height;
     if (row.artist) obj.artist = row.artist;
     if (row.author) obj.artist = row.author;
+    if (row.prefixname === 'Provided by') obj.provider = `Provided by ${row.commonname}`;
     if (row.literaturetitle) obj.title = row.literaturetitle;
     if (+row.literatureyear) obj.year = row.literatureyear;
     if (row['copyright holder']) obj.holder = row['copyright holder'];
@@ -1581,18 +1583,20 @@ const routeImageCredits = async (req, res) => {
 
   const output = {};
   Object.keys(data).forEach((key) => {
-    output[key] = {
-      thumbnail: data[key].thumbnail,
-      standard: data[key].standard,
-      large: data[key].large,
-      width: data[key].width,
-      height: data[key].height,
-      author: data[key].author || data[key].artist || data[key].holder,
-    };
     const d = data[key];
+    output[key] = {
+      thumbnail: d.thumbnail,
+      standard: d.standard,
+      large: d.large,
+      width: d.width,
+      height: d.height,
+      copyright: d.copyright,
+      author: d.artist || d.holder || d.author,
+    };
+
     output[key].description = `
-      ${d.copyright ? `© ${[...new Set([d.author, d.artist, d.holder])].filter((s) => s.trim()).join('. ')}.` : `${d.artist || d.author || ''}.`}
-      ${[d.year, d.title, `${d.prefix} ${d.other}`.trim()].filter((s) => s?.toString().trim()).join('. ')}
+      ${[...new Set([d.artist, d.holder, d.author])].filter((s) => s.trim()).join('. ')}.
+      ${[d.year, d.title, d.provider].filter((s) => s?.toString() && ![d.artist, d.holder, d.author].includes(s)).join(', ')}
     `.replace(/[\n\r]+\s+/g, ' ').trim();
   });
 
