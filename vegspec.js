@@ -1512,42 +1512,58 @@ const routeDataErrors = async (req, res) => {
 };
 
 const routeImageCredits = async (req, res) => {
-  const query = `
-    WITH first_images AS (
-      SELECT DISTINCT ON (plant_symbol)
-        plant_symbol, imagesizepath3
+  const { show, symbol } = req.query;
+
+  const query = symbol
+    ? `
+      SELECT
+        plant_symbol || '.' || imageid as plant_symbol,
+        imagesizepath1, imagesizepath2, imagesizepath3,
+        hascopyright,
+        imagecreationdate, prefixname, datasourcetype,
+        commonname, institutionname, credittype,
+        emailaddress, literaturetitle, literatureyear, literatureplace, imageid,
+        width, height
       FROM plants3.imagedata
-      WHERE
-        plant_symbol IN (
-          SELECT DISTINCT psymbol from plants3.states a
-          JOIN plants3.synonyms b
-          ON plant_symbol = psymbol OR plant_symbol = ssymbol        
-        )
-        OR plant_symbol IN (
-          SELECT DISTINCT ssymbol from plants3.states a
-          JOIN plants3.synonyms b
-          ON plant_symbol = psymbol OR plant_symbol = ssymbol        
-        )
-        OR plant_symbol IN (
-          SELECT DISTINCT plant_symbol from plants3.states
-        )
-      ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
-    )
-    SELECT
-      i.plant_symbol, 
-      i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
-      i.hascopyright,
-      i.imagecreationdate, i.prefixname, i.datasourcetype,
-      i.commonname, i.institutionname, i.credittype,
-      i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
-      i.width, i.height
-    FROM plants3.imagedata i
-    JOIN first_images f
-    ON i.plant_symbol = f.plant_symbol
-      AND i.imagesizepath3 = f.imagesizepath3
-      AND i.prefixname IS DISTINCT FROM 'Scanned by'
-    ORDER BY i.plant_symbol;
-  `;
+      WHERE plant_symbol='${symbol}'
+      ORDER BY imageid;
+    `
+    : `
+      WITH first_images AS (
+        SELECT DISTINCT ON (plant_symbol)
+          plant_symbol, imagesizepath3
+        FROM plants3.imagedata
+        WHERE
+          plant_symbol IN (
+            SELECT DISTINCT psymbol from plants3.states a
+            JOIN plants3.synonyms b
+            ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+          )
+          OR plant_symbol IN (
+            SELECT DISTINCT ssymbol from plants3.states a
+            JOIN plants3.synonyms b
+            ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+          )
+          OR plant_symbol IN (
+            SELECT DISTINCT plant_symbol from plants3.states
+          )
+        ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
+      )
+      SELECT
+        i.plant_symbol, 
+        i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
+        i.hascopyright,
+        i.imagecreationdate, i.prefixname, i.datasourcetype,
+        i.commonname, i.institutionname, i.credittype,
+        i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
+        i.width, i.height
+      FROM plants3.imagedata i
+      JOIN first_images f
+      ON i.plant_symbol = f.plant_symbol
+        AND i.imagesizepath3 = f.imagesizepath3
+        AND i.prefixname IS DISTINCT FROM 'Scanned by'
+      ORDER BY i.plant_symbol;
+    `;
 
   const results = await pool.query(query);
 
@@ -1581,7 +1597,7 @@ const routeImageCredits = async (req, res) => {
     if (row['copyright holder']) obj.holder = row['copyright holder'];
   });
 
-  const output = {};
+  const output = symbol ? [] : {};
   Object.keys(data).forEach((key) => {
     const d = data[key];
     output[key] = {
@@ -1597,7 +1613,7 @@ const routeImageCredits = async (req, res) => {
     output[key].description = `
       ${[...new Set([d.artist, d.holder, d.author])].filter((s) => s.trim()).join('. ')}.
       ${[d.year, d.title, d.provider].filter((s) => s?.toString() && ![d.artist, d.holder, d.author].includes(s)).join(', ')}
-    `.replace(/[\n\r]+\s+/g, ' ').trim();
+    `.replace(/[\n\r]+\s+/g, ' ').trim().replace(/^\.\s*/, '').trim();
   });
 
   const synonyms = await pool.query('SELECT DISTINCT psymbol, ssymbol from plants3.synonyms');
@@ -1628,7 +1644,6 @@ const routeImageCredits = async (req, res) => {
     return obj;
   }, {});
 
-  const { show } = req.query;
   if (show) {
     if (show === 'portrait') {
       const done = {};
