@@ -1,7 +1,9 @@
+
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-prototype-builtins */
 
+const sharp = require('sharp');
 const { pool } = require('./pools');
 
 const {
@@ -350,10 +352,12 @@ const routeCharacteristics = async (req, res) => {
       WHERE cultivar = '';
 
       UPDATE plants3.characteristics a
-      SET  (plant_master_id,   full_scientific_name_without_author,   primary_vernacular,   plant_duration_name,   plant_growth_habit_name,
-            cover_crop) =
-        ROW(b.plant_master_id, b.full_scientific_name_without_author, b.primary_vernacular, b.plant_duration_name, b.plant_growth_habit_name,
-            b.cover_crop)
+      SET (
+        plant_master_id, full_scientific_name_without_author, primary_vernacular, plant_duration_name, plant_growth_habit_name, cover_crop
+      ) =
+      ROW(
+        b.plant_master_id, b.full_scientific_name_without_author, b.primary_vernacular, b.plant_duration_name, b.plant_growth_habit_name, b.cover_crop
+      )
       FROM plants3.characteristics b
       WHERE
         a.plant_symbol = b.plant_symbol
@@ -361,14 +365,22 @@ const routeCharacteristics = async (req, res) => {
 
       UPDATE plants3.states SET state = 'all' WHERE parameter = 'seed_per_pound';
 
-      UPDATE plants3.characteristics c
-      SET seed_per_pound = s.value::NUMERIC
-      FROM plants3.states s
-      WHERE 
-        c.seed_per_pound IS NULL
-        AND c.plant_symbol = s.plant_symbol
-        AND c.cultivar = s.cultivar_name
-        AND s.parameter = 'seed_per_pound';
+      UPDATE plants3.characteristics a
+      SET primary_vernacular = b.value
+      FROM plants3.states b
+      WHERE
+        a.plant_symbol = b.plant_symbol
+        AND b.state = 'all'
+        AND b.parameter = 'primary_vernacular';
+
+      UPDATE plants3.characteristics a
+      SET seed_per_pound = b.value::numeric
+      FROM plants3.states b
+      WHERE
+        a.plant_symbol = b.plant_symbol
+        AND a.cultivar = b.cultivar_name
+        AND b.state = 'all'
+        AND b.parameter = 'seed_per_pound';
         
       CREATE INDEX ON plants3.characteristics (plant_symbol);
       CREATE INDEX ON plants3.characteristics (plant_master_id);
@@ -1500,6 +1512,315 @@ const routeDataErrors = async (req, res) => {
   res.send(s);
 };
 
+const routeImageCredits = async (req, res) => {
+  const { show, symbol } = req.query;
+
+  const query = symbol
+    ? `
+      SELECT
+        plant_symbol || '.' || imageid as plant_symbol,
+        imagesizepath1, imagesizepath2, imagesizepath3,
+        hascopyright,
+        imagecreationdate, prefixname, datasourcetype,
+        commonname, institutionname, credittype,
+        emailaddress, literaturetitle, literatureyear, literatureplace, imageid,
+        width, height
+      FROM plants3.imagedata
+      WHERE plant_symbol='${symbol}'
+      ORDER BY imageid;
+    `
+    : `
+      WITH first_images AS (
+        SELECT DISTINCT ON (plant_symbol)
+          plant_symbol, imagesizepath3
+        FROM plants3.imagedata
+        WHERE
+          plant_symbol IN (
+            SELECT DISTINCT psymbol from plants3.states a
+            JOIN plants3.synonyms b
+            ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+          )
+          OR plant_symbol IN (
+            SELECT DISTINCT ssymbol from plants3.states a
+            JOIN plants3.synonyms b
+            ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+          )
+          OR plant_symbol IN (
+            SELECT DISTINCT plant_symbol from plants3.states
+          )
+        ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
+      )
+      SELECT
+        i.plant_symbol, 
+        i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
+        i.hascopyright,
+        i.imagecreationdate, i.prefixname, i.datasourcetype,
+        i.commonname, i.institutionname, i.credittype,
+        i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
+        i.width, i.height
+      FROM plants3.imagedata i
+      JOIN first_images f
+      ON i.plant_symbol = f.plant_symbol
+        AND i.imagesizepath3 = f.imagesizepath3
+        AND i.prefixname IS DISTINCT FROM 'Scanned by'
+      ORDER BY i.plant_symbol;
+    `;
+
+  const results = await pool.query(query);
+
+  const data = {};
+  results.rows.forEach((row) => {
+    data[row.plant_symbol] = data[row.plant_symbol] || {
+      thumbnail: row.imagesizepath3?.split('\\').slice(-1)[0],
+      standard: row.imagesizepath1?.split('\\').slice(-1)[0],
+      large: row.imagesizepath2?.split('\\').slice(-1)[0],
+      copyright: row.hascopyright === 'HasCopyright',
+      holder: '',
+      artist: '',
+      author: '',
+      prefix: '',
+      other: '',
+      provider: '',
+    };
+
+    const obj = data[row.plant_symbol];
+
+    obj[row.credittype.toLowerCase()] = row.commonname;
+    obj[row.datasourcetype.toLowerCase()] = row.commonname;
+    obj.prefix = data[row.plant_symbol].prefix || row.prefixname;
+    obj.width = row.width;
+    obj.height = row.height;
+    if (row.artist) obj.artist = row.artist;
+    if (row.author) obj.artist = row.author;
+    if (row.prefixname === 'Provided by') obj.provider = `Provided by ${row.commonname}`;
+    if (row.literaturetitle) obj.title = row.literaturetitle;
+    if (+row.literatureyear) obj.year = row.literatureyear;
+    if (row['copyright holder']) obj.holder = row['copyright holder'];
+  });
+
+  const output = symbol ? [] : {};
+  Object.keys(data).forEach((key) => {
+    const d = data[key];
+    output[key] = {
+      thumbnail: d.thumbnail,
+      standard: d.standard,
+      large: d.large,
+      width: d.width,
+      height: d.height,
+      copyright: d.copyright,
+      author: d.artist || d.holder || d.author,
+    };
+
+    output[key].description = `
+      ${[...new Set([d.artist, d.holder, d.author])].filter((s) => s.trim()).join('. ')}.
+      ${[d.year, d.title, d.provider].filter((s) => s?.toString() && ![d.artist, d.holder, d.author].includes(s)).join(', ')}
+    `.replace(/[\n\r]+\s+/g, ' ').trim().replace(/^\.\s*/, '').trim();
+  });
+
+  const synonyms = await pool.query('SELECT DISTINCT psymbol, ssymbol from plants3.synonyms');
+
+  // res.send(synonyms.rows); return;
+  synonyms.rows.forEach((row) => {
+    // Prioritize on landscape, even if it means changing to a synonym's image. But avoid black and white (svd)
+    if (output[row.psymbol] && output[row.ssymbol]) {
+      if (
+        (output[row.psymbol].width / output[row.psymbol].height < output[row.ssymbol].width / output[row.ssymbol].height)
+        || output[row.psymbol].standard.includes('svd.')
+      ) {
+        output[row.psymbol] = output[row.ssymbol];
+      } else if (output[row.ssymbol].standard.includes('svd.')) {
+        output[row.ssymbol] = output[row.psymbol];
+      }
+    }
+
+    if (!output[row.psymbol]) {
+      output[row.psymbol] = output[row.ssymbol];
+    } else if (!output[row.ssymbol]) {
+      output[row.ssymbol] = output[row.psymbol];
+    }
+  });
+
+  const sorted = Object.keys(output).sort().filter((key) => output[key]).reduce((obj, key) => {
+    obj[key] = output[key];
+    return obj;
+  }, {});
+
+  if (show) {
+    if (show === 'portrait') {
+      const done = {};
+      Object.entries(sorted).forEach(([key, value]) => {
+        if (value.width > value.height || done[value.standard]) {
+          delete sorted[key];
+        }
+        done[value.standard] = true;
+      });
+
+      let html = `
+        <html>
+          <style>
+            body {
+              background: #ddd;
+            }
+
+            img {
+              height: 100px;
+            }
+
+            table {
+              border: 1px solid black;
+              border-spacing: 0; 
+              empty-cells: show;
+              font-family: verdana;
+              font-size: 13px;
+              margin: auto;
+            }
+            
+            tr:nth-child(1) th {
+              position: sticky;
+              top: 0;
+              z-index: 1;
+            }
+
+            td, th {
+              border-right: 1px solid #ddd;
+              border-bottom: 1px solid #bbb;
+            }
+            
+            th {
+              background: #333;
+              color: #eee;
+              padding: 0.3rem;
+            }
+
+            td:nth-child(1) {
+              border-right: 3px ridge;
+              width: 235px;
+              text-align: center;
+            }
+
+            td div {
+              position: relative;
+              overflow: hidden;
+              height: 100px;
+              width: 235px;
+            }
+            
+            td:nth-child(2) img {
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              min-width: 100%;
+              min-height: 100%;
+              object-fit: cover;
+            }
+
+            td:nth-child(3) img {
+              position: absolute;
+              top: 0;
+              left: 50%;
+              transform: translateX(-50%);
+              min-width: 100%;
+              min-height: 100%;
+              object-fit: cover;
+              object-position: top;
+            }
+
+            td:nth-child(3) img {
+              position: absolute;
+              top: 0;
+              left: 50%;
+              transform: translateX(-50%);
+              min-width: 100%;
+              min-height: 100%;
+              object-fit: cover;
+              object-position: top;
+            }
+
+            td:nth-child(4) img {
+              position: absolute;
+              top: 0;
+              left: 50%;
+              transform: translateX(-50%);
+              min-width: 100%;
+              min-height: 100%;
+              object-fit: cover;
+              object-position: center 25%;
+            }
+
+            table a {
+              color: white;
+            }
+          </style>
+
+          <body>
+            <table>
+              <tr>
+                <th>Original</th>
+                <th>Landscape<br>Centered</th>
+                <th>Landscape<br>Top</th>
+                <th>Landscape<br>Down 25%</th>
+              </tr>
+      `;
+
+      html += Object.entries(sorted).map(([key, value]) => (`
+        <tr>
+          <th colspan="4">
+            <a target="_blank" href="https://plants.sc.egov.usda.gov/plant-profile/${key}/images">
+              ${key}
+            </a>
+          </th>
+        </tr>
+        <tr>
+          <td><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></td>
+          <td><div><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></div></td>
+          <td><div><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></div></td>
+          <td><div><img src="https://plants.sc.egov.usda.gov/ImageLibrary/standard/${value.standard}"></div></td>
+        </tr>
+      `)).join('');
+
+      res.send(html);
+    }
+  } else {
+    res.send(sorted);
+  }
+
+  // res.send(data);
+  // res.send(results.rows);
+};
+
+const routeImageSizes = async (req, res) => {
+  const results = await pool.query(`
+    SELECT DISTINCT imagesizepath3
+    FROM plants3.imagedata
+    WHERE width IS NULL
+    ORDER BY 1
+  `);
+
+  res.send(`Determining image dimensions for ${results.rows.length} images`);
+
+  let url;
+  for (const row of results.rows) {
+    try {
+      url = `https://plants.sc.egov.usda.gov${row.imagesizepath3}`;
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer); // Convert to Node.js Buffer
+      const { width, height } = await sharp(buffer).metadata();
+
+      await pool.query(
+        `UPDATE plants3.imagedata
+         SET width = $1, height = $2
+         WHERE imagesizepath3 = $3`,
+        [width, height, row.imagesizepath3],
+      );
+      await pool.query('SELECT pg_sleep(0.5);');
+    } catch (err) {
+      console.error(`Error with image ${url}:`, err.message);
+    }
+  }
+}; // routeImageSizes
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1521,4 +1842,6 @@ module.exports = {
   routeMissingCharacteristics,
   routeValidStates,
   routeDataErrors,
+  routeImageCredits,
+  routeImageSizes,
 };
