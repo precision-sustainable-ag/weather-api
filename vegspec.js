@@ -1,4 +1,3 @@
-
 /* eslint-disable no-await-in-loop */
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-prototype-builtins */
@@ -595,12 +594,12 @@ const routeCharacteristics = async (req, res) => {
 
   const sq = querySymbols.length
     ? `
-        SELECT ${columns} FROM plants3.characteristics
+        SELECT DISTINCT ${columns} FROM plants3.characteristics
         WHERE plant_symbol IN (${querySymbols}) ${stateCond}
         ${groupBy}
       `
     : `
-        SELECT ${columns} FROM plants3.characteristics
+        SELECT DISTINCT ${columns} FROM plants3.characteristics
         WHERE active_growth_period IS NOT NULL ${stateCond}
         ${groupBy}
       `;
@@ -609,6 +608,12 @@ const routeCharacteristics = async (req, res) => {
 
   console.time('query');
   const results = (await pool.query(sq)).rows;
+  results.forEach((row) => {
+    row.species = row.primary_vernacular || row.full_scientific_name_without_author;
+    row.species = row.species[0].toUpperCase() + row.species.slice(1);
+    row.scientific = row.full_scientific_name_without_author;
+    row.key = `${row.plant_master_id}|${row.species}|${row.cultivar || ''}`;
+  });
   console.timeEnd('query'); // 1s
 
   console.time('filter');
@@ -1035,7 +1040,9 @@ const routePlantsEmptyColumns = async (req, res) => {
     };
 
     sendResults(req, res, empty);
+    return;
   }
+
   let tables = req.query.table ? [req.query.table] : [];
 
   if (!tables.length) {
