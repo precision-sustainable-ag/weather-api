@@ -1828,6 +1828,22 @@ const routeImageSizes = async (req, res) => {
   }
 }; // routeImageSizes
 
+const routeInvalidMLRA = async (req, res) => {
+  const query = `
+    SELECT DISTINCT state, s.parameter, s.value, bad.mlra AS invalid_mlra
+    FROM plants3.states s
+    JOIN LATERAL regexp_split_to_table(s.value, ',') AS bad(mlra) ON TRUE
+    LEFT JOIN mlra.mlra valid ON bad.mlra = valid.mlrarsym
+    WHERE
+      (s.parameter = 'mlra' AND valid.mlrarsym IS NULL)
+      AND bad.mlra != '95'
+    ORDER BY 4, 1;  
+  `;
+
+  const results = await pool.query(query);
+  sendResults(req, res, results.rows);
+}; // routeInvalidMLRA
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1851,4 +1867,5 @@ module.exports = {
   routeDataErrors,
   routeImageCredits,
   routeImageSizes,
+  routeInvalidMLRA,
 };

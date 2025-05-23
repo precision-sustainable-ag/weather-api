@@ -2275,6 +2275,52 @@ const routeYearlyPrecipitation = async (req, res) => {
   }
 }; // routeYearlyPrecipitation
 
+const routeMrvCategories = async (req, res) => {
+  const results = await pool.query(`
+    SELECT field, category FROM mrv
+    WHERE
+      state = $1
+      AND TO_CHAR(date, 'YY-MMDD') = '${req.query.date}'
+    ORDER BY field
+  `, [req.query.state]);
+  res.send(results.rows);
+}; // routeMrvCategories
+
+const routeMrvSetCategory = async (req, res) => {
+  const {
+    state, date, field, category,
+  } = req.query;
+
+  try {
+    await pool.query(
+      `
+        DELETE FROM mrv
+        WHERE
+          state = $1
+          AND TO_CHAR(date, 'YY-MMDD') = $2
+          AND field = $3
+      `,
+      [state, date, field],
+    );
+
+    if (category) {
+      await pool.query(
+        `
+          INSERT INTO mrv
+          (state, date, field, category)
+          VALUES ($1, TO_DATE($2, 'YY-MMDD'), $3, $4)
+        `,
+        [state, date, field, category],
+      );
+    }
+
+    res.send({ status: 'success' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ status: 'error', message: 'Database operation failed' });
+  }
+}; // routeMrvCategories
+
 module.exports = {
   routeAddresses,
   routeAverages,
@@ -2303,4 +2349,6 @@ module.exports = {
   routeWatershed,
   routeYearly,
   routeYearlyPrecipitation,
+  routeMrvCategories,
+  routeMrvSetCategory,
 };
