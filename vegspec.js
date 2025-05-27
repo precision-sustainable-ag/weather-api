@@ -1876,7 +1876,7 @@ const routeInvalidCPS = async (req, res) => {
 
 const routeInvalidSeedPerPound = async (req, res) => {
   const query = `
-    SELECT
+    SELECT DISTINCT
       plant_symbol AS symbol,
       cultivar,
       c.seed_per_pound AS correct_seed_per_pound,
