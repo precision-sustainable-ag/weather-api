@@ -1830,19 +1830,49 @@ const routeImageSizes = async (req, res) => {
 
 const routeInvalidMLRA = async (req, res) => {
   const query = `
-    SELECT DISTINCT state, s.parameter, s.value, bad.mlra AS invalid_mlra
+    SELECT DISTINCT state, s.plant_symbol as symbol, s.parameter, s.value, bad.mlra AS invalid_mlra
     FROM plants3.states s
     JOIN LATERAL regexp_split_to_table(s.value, ',') AS bad(mlra) ON TRUE
     LEFT JOIN mlra.mlra valid ON bad.mlra = valid.mlrarsym
     WHERE
       (s.parameter = 'mlra' AND valid.mlrarsym IS NULL)
       AND bad.mlra != '95'
-    ORDER BY 4, 1;  
+    ORDER BY 5, 1;
   `;
 
   const results = await pool.query(query);
   sendResults(req, res, results.rows);
 }; // routeInvalidMLRA
+
+const routeInvalidCPS = async (req, res) => {
+  const query = `
+    WITH valid(cps) AS (
+      VALUES
+        ('311'), ('327'), ('332'), ('340'), ('342'), ('379'),
+        ('380'), ('381'), ('386'), ('390'), ('391'), ('393'),
+        ('395'), ('412'), ('420'), ('422'), ('512'), ('550'),
+        ('580'), ('601'), ('603'), ('612'), ('635'), ('643'),
+        ('644'), ('645'), ('647'), ('657'), ('658'), ('659'),
+        ('810')
+    )
+    SELECT DISTINCT
+      state,
+      plant_symbol as symbol,
+      s.parameter,
+      s.value,
+      bad.cps AS invalid_cps
+    FROM plants3.states s
+    JOIN LATERAL regexp_split_to_table(s.value, ',') AS bad(cps) ON TRUE
+    LEFT JOIN valid ON bad.cps = valid.cps
+    WHERE
+      s.parameter = 'cps'
+      AND valid.cps IS NULL
+    ORDER BY 5, 1;
+  `;
+
+  const results = await pool.query(query);
+  sendResults(req, res, results.rows);
+}; // routeInvalidCPS
 
 module.exports = {
   routeCharacteristics,
@@ -1868,4 +1898,5 @@ module.exports = {
   routeImageCredits,
   routeImageSizes,
   routeInvalidMLRA,
+  routeInvalidCPS,
 };

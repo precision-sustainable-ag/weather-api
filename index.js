@@ -114,6 +114,7 @@ app.all('/vegspec/dataerrors', vegspec.routeDataErrors);
 app.all('/vegspec/imagecredits', vegspec.routeImageCredits);
 app.all('/vegspec/imagesizes', vegspec.routeImageSizes);
 app.all('/vegspec/invalidmlra', vegspec.routeInvalidMLRA);
+app.all('/vegspec/invalidcps', vegspec.routeInvalidCPS);
 
 app.all('/mrv/categories', weather.routeMrvCategories);
 app.all('/mrv/setcategory', weather.routeMrvSetCategory);
