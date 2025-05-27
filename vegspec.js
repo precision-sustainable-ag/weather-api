@@ -1874,6 +1874,26 @@ const routeInvalidCPS = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidCPS
 
+const routeInvalidSeedPerPound = async (req, res) => {
+  const query = `
+    SELECT
+      plant_symbol AS symbol,
+      cultivar,
+      c.seed_per_pound AS correct_seed_per_pound,
+      r.seed_per_pound as plants_seed_per_pound
+    FROM plants3.characteristics c
+    INNER JOIN plants3.plant_reproduction r
+    ON
+      c.plant_master_id = r.plant_master_id
+      AND COALESCE(c.cultivar, '') = COALESCE(r.cultivar_name, '')
+    WHERE c.seed_per_pound <> r.seed_per_pound
+    ORDER BY 1, 2;
+  `;
+
+  const results = await pool.query(query);
+  sendResults(req, res, results.rows);
+}; // routeInvalidSeedPerPound
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1899,4 +1919,5 @@ module.exports = {
   routeImageSizes,
   routeInvalidMLRA,
   routeInvalidCPS,
+  routeInvalidSeedPerPound,
 };
