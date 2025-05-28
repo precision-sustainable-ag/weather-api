@@ -1524,53 +1524,66 @@ const routeImageCredits = async (req, res) => {
 
   const query = symbol
     ? `
-      SELECT
-        plant_symbol || '.' || imageid as plant_symbol,
-        imagesizepath1, imagesizepath2, imagesizepath3,
-        hascopyright,
-        imagecreationdate, prefixname, datasourcetype,
-        commonname, institutionname, credittype,
-        emailaddress, literaturetitle, literatureyear, literatureplace, imageid,
-        width, height
-      FROM plants3.imagedata
-      WHERE plant_symbol='${symbol}'
+      SELECT DISTINCT b.*, plant_image_location FROM (
+        SELECT
+          plant_symbol || '.' || imageid as plant_symbol,
+          imagesizepath1, imagesizepath2, imagesizepath3,
+          hascopyright,
+          imagecreationdate, prefixname, datasourcetype,
+          commonname, institutionname, credittype,
+          emailaddress, literaturetitle, literatureyear, literatureplace, imageid,
+          width, height
+        FROM plants3.imagedata
+        WHERE plant_symbol='${symbol}'
+      ) b
+      LEFT JOIN plants3.plant_image i
+      ON b.imageid = i.plant_image_id
       ORDER BY imageid;
     `
     : `
-      WITH first_images AS (
-        SELECT DISTINCT ON (plant_symbol)
-          plant_symbol, imagesizepath3
-        FROM plants3.imagedata
-        WHERE
-          plant_symbol IN (
-            SELECT DISTINCT psymbol from plants3.states a
-            JOIN plants3.synonyms b
-            ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+      SELECT DISTINCT b.*, plant_image_location FROM (
+        SELECT a.*, plant_master_id FROM (
+          WITH first_images AS (
+            SELECT DISTINCT ON (plant_symbol)
+              plant_symbol, imagesizepath3
+            FROM plants3.imagedata
+            WHERE
+              plant_symbol IN (
+                SELECT DISTINCT psymbol from plants3.states a
+                JOIN plants3.synonyms b
+                ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+              )
+              OR plant_symbol IN (
+                SELECT DISTINCT ssymbol from plants3.states a
+                JOIN plants3.synonyms b
+                ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+              )
+              OR plant_symbol IN (
+                SELECT DISTINCT plant_symbol from plants3.states
+              )
+            ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
           )
-          OR plant_symbol IN (
-            SELECT DISTINCT ssymbol from plants3.states a
-            JOIN plants3.synonyms b
-            ON plant_symbol = psymbol OR plant_symbol = ssymbol        
-          )
-          OR plant_symbol IN (
-            SELECT DISTINCT plant_symbol from plants3.states
-          )
-        ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
-      )
-      SELECT
-        i.plant_symbol, 
-        i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
-        i.hascopyright,
-        i.imagecreationdate, i.prefixname, i.datasourcetype,
-        i.commonname, i.institutionname, i.credittype,
-        i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
-        i.width, i.height
-      FROM plants3.imagedata i
-      JOIN first_images f
-      ON i.plant_symbol = f.plant_symbol
-        AND i.imagesizepath3 = f.imagesizepath3
-        AND i.prefixname IS DISTINCT FROM 'Scanned by'
-      ORDER BY i.plant_symbol;
+          SELECT
+            i.plant_symbol, 
+            i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
+            i.hascopyright,
+            i.imagecreationdate, i.prefixname, i.datasourcetype,
+            i.commonname, i.institutionname, i.credittype,
+            i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
+            i.plant_image_id,
+            i.width, i.height
+          FROM plants3.imagedata i
+          JOIN first_images f
+          ON i.plant_symbol = f.plant_symbol
+            AND i.imagesizepath3 = f.imagesizepath3
+            AND i.prefixname IS DISTINCT FROM 'Scanned by'
+          ORDER BY i.plant_symbol
+        ) a
+        LEFT JOIN plants3.characteristics c
+        USING (plant_symbol)
+      ) b
+      LEFT JOIN plants3.plant_image i
+      ON b.imageid = i.plant_image_id
     `;
 
   const results = await pool.query(query);
@@ -1597,6 +1610,7 @@ const routeImageCredits = async (req, res) => {
     obj.prefix = data[row.plant_symbol].prefix || row.prefixname;
     obj.width = row.width;
     obj.height = row.height;
+    obj.location = row.plant_image_location;
     if (row.artist) obj.artist = row.artist;
     if (row.author) obj.artist = row.author;
     if (row.prefixname === 'Provided by') obj.provider = `Provided by ${row.commonname}`;
@@ -1621,7 +1635,13 @@ const routeImageCredits = async (req, res) => {
     output[key].description = `
       ${[...new Set([d.artist, d.holder, d.author])].filter((s) => s.trim()).join('. ')}.
       ${[d.year, d.title, d.provider].filter((s) => s?.toString() && ![d.artist, d.holder, d.author].includes(s)).join(', ')}
-    `.replace(/[\n\r]+\s+/g, ' ').trim().replace(/^\.\s*/, '').trim();
+      ${d.location ? `. ${d.location}` : ''}
+    `.replace(/[\n\r]+\s+/g, ' ')
+      .trim()
+      .replace(/^\.\s*/, '')
+      .replace(/\s*\./g, '.')
+      .replace(/\.\s*\./g, '')
+      .trim();
   });
 
   const synonyms = await pool.query('SELECT DISTINCT psymbol, ssymbol from plants3.synonyms');
