@@ -1542,45 +1542,41 @@ const routeImageCredits = async (req, res) => {
     `
     : `
       SELECT DISTINCT b.*, plant_image_location FROM (
-        SELECT a.*, plant_master_id FROM (
-          WITH first_images AS (
-            SELECT DISTINCT ON (plant_symbol)
-              plant_symbol, imagesizepath3
-            FROM plants3.imagedata
-            WHERE
-              plant_symbol IN (
-                SELECT DISTINCT psymbol from plants3.states a
-                JOIN plants3.synonyms b
-                ON plant_symbol = psymbol OR plant_symbol = ssymbol        
-              )
-              OR plant_symbol IN (
-                SELECT DISTINCT ssymbol from plants3.states a
-                JOIN plants3.synonyms b
-                ON plant_symbol = psymbol OR plant_symbol = ssymbol        
-              )
-              OR plant_symbol IN (
-                SELECT DISTINCT plant_symbol from plants3.states
-              )
-            ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
-          )
-          SELECT
-            i.plant_symbol, 
-            i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
-            i.hascopyright,
-            i.imagecreationdate, i.prefixname, i.datasourcetype,
-            i.commonname, i.institutionname, i.credittype,
-            i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
-            i.plant_image_id,
-            i.width, i.height
-          FROM plants3.imagedata i
-          JOIN first_images f
-          ON i.plant_symbol = f.plant_symbol
-            AND i.imagesizepath3 = f.imagesizepath3
-            AND i.prefixname IS DISTINCT FROM 'Scanned by'
-          ORDER BY i.plant_symbol
-        ) a
-        LEFT JOIN plants3.characteristics c
-        USING (plant_symbol)
+        WITH first_images AS (
+          SELECT DISTINCT ON (plant_symbol)
+            plant_symbol, imagesizepath3
+          FROM plants3.imagedata
+          WHERE
+            plant_symbol IN (
+              SELECT DISTINCT psymbol from plants3.states a
+              JOIN plants3.synonyms b
+              ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+            )
+            OR plant_symbol IN (
+              SELECT DISTINCT ssymbol from plants3.states a
+              JOIN plants3.synonyms b
+              ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+            )
+            OR plant_symbol IN (
+              SELECT DISTINCT plant_symbol from plants3.states
+            )
+          ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
+        )
+        SELECT
+          i.plant_symbol, 
+          i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
+          i.hascopyright,
+          i.imagecreationdate, i.prefixname, i.datasourcetype,
+          i.commonname, i.institutionname, i.credittype,
+          i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
+          i.plant_image_id,
+          i.width, i.height
+        FROM plants3.imagedata i
+        JOIN first_images f
+        ON i.plant_symbol = f.plant_symbol
+          AND i.imagesizepath3 = f.imagesizepath3
+          AND i.prefixname IS DISTINCT FROM 'Scanned by'
+        ORDER BY i.plant_symbol
       ) b
       LEFT JOIN plants3.plant_image i
       ON b.imageid = i.plant_image_id
