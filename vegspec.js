@@ -728,6 +728,26 @@ const routeCharacteristics = async (req, res) => {
     return;
   }
 
+  if (req.query.missing) {
+    finalResults = finalResults.filter((row) => !row[req.query.missing]);
+  }
+
+  if (req.query.output === 'html') {
+    finalResults.forEach((row) => {
+      const p = row.plant_symbol;
+      row.plant_symbol = `<a target="_blank" href="https://plants.sc.egov.usda.gov/plant-profile/${p}">${p}</a>`;
+      return row;
+    });
+  }
+
+  if (req.query.hideempty) {
+    for (const key of Object.keys(finalResults[0])) {
+      if (finalResults.every((row) => row[key] === null)) {
+        for (const row of finalResults) delete row[key];
+      }
+    }
+  }
+
   sendResults(req, res, finalResults);
 }; // routeCharacteristics
 
@@ -1524,53 +1544,62 @@ const routeImageCredits = async (req, res) => {
 
   const query = symbol
     ? `
-      SELECT
-        plant_symbol || '.' || imageid as plant_symbol,
-        imagesizepath1, imagesizepath2, imagesizepath3,
-        hascopyright,
-        imagecreationdate, prefixname, datasourcetype,
-        commonname, institutionname, credittype,
-        emailaddress, literaturetitle, literatureyear, literatureplace, imageid,
-        width, height
-      FROM plants3.imagedata
-      WHERE plant_symbol='${symbol}'
+      SELECT DISTINCT b.*, plant_image_location FROM (
+        SELECT
+          plant_symbol || '.' || imageid as plant_symbol,
+          imagesizepath1, imagesizepath2, imagesizepath3,
+          hascopyright,
+          imagecreationdate, prefixname, datasourcetype,
+          commonname, institutionname, credittype,
+          emailaddress, literaturetitle, literatureyear, literatureplace, imageid,
+          width, height
+        FROM plants3.imagedata
+        WHERE plant_symbol='${symbol}'
+      ) b
+      LEFT JOIN plants3.plant_image i
+      ON b.imageid = i.plant_image_id
       ORDER BY imageid;
     `
     : `
-      WITH first_images AS (
-        SELECT DISTINCT ON (plant_symbol)
-          plant_symbol, imagesizepath3
-        FROM plants3.imagedata
-        WHERE
-          plant_symbol IN (
-            SELECT DISTINCT psymbol from plants3.states a
-            JOIN plants3.synonyms b
-            ON plant_symbol = psymbol OR plant_symbol = ssymbol        
-          )
-          OR plant_symbol IN (
-            SELECT DISTINCT ssymbol from plants3.states a
-            JOIN plants3.synonyms b
-            ON plant_symbol = psymbol OR plant_symbol = ssymbol        
-          )
-          OR plant_symbol IN (
-            SELECT DISTINCT plant_symbol from plants3.states
-          )
-        ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
-      )
-      SELECT
-        i.plant_symbol, 
-        i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
-        i.hascopyright,
-        i.imagecreationdate, i.prefixname, i.datasourcetype,
-        i.commonname, i.institutionname, i.credittype,
-        i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
-        i.width, i.height
-      FROM plants3.imagedata i
-      JOIN first_images f
-      ON i.plant_symbol = f.plant_symbol
-        AND i.imagesizepath3 = f.imagesizepath3
-        AND i.prefixname IS DISTINCT FROM 'Scanned by'
-      ORDER BY i.plant_symbol;
+      SELECT DISTINCT b.*, plant_image_location FROM (
+        WITH first_images AS (
+          SELECT DISTINCT ON (plant_symbol)
+            plant_symbol, imagesizepath3
+          FROM plants3.imagedata
+          WHERE
+            plant_symbol IN (
+              SELECT DISTINCT psymbol from plants3.states a
+              JOIN plants3.synonyms b
+              ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+            )
+            OR plant_symbol IN (
+              SELECT DISTINCT ssymbol from plants3.states a
+              JOIN plants3.synonyms b
+              ON plant_symbol = psymbol OR plant_symbol = ssymbol        
+            )
+            OR plant_symbol IN (
+              SELECT DISTINCT plant_symbol from plants3.states
+            )
+          ORDER BY plant_symbol, height::float / NULLIF(width, 0) NULLS LAST, imageid
+        )
+        SELECT
+          i.plant_symbol, 
+          i.imagesizepath1, i.imagesizepath2, i.imagesizepath3,
+          i.hascopyright,
+          i.imagecreationdate, i.prefixname, i.datasourcetype,
+          i.commonname, i.institutionname, i.credittype,
+          i.emailaddress, i.literaturetitle, i.literatureyear, i.literatureplace, i.imageid,
+          i.plant_image_id,
+          i.width, i.height
+        FROM plants3.imagedata i
+        JOIN first_images f
+        ON i.plant_symbol = f.plant_symbol
+          AND i.imagesizepath3 = f.imagesizepath3
+          AND i.prefixname IS DISTINCT FROM 'Scanned by'
+        ORDER BY i.plant_symbol
+      ) b
+      LEFT JOIN plants3.plant_image i
+      ON b.imageid = i.plant_image_id
     `;
 
   const results = await pool.query(query);
@@ -1597,6 +1626,7 @@ const routeImageCredits = async (req, res) => {
     obj.prefix = data[row.plant_symbol].prefix || row.prefixname;
     obj.width = row.width;
     obj.height = row.height;
+    obj.location = row.plant_image_location;
     if (row.artist) obj.artist = row.artist;
     if (row.author) obj.artist = row.author;
     if (row.prefixname === 'Provided by') obj.provider = `Provided by ${row.commonname}`;
@@ -1621,7 +1651,13 @@ const routeImageCredits = async (req, res) => {
     output[key].description = `
       ${[...new Set([d.artist, d.holder, d.author])].filter((s) => s.trim()).join('. ')}.
       ${[d.year, d.title, d.provider].filter((s) => s?.toString() && ![d.artist, d.holder, d.author].includes(s)).join(', ')}
-    `.replace(/[\n\r]+\s+/g, ' ').trim().replace(/^\.\s*/, '').trim();
+      ${d.location ? `. ${d.location}` : ''}
+    `.replace(/[\n\r]+\s+/g, ' ')
+      .trim()
+      .replace(/^\.\s*/, '')
+      .replace(/\s*\./g, '.')
+      .replace(/\.\s*\./g, '')
+      .trim();
   });
 
   const synonyms = await pool.query('SELECT DISTINCT psymbol, ssymbol from plants3.synonyms');
@@ -1830,19 +1866,69 @@ const routeImageSizes = async (req, res) => {
 
 const routeInvalidMLRA = async (req, res) => {
   const query = `
-    SELECT DISTINCT state, s.parameter, s.value, bad.mlra AS invalid_mlra
+    SELECT DISTINCT state, s.plant_symbol as symbol, s.parameter, s.value, bad.mlra AS invalid_mlra
     FROM plants3.states s
     JOIN LATERAL regexp_split_to_table(s.value, ',') AS bad(mlra) ON TRUE
     LEFT JOIN mlra.mlra valid ON bad.mlra = valid.mlrarsym
     WHERE
       (s.parameter = 'mlra' AND valid.mlrarsym IS NULL)
       AND bad.mlra != '95'
-    ORDER BY 4, 1;  
+    ORDER BY 5, 1;
   `;
 
   const results = await pool.query(query);
   sendResults(req, res, results.rows);
 }; // routeInvalidMLRA
+
+const routeInvalidCPS = async (req, res) => {
+  const query = `
+    WITH valid(cps) AS (
+      VALUES
+        ('311'), ('327'), ('332'), ('340'), ('342'), ('379'),
+        ('380'), ('381'), ('386'), ('390'), ('391'), ('393'),
+        ('395'), ('412'), ('420'), ('422'), ('512'), ('550'),
+        ('580'), ('601'), ('603'), ('612'), ('635'), ('643'),
+        ('644'), ('645'), ('647'), ('657'), ('658'), ('659'),
+        ('810')
+    )
+    SELECT DISTINCT
+      state,
+      plant_symbol as symbol,
+      s.parameter,
+      s.value,
+      bad.cps AS invalid_cps
+    FROM plants3.states s
+    JOIN LATERAL regexp_split_to_table(s.value, ',') AS bad(cps) ON TRUE
+    LEFT JOIN valid ON bad.cps = valid.cps
+    WHERE
+      s.parameter = 'cps'
+      AND valid.cps IS NULL
+    ORDER BY 5, 1;
+  `;
+
+  const results = await pool.query(query);
+  sendResults(req, res, results.rows);
+}; // routeInvalidCPS
+
+const routeInvalidSeedPerPound = async (req, res) => {
+  const query = `
+    SELECT DISTINCT
+      plant_symbol AS symbol,
+      cultivar,
+      c.seed_per_pound AS correct_seed_per_pound,
+      r.seed_per_pound as plants_seed_per_pound
+    FROM plants3.characteristics c
+    INNER JOIN plants3.plant_reproduction r
+    ON
+      c.plant_master_id = r.plant_master_id
+      AND COALESCE(c.cultivar, '') = COALESCE(r.cultivar_name, '')
+    WHERE c.seed_per_pound <> r.seed_per_pound
+    ORDER BY 1, 2;
+  `;
+
+  const results = await pool.query(query);
+  sendResults(req, res, results.rows);
+}; // routeInvalidSeedPerPound
 
 module.exports = {
   routeCharacteristics,
@@ -1868,4 +1954,6 @@ module.exports = {
   routeImageCredits,
   routeImageSizes,
   routeInvalidMLRA,
+  routeInvalidCPS,
+  routeInvalidSeedPerPound,
 };
