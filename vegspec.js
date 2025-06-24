@@ -728,6 +728,26 @@ const routeCharacteristics = async (req, res) => {
     return;
   }
 
+  if (req.query.missing) {
+    finalResults = finalResults.filter((row) => !row[req.query.missing]);
+  }
+
+  if (req.query.output === 'html') {
+    finalResults.forEach((row) => {
+      const p = row.plant_symbol;
+      row.plant_symbol = `<a target="_blank" href="https://plants.sc.egov.usda.gov/plant-profile/${p}">${p}</a>`;
+      return row;
+    });
+  }
+
+  if (req.query.hideempty) {
+    for (const key of Object.keys(finalResults[0])) {
+      if (finalResults.every((row) => row[key] === null)) {
+        for (const row of finalResults) delete row[key];
+      }
+    }
+  }
+
   sendResults(req, res, finalResults);
 }; // routeCharacteristics
 
