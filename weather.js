@@ -811,7 +811,8 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
               AND ${dateCond}
           `);
 
-        if (type === 'nldas_hourly_' && (req.query.predicted === 'true' || options.includes('predicted'))) {
+        const days = (new Date() - new Date(end)) / (1000 * 60 * 60 * 24);
+        if (days < 10 && type === 'nldas_hourly_' && (req.query.predicted === 'true' || options.includes('predicted'))) {
           let maxdate = '';
           const year = new Date().getFullYear();
 
