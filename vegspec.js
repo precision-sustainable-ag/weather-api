@@ -1931,8 +1931,12 @@ const routeInvalidSeedPerPound = async (req, res) => {
 }; // routeInvalidSeedPerPound
 
 const routeMixes = async (req, res) => {
-  const query = 'SELECT * FROM vegspec.mixes;';
-  const results = await pool.query(query);
+  const { state } = req.query;
+  const query = state
+    ? ['SELECT * FROM plants3.mixes WHERE state = $1;', [state]]
+    : ['SELECT * FROM plants3.mixes;', []];
+
+  const results = await pool.query(...query);
   sendResults(req, res, results.rows);
 }; // routeMixes
 
