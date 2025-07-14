@@ -1930,6 +1930,12 @@ const routeInvalidSeedPerPound = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidSeedPerPound
 
+const routeMixes = async (req, res) => {
+  const query = 'SELECT * FROM vegspec.mixes;';
+  const results = await pool.query(query);
+  sendResults(req, res, results.rows);
+}; // routeMixes
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1956,4 +1962,5 @@ module.exports = {
   routeInvalidMLRA,
   routeInvalidCPS,
   routeInvalidSeedPerPound,
+  routeMixes,
 };

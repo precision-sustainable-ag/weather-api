@@ -149,7 +149,7 @@
     "send": "^0.18.0",
     "serve-static": "^1.15.0",
     "setprototypeof": "^1.2.0",
-    "sharp": "^0.34.1",
+    "sharp": "^0.34.3",
     "shimmer": "^1.2.1",
     "side-channel": "^1.0.4",
     "signal-exit": "^3.0.5",
