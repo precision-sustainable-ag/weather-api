@@ -2,6 +2,7 @@
 /* eslint-disable no-restricted-syntax */
 /* eslint-disable no-prototype-builtins */
 
+// test
 const sharp = require('sharp');
 const { pool } = require('./pools');
 
@@ -1930,6 +1931,16 @@ const routeInvalidSeedPerPound = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidSeedPerPound
 
+const routeMixes = async (req, res) => {
+  const { state } = req.query;
+  const query = state
+    ? ['SELECT * FROM plants3.mixes WHERE state = $1;', [state]]
+    : ['SELECT * FROM plants3.mixes;', []];
+
+  const results = await pool.query(...query);
+  sendResults(req, res, results.rows);
+}; // routeMixes
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1956,4 +1967,5 @@ module.exports = {
   routeInvalidMLRA,
   routeInvalidCPS,
   routeInvalidSeedPerPound,
+  routeMixes,
 };
