@@ -1934,8 +1934,8 @@ const routeInvalidSeedPerPound = async (req, res) => {
 const routeMixes = async (req, res) => {
   const { state } = req.query;
   const query = state
-    ? ['SELECT * FROM plants3.mixes WHERE state = $1;', [state]]
-    : ['SELECT * FROM plants3.mixes;', []];
+    ? ['SELECT * FROM plants3.mixes WHERE state = $1 ORDER BY sequence;', [state]]
+    : ['SELECT * FROM plants3.mixes ORDER BY sequence;', []];
 
   const results = await pool.query(...query);
   sendResults(req, res, results.rows);
