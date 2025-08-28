@@ -2096,6 +2096,9 @@ const routeFrost = async (req, res) => {
 const routeYearly = async (req, res) => {
   const { lats, lons } = await init(req, res);
 
+  // const y1 = new Date().getFullYear() - 5;
+  // const y2 = new Date().getFullYear() - 1;
+
   const y1 = 2018;
   const y2 = 2022;
 
@@ -2112,8 +2115,8 @@ const routeYearly = async (req, res) => {
   // SQL query for fetching yearly temperature data.
   const sq = `
     SELECT
-      ${year1}${year2 !== year1 ? ` || '-' || ${year2}` : ''} as year,
-      ${lat} as lat, ${lon} as lon,
+      ${year1}${year2 !== year1 ? ` || '-' || ${year2}` : ''} AS year,
+      ${lat} AS lat, ${lon} AS lon,
       min(min_air_temperature) AS min_air_temperature,
       max(max_air_temperature) AS max_air_temperature,
       min(sum_precipitation) AS min_precipitation,
@@ -2121,24 +2124,23 @@ const routeYearly = async (req, res) => {
       avg(sum_precipitation) AS avg_precipitation
     FROM (
       ${range(year1, year2).map((y) => `
-          SELECT * FROM
-          weather.yearly_${Math.trunc(NLDASlat(lat))}_${Math.trunc(-NLDASlon(lon))}_${y}
-          WHERE lat=${NLDASlat(lat)} and lon=${NLDASlon(lon)}
-        `).join(`
-          UNION ALL
-        `)}
+        SELECT * FROM
+        weather.yearly_${Math.trunc(NLDASlat(lat))}_${Math.trunc(-NLDASlon(lon))}_${y}
+        WHERE lat=${NLDASlat(lat)} AND lon=${NLDASlon(lon)}
+      `).join(`
+        UNION ALL
+      `)}
     ) a
     GROUP BY lat, lon;
   `;
 
   // console.log(sq);
 
-  // Executing the SQL query.
   pool.query(
     sq,
     (err, results) => {
       if (err) {
-        debug(err, req, res, 500);
+        res.status(500).send({ error: err.message });
       } else {
         sendResults(req, res, results.rows);
       }
