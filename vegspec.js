@@ -464,7 +464,7 @@ const routeCharacteristics = async (req, res) => {
     if (stateData.length) {
       if (mlra) {
         const stateSymbols = stateData
-          .filter((row) => row.parameter === 'mlra' && row.value.split(',').includes(mlra))
+          .filter((row) => row.parameter === 'mlra' && (row.value === 'all' || row.value.split(',').includes(mlra)))
           .map((row) => row.plant_symbol);
 
         stateData = stateData.filter((row) => stateSymbols.includes(row.plant_symbol));
