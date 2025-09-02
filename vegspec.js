@@ -741,6 +741,11 @@ const routeCharacteristics = async (req, res) => {
     });
   }
 
+  if (!finalResults.length) {
+    res.send([]);
+    return;
+  }
+
   if (req.query.hideempty) {
     for (const key of Object.keys(finalResults[0])) {
       if (finalResults.every((row) => row[key] === null)) {
