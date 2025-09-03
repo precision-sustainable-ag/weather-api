@@ -117,6 +117,7 @@ app.all('/vegspec/invalidmlra', vegspec.routeInvalidMLRA);
 app.all('/vegspec/invalidcps', vegspec.routeInvalidCPS);
 app.all('/vegspec/invalidseedperpound', vegspec.routeInvalidSeedPerPound);
 app.all('/vegspec/mixes', vegspec.routeMixes);
+app.all('/vegspec/info', vegspec.routeInfo);
 
 app.all('/mrv/categories', weather.routeMrvCategories);
 app.all('/mrv/setcategory', weather.routeMrvSetCategory);

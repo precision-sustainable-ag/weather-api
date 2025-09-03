@@ -1946,6 +1946,26 @@ const routeMixes = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeMixes
 
+const routeInfo = async (req, res) => {
+  const {
+    state, symbol, cultivar, parameter,
+  } = req.query;
+
+  const results = await pool.query(
+    `
+      SELECT value, notes, reference
+      FROM plants3.states
+      WHERE
+        state IN ($1, 'all')
+        AND plant_symbol = $2
+        AND COALESCE(cultivar_name, '') = $3
+        AND parameter = $4
+    `,
+    [state, symbol, cultivar, parameter],
+  );
+  sendResults(req, res, results.rows);
+}; // routeMixes
+
 module.exports = {
   routeCharacteristics,
   routeProps,
@@ -1973,4 +1993,5 @@ module.exports = {
   routeInvalidCPS,
   routeInvalidSeedPerPound,
   routeMixes,
+  routeInfo,
 };
