@@ -1878,7 +1878,7 @@ const routeInvalidMLRA = async (req, res) => {
     LEFT JOIN mlra.mlra valid ON bad.mlra = valid.mlrarsym
     WHERE
       (s.parameter = 'mlra' AND valid.mlrarsym IS NULL)
-      AND bad.mlra != '95'
+      AND bad.mlra NOT IN ('all', '95')
     ORDER BY 5, 1;
   `;
 
