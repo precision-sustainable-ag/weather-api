@@ -1875,10 +1875,10 @@ const routeInvalidMLRA = async (req, res) => {
     SELECT DISTINCT state, s.plant_symbol as symbol, s.parameter, s.value, bad.mlra AS invalid_mlra
     FROM plants3.states s
     JOIN LATERAL regexp_split_to_table(s.value, ',') AS bad(mlra) ON TRUE
-    LEFT JOIN mlra.mlra valid ON bad.mlra = valid.mlrarsym
+    LEFT JOIN mlra.mlra2022 valid ON bad.mlra = valid.mlrarsym
     WHERE
-      (s.parameter = 'mlra' AND valid.mlrarsym IS NULL)
-      AND bad.mlra != '95'
+      (s.parameter = 'mlra' AND valid.mlrarsym IS NULL) AND
+      bad.mlra NOT IN ('all')
     ORDER BY 5, 1;
   `;
 
