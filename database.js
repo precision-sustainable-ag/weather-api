@@ -137,6 +137,7 @@ const debug = (s, req, res, status = 200) => {
     try {
       lineNumber = parseInt(stackLines[2].match(/at.*\((.*):(\d+):\d+\)/)[2], 10);
     } catch (err) {
+      console.log(err);
       lineNumber = '';
     }
 

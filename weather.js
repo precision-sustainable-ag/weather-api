@@ -1,10 +1,13 @@
+const { networkInterfaces } = require('os');
+
 const { format } = require('sql-formatter');
 const axios = require('axios');
-const myip = require('ip');
+
 const { pool, googleAPIKey } = require('./pools');
 const { debug, sendResults, safeQuery } = require('./database');
-
 const { routeRecords, routeStructure } = require('./vegspec');
+
+const ipAddress = () => Object.values(networkInterfaces()).flat().find(i => i && i.family === 'IPv4' && !i.internal)?.address || '127.0.0.1';
 
 // eslint-disable-next-line no-unused-vars
 const exit = (s) => {
@@ -159,7 +162,7 @@ const clamp = (value, min, max) => Math.min(Math.max(+value, min), max);
  */
 const range = (start, end) => {
   const result = [];
-  for (let i = start; i <= end; i++) {
+  for (let i = start; i <= end; i += 1) {
     result.push(i);
   }
 
@@ -337,7 +340,6 @@ const init = async (req, res) => {
 
     try {
       const data = await (await axios.get(
-        // eslint-disable-next-line max-len
         `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(results.lats[0])},${NLDASlon(results.lons[0])}&timestamp=0&key=${googleAPIKey}`,
       )).data;
 
@@ -411,7 +413,6 @@ const init = async (req, res) => {
         console.timeEnd(`Looking up ${location}`);
 
         try {
-          // eslint-disable-next-line prefer-destructuring
           const lat = data.results[0].geometry.location.lat;
           const lon = data.results[0].geometry.location.lng;
           const lat1 = data.results[0].geometry.viewport.northeast.lat;
@@ -527,7 +528,6 @@ const wrapText = (text, maxLength = process.stdout.columns) => {
  * @param {string} sq - The SQL query to format and print.
  * @returns {string} The formatted SQL query.
  */
-// eslint-disable-next-line no-unused-vars
 const pretty = (sq) => {
   let result;
   try {
@@ -2189,8 +2189,8 @@ const routeTest = async (req, res) => {
       `https://maps.googleapis.com/maps/api/timezone/json?location=35.43,-95&timestamp=0&key=${googleAPIKey}`,
     );
 
-    // let results = `IP: ${myip.address()}  or  ${ip2}\nGoogle Maps API: ${JSON.stringify(data)}\n${googleAPIKey}`;
-    let results = `IP: ${myip.address()}\nGoogle Maps API: ${JSON.stringify(data)}\n${googleAPIKey}`;
+    // let results = `IP: ${ipAddress()}  or  ${ip2}\nGoogle Maps API: ${JSON.stringify(data)}\n${googleAPIKey}`;
+    let results = `IP: ${ipAddress()}\nGoogle Maps API: ${JSON.stringify(data)}\n${googleAPIKey}`;
 
     if (data.status !== 'OK') {
       results = `FAILED: ${results}`;
@@ -2244,7 +2244,6 @@ const routeElevation = async (req, res) => {
   if (!elevations[latLon]) {
     try {
       const url = `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lon}`;
-      // eslint-disable-next-line prefer-destructuring
       elevations[latLon] = (await (
         await fetch(url)
       ).json()).results[0];
