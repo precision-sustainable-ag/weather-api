@@ -1,4 +1,3 @@
-// test
 const sharp = require('sharp');
 
 const { pool } = require('./pools');
@@ -6,84 +5,7 @@ const {
   debug, sendResults, simpleQuery, safeQuery,
 } = require('./database');
 
-/*
-  SELECT distinct b.plant_symbol as current_symbol, a.plant_symbol AS state_symbol
-  FROM (
-    SELECT plant_symbol, state_code, b.* FROM (
-      SELECT * FROM mlra_species a
-      LEFT JOIN plants3.plant_master_tbl b
-      USING (plant_symbol)
-    ) a
-    JOIN plants3.plant_synonym_tbl b
-    ON a.plant_master_id = synonym_plant_master_id
-  ) a
-  JOIN plants3.plant_master_tbl b
-  USING (plant_master_id);
-
-  UPDATE mlra_species SET plant_symbol = 'SYEL2' WHERE plant_symbol = 'SYEL';
-  UPDATE mlra_species SET plant_symbol = 'EUFI14' WHERE plant_symbol = 'EUFI2';
-  UPDATE mlra_species SET plant_symbol = 'LIPUM2' WHERE plant_symbol = 'LIMU';
-  UPDATE mlra_species SET plant_symbol = 'ARTRV' WHERE plant_symbol = 'SEVA';
-  UPDATE mlra_species SET plant_symbol = 'GLMA4' WHERE plant_symbol = 'GLSO80';
-  UPDATE mlra_species SET plant_symbol = 'SOBID' WHERE plant_symbol = 'SOBIS';
-  UPDATE mlra_species SET plant_symbol = 'OEFI3' WHERE plant_symbol = 'GAFI2';
-  UPDATE mlra_species SET plant_symbol = 'SCAR7' WHERE plant_symbol = 'SCPH';
-  UPDATE mlra_species SET plant_symbol = 'OEGA' WHERE plant_symbol = 'GABI2';
-  UPDATE mlra_species SET plant_symbol = 'NEAT' WHERE plant_symbol = 'PAAT';
-  UPDATE mlra_species SET plant_symbol = 'EUPU21' WHERE plant_symbol = 'EUPU10';
-  UPDATE mlra_species SET plant_symbol = 'TRRI' WHERE plant_symbol = 'TRRI8';
-  UPDATE mlra_species SET plant_symbol = 'EUMA9' WHERE plant_symbol = 'EUMA12';
-*/
-
-/*
-  SELECT * INTO plants3.nativity
-  FROM (
-    SELECT DISTINCT
-      plc.plant_master_id,
-      COALESCE(dpn.plant_nativity_id, 0) AS plant_nativity,
-      COALESCE(plant_excluded_location_ind, false) AS plant_excluded_ind,
-      COALESCE(pl.plant_nativity_region_id, 0) AS plant_nativity_region_id,
-      dpnr.plant_nativity_region_name,
-      COALESCE(plant_nativity_type, '') AS plant_nativity_type,
-      COALESCE(plant_nativity_name, '') AS plant_nativity_name,
-      country_identifier,
-      ROW_NUMBER() OVER (PARTITION BY plc.plant_master_id, dpnr.plant_nativity_region_name
-                        ORDER BY plant_nativity_type, dpnr.plant_nativity_region_name ASC) AS rn
-    FROM
-      plants3.plant_location_characteristic plc
-      INNER JOIN plants3.plant_location pl ON pl.plant_location_id = plc.plant_location_id
-      INNER JOIN plants3.d_plant_nativity dpn ON plc.plant_nativity_id = dpn.plant_nativity_id
-      INNER JOIN plants3.d_plant_nativity_region dpnr ON pl.plant_nativity_region_id = dpnr.plant_nativity_region_id
-    ORDER BY 1
-  ) alias;
-
-  CREATE TABLE plants3.states (
-    state VARCHAR(255),
-    plant_symbol VARCHAR(10),
-    cultivar_name VARCHAR(20),
-    parameter VARCHAR(50),
-    value VARCHAR(255),
-    notes TEXT
-  );
-
-  CREATE TABLE weather.canada30year (
-    lat NUMERIC,
-    lon NUMERIC,
-    fff_0 NUMERIC,
-    fff_2 NUMERIC,
-    fff_4 NUMERIC,
-    lsf_0 NUMERIC,
-    lsf_2 NUMERIC,
-    lsf_4 NUMERIC,
-    fff_0_date DATE,
-    fff_2_date DATE,
-    fff_4_date DATE,
-    lsf_0_date DATE,
-    lsf_2_date DATE,
-    lsf_4_date DATE
-  );
-*/
-
+// DONE
 const routeCharacteristics = async (req, res) => {
   const createCharacteristics = async () => {
     const sq = `
@@ -754,15 +676,6 @@ const routeCharacteristics = async (req, res) => {
   sendResults(req, res, finalResults);
 }; // routeCharacteristics
 
-const routeDeleteState = (req, res) => {
-  simpleQuery(
-    'DELETE FROM plants3.states WHERE state=$1',
-    [req.query.state],
-    req,
-    res,
-  );
-}; // routeDeleteState
-
 const routeRenameCultivar = async (req, res) => {
   try {
     await pool.query(
@@ -833,6 +746,7 @@ const routeSaveState = async (req, res) => {
   }
 }; // routeSaveState
 
+// DONE
 const routeState = async (req, res) => {
   simpleQuery(
     `
@@ -896,6 +810,7 @@ const routeEditState = async (req, res) => {
   );
 }; // routeEditState
 
+// DONE
 const routeProps = async (req, res) => {
   const results = await pool.query(`
     SELECT 'coppice_potential_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
@@ -979,6 +894,7 @@ const routeProps = async (req, res) => {
   sendResults(req, res, obj);
 }; // routeProps
 
+// DONE
 const routeSymbols = async (req, res) => {
   let results;
 
@@ -1021,6 +937,7 @@ const routeNewSpecies = async (req, res) => {
   );
 }; // routeNewSpecies
 
+// DONE
 const routeRecords = (req, res) => {
   // https://stackoverflow.com/a/38684225/3903374 and Chat-GPT
   const sq = `
@@ -1037,6 +954,7 @@ const routeRecords = (req, res) => {
   simpleQuery(sq, [], req, res);
 }; // routeRecords
 
+// DONE
 const routeStructure = (req, res) => {
   const { table } = req.query;
 
@@ -1051,6 +969,7 @@ const routeStructure = (req, res) => {
   simpleQuery(sq, table ? [table] : [], req, res);
 }; // routeStructure
 
+// DONE
 const routePlantsEmptyColumns = async (req, res) => {
   if (!req.query.generate) {
     const empty = {
@@ -1101,6 +1020,7 @@ const routePlantsEmptyColumns = async (req, res) => {
   sendResults(req, res, empty);
 }; // routePlantsEmptyColumns
 
+// DONE
 const routePlantsTable = (req, res) => {
   const table = safeQuery(req, 'table');
   const sq = `SELECT * FROM plants3.${table} ORDER BY 1`;
@@ -1108,6 +1028,7 @@ const routePlantsTable = (req, res) => {
   simpleQuery(sq, [], req, res, true);
 }; // routePlantsTable
 
+// DONE
 const routeMissingCultivars = async (req, res) => {
   const { state } = req.query;
 
@@ -1205,6 +1126,7 @@ const routeMoveCultivar = async (req, res) => {
   res.send(query);
 }; // routeMoveCultivar
 
+// DONE
 const routeDatabaseChanges = async (req, res) => {
   const fetchData = async (query) => {
     const result = await pool.query(query);
@@ -1308,6 +1230,7 @@ const routeDatabaseChanges = async (req, res) => {
   res.send(output);
 }; // routeDatabaseChanges
 
+// DONE
 const routeRetention = async (req, res) => {
   const sql = `
     SELECT DISTINCT
@@ -1334,6 +1257,7 @@ const routeRetention = async (req, res) => {
   simpleQuery(sql, null, req, res);
 };
 
+// DONE
 const routeValidStates = async (req, res) => {
   const sql = `
     SELECT DISTINCT state
@@ -1350,6 +1274,7 @@ const routeValidStates = async (req, res) => {
   );
 };
 
+// DONE
 const routeMissingCharacteristics = async (req, res) => {
   const sql = `
     SELECT
@@ -1445,95 +1370,7 @@ const routeMissingCharacteristics = async (req, res) => {
   simpleQuery(sql, null, req, res);
 };
 
-const routeDataErrors = async (req, res) => {
-  let s = `
-    <style>
-      body, table {
-        font: 13px arial;
-      }
-    
-      table {
-        border: 1px solid black;
-        border-spacing: 0; 
-        empty-cells: show;
-      }
-      
-      td, th {
-        padding: 0.2em 0.5em;
-        border-right: 1px solid #ddd;
-        border-bottom: 1px solid #bbb;
-      }
-
-      th {
-        background: #eee;
-        position: sticky;
-        top: 0;
-      }
-
-      h1 {
-        font-size: 110%;
-      }
-    </style>
-  `;
-
-  const unknownMLRA = async () => {
-    const validMlra = await (await fetch('https://polygons.vegspec.org/validmlra')).json();
-    const stateData = await pool.query(`SELECT * FROM plants3.states WHERE parameter = 'mlra'`);
-    const rows = [];
-    const unknown = new Set();
-    stateData.rows.forEach((row) => {
-      const mlras = row.value.split(',');
-      const u = [];
-      mlras.forEach((mlra) => {
-        if (!validMlra.includes(mlra)) {
-          unknown.add(mlra);
-          u.push(mlra);
-        }
-      });
-      if (u.length) {
-        row.mlra = u;
-        rows.push(row);
-      }
-    });
-
-    rows.sort((a, b) => (
-      a.mlra.toString().localeCompare(b.mlra.toString())
-      || a.value.localeCompare(b.value)
-      || a.plant_symbol.localeCompare(b.plant_symbol)
-      || a.state.localeCompare(b.state)
-    ));
-
-    const unknownSorted = [...unknown].sort((a, b) => (parseInt(a, 10) - parseInt(b, 10)) || a.localeCompare(b));
-
-    s += `
-      <h1>Unknown MLRAs:</h1>
-      <ul>
-        ${[...unknownSorted].map((u) => `<li>${u}</li>`).join('')}
-      </ul>
-      <h1>Complete listing:</h1>
-      <table>
-        <thead>
-          <tr><th>#<th>state<th>plant_symbol<th>cultivar_name<th>MLRAs<th>Unknown</tr>
-        </thead>
-        <tbody>
-          ${rows.map((row, i) => (`
-            <tr>
-              <td>${i + 1}</td>
-              <td>${row.state}</td>
-              <td>${row.plant_symbol}</td>
-              <td>${row.cultivar_name || ''}</td>
-              <td>${row.value}</td>
-              <td>${row.mlra}</td>
-            </tr>
-          `)).join('')}
-        </tbody>
-      </table>
-    `;
-  }; // unknownMLRA
-  await unknownMLRA();
-  res.send(s);
-};
-
+// DONE
 const routeImageCredits = async (req, res) => {
   const { show, symbol } = req.query;
 
@@ -1827,6 +1664,7 @@ const routeImageCredits = async (req, res) => {
   // res.send(results.rows);
 };
 
+// DONE
 const routeImageSizes = async (req, res) => {
   const results = await pool.query(`
     SELECT DISTINCT imagesizepath3
@@ -1859,6 +1697,7 @@ const routeImageSizes = async (req, res) => {
   }
 }; // routeImageSizes
 
+// DONE
 const routeInvalidMLRA = async (req, res) => {
   const query = `
     SELECT DISTINCT state, s.plant_symbol as symbol, cultivar_name, s.parameter, s.value, bad.mlra AS invalid_mlra
@@ -1875,6 +1714,7 @@ const routeInvalidMLRA = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidMLRA
 
+// DONE
 const routeInvalidCPS = async (req, res) => {
   const query = `
     WITH valid(cps) AS (
@@ -1900,6 +1740,7 @@ const routeInvalidCPS = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidCPS
 
+// DONE
 const routeInvalidSeedPerPound = async (req, res) => {
   const query = `
     SELECT DISTINCT
@@ -1920,6 +1761,7 @@ const routeInvalidSeedPerPound = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidSeedPerPound
 
+// DONE
 const routeMixes = async (req, res) => {
   const { state } = req.query;
   const query = state
@@ -1930,6 +1772,7 @@ const routeMixes = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeMixes
 
+// DONE
 const routeInfo = async (req, res) => {
   const {
     state, symbol, cultivar, parameter,
@@ -1959,7 +1802,6 @@ module.exports = {
   routeRecords,
   routeStructure,
   routeSaveState,
-  routeDeleteState,
   routeState,
   routeEditState,
   routePlantsEmptyColumns,
@@ -1970,7 +1812,6 @@ module.exports = {
   routeRetention,
   routeMissingCharacteristics,
   routeValidStates,
-  routeDataErrors,
   routeImageCredits,
   routeImageSizes,
   routeInvalidMLRA,

@@ -34,7 +34,7 @@ export const Columns = () => {
             <td>air_temperature</td>
             <td>TMP</td>
             <td>[C]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td className="checked"></td>
@@ -51,7 +51,7 @@ export const Columns = () => {
             <td>humidity</td>
             <td>SPFH</td>
             <td>[kg kg-1]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td className="checked"></td>
@@ -68,7 +68,7 @@ export const Columns = () => {
             <td>relative_humidity</td>
             <td></td>
             <td>fraction</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td className="checked"></td>
@@ -85,7 +85,7 @@ export const Columns = () => {
             <td>pressure</td>
             <td>PRES</td>
             <td>[Pa]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td className="checked"></td>
@@ -102,7 +102,7 @@ export const Columns = () => {
             <td>zonal_wind_speed</td>
             <td>UGRD</td>
             <td>[m s-1]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td className="checked"></td>
@@ -119,7 +119,7 @@ export const Columns = () => {
             <td>meridional_wind_speed</td>
             <td>VGRD</td>
             <td>[m s-1]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td className="checked"></td>
@@ -136,7 +136,7 @@ export const Columns = () => {
             <td>wind_speed</td>
             <td></td>
             <td>[m s-1]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td className="checked"></td>
@@ -153,7 +153,7 @@ export const Columns = () => {
             <td>shortwave_radiation</td>
             <td>DSWRF</td>
             <td>[W m-2]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td></td>
@@ -170,7 +170,7 @@ export const Columns = () => {
             <td>longwave_radiation</td>
             <td>DLWRF</td>
             <td>[W m-2]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td></td>
@@ -187,7 +187,7 @@ export const Columns = () => {
             <td>convective_precipitation</td>
             <td>FRAIN</td>
             <td>proportion</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td></td>
@@ -204,7 +204,7 @@ export const Columns = () => {
             <td>potential_energy</td>
             <td>CAPE</td>
             <td>[J kg-1]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td></td>
@@ -221,7 +221,7 @@ export const Columns = () => {
             <td>potential_evaporation</td>
             <td>PEVAP</td>
             <td>[kg m-2]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td className="checked"></td>
             <td></td>
@@ -238,7 +238,7 @@ export const Columns = () => {
             <td rowSpan="2">precipitation</td>
             <td rowSpan="2">APCP</td>
             <td rowSpan="2">[mm]</td>
-            <td><a target="_blank" rel="noreferrer" href="https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/README.NLDAS2.pdf">NLDAS</a></td>
+            <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS</a></td>
             <td>0.125° x 0.125°</td>
             <td rowSpan="2" className="checked"></td>
             <td rowSpan="2"></td>
@@ -264,7 +264,7 @@ export const Columns = () => {
             <td className="hidden"></td>
             <td>05/06/2015</td>
             <td>Present</td>
-            <td>Only detectable precipitations are stored in the database (rainfall > 0)</td>
+            <td>Only detectable precipitations are stored in the database (rainfall &gt; 0)</td>
           </tr>
 
           <tr>
