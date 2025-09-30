@@ -2,19 +2,24 @@
 // const ssl = require('ssl');
 // ssl._create_default_https_context = ssl._create_unverified_context
 
-const ip = require('ip');
+const path = require('path'); // to get the current path
+const { networkInterfaces } = require('os');
 
-console.log('IP:', ip.address()); // if needed for /etc/postgresql/11/main/pg_hba.conf
+const express = require('express'); // simplifies http server development
+const bodyParser = require('body-parser'); // make form data available in req.body
+const cors = require('cors'); // allow cross-origin requests
+
+const weather = require('./weather');
+const vegspec = require('./vegspec');
+
+const ipAddress = () => Object.values(networkInterfaces()).flat().find(i => i && i.family === 'IPv4' && !i.internal)?.address || '127.0.0.1';
+
+console.log('IP:', ipAddress()); // if needed for /etc/postgresql/11/main/pg_hba.conf
 
 process.on('uncaughtException', (err) => {
   console.error(err);
   console.log('Node NOT Exiting...');
 });
-
-const express = require('express'); // simplifies http server development
-const bodyParser = require('body-parser'); // make form data available in req.body
-const cors = require('cors'); // allow cross-origin requests
-const path = require('path'); // to get the current path
 
 const app = express();
 
@@ -22,7 +27,6 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '100mb' }));
 app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 
-// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => { // next is unused but required!
   console.error(err.stack);
   res.status(500).send('Something broke!');
@@ -33,9 +37,6 @@ app.use(express.static(path.join(__dirname, 'public'))); // make the public fold
 app.use(express.static(`${__dirname}/static`, { dotfiles: 'allow' })); // from Ayaan
 
 app.use(express.static(`${__dirname}/public/client/build`));
-
-const weather = require('./weather');
-const vegspec = require('./vegspec');
 
 app.get('/', (req, res) => res.sendFile(`${__dirname}/public/client/build/index.html`)); // send API
 
@@ -81,44 +82,39 @@ app.get('/test', weather.routeTest);
 app.get('/elevation', weather.routeElevation);
 
 // Vegspec
-app.all('/plantsrecords', vegspec.routeRecords);
-app.all('/vegspec/records', vegspec.routeRecords);
+app.all('/plantsrecords', vegspec.routeRecords);                                      // DONE
+app.all('/vegspec/records', vegspec.routeRecords);                                    // DONE  
+app.all('/plantscharacteristics', vegspec.routeCharacteristics);                      // DONE
+app.all('/vegspec/characteristics', vegspec.routeCharacteristics);                    // DONE
+app.all('/plantsstructure', vegspec.routeStructure);                                  // DONE
+app.all('/vegspec/structure', vegspec.routeStructure);                                // DONE
+app.all('/plantstable', vegspec.routePlantsTable);                                    // DONE
+app.all('/vegspec/table', vegspec.routePlantsTable);                                  // DONE
+app.all('/plantsemptycolumns', vegspec.routePlantsEmptyColumns);                      // DONE
+app.all('/vegspec/emptycolumns', vegspec.routePlantsEmptyColumns);                    // DONE
+app.all('/vegspec/props', vegspec.routeProps);                                        // DONE
+app.all('/vegspec/symbols', vegspec.routeSymbols);                                    // DONE
+app.all('/vegspec/state', vegspec.routeState);                                        // DONE
+app.all('/vegspec/missingcultivars', vegspec.routeMissingCultivars);                  // DONE
+app.all('/vegspec/missingcharacteristics', vegspec.routeMissingCharacteristics);      // DONE
+app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);                    // DONE
+app.all('/vegspec/retention', vegspec.routeRetention);                                // DONE
+app.all('/vegspec/validstates', vegspec.routeValidStates);                            // DONE
+app.all('/vegspec/imagecredits', vegspec.routeImageCredits);                          // DONE
+app.all('/vegspec/imagesizes', vegspec.routeImageSizes);                              // DONE
+app.all('/vegspec/invalidmlra', vegspec.routeInvalidMLRA);                            // DONE
+app.all('/vegspec/invalidcps', vegspec.routeInvalidCPS);                              // DONE
+app.all('/vegspec/invalidseedperpound', vegspec.routeInvalidSeedPerPound);            // DONE
+app.all('/vegspec/mixes', vegspec.routeMixes);                                        // DONE
+app.all('/vegspec/info', vegspec.routeInfo);                                          // DONE
 
-app.all('/plantscharacteristics', vegspec.routeCharacteristics);
-app.all('/vegspec/characteristics', vegspec.routeCharacteristics);
+app.all('/vegspec/newspecies', vegspec.routeNewSpecies);                              // in VegSpec todo.txt
+app.all('/vegspec/renamecultivar', vegspec.routeRenameCultivar);                      // in VegSpec todo.txt
+app.all('/vegspec/savestate', vegspec.routeSaveState);                                // in VegSpec todo.txt
+app.all('/vegspec/editstate', vegspec.routeEditState);                                // in VegSpec todo.txt
+app.all('/vegspec/movecultivar', vegspec.routeMoveCultivar);                          // in VegSpec todo.txt
 
-app.all('/plantsstructure', vegspec.routeStructure);
-app.all('/vegspec/structure', vegspec.routeStructure);
-
-app.all('/plantstable', vegspec.routePlantsTable);
-app.all('/vegspec/table', vegspec.routePlantsTable);
-
-app.all('/plantsemptycolumns', vegspec.routePlantsEmptyColumns);
-app.all('/vegspec/emptycolumns', vegspec.routePlantsEmptyColumns);
-app.all('/vegspec/props', vegspec.routeProps);
-app.all('/vegspec/symbols', vegspec.routeSymbols);
-app.all('/vegspec/newspecies', vegspec.routeNewSpecies);
-app.all('/vegspec/renamecultivar', vegspec.routeRenameCultivar);
-
-app.all('/vegspec/savestate', vegspec.routeSaveState);
-app.all('/vegspec/state', vegspec.routeState);
-app.all('/vegspec/deletestate', vegspec.routeDeleteState);
-app.all('/vegspec/editstate', vegspec.routeEditState);
-app.all('/vegspec/missingcultivars', vegspec.routeMissingCultivars);
-app.all('/vegspec/missingcharacteristics', vegspec.routeMissingCharacteristics);
-app.all('/vegspec/movecultivar', vegspec.routeMoveCultivar);
-app.all('/vegspec/databasechanges', vegspec.routeDatabaseChanges);
-app.all('/vegspec/retention', vegspec.routeRetention);
-app.all('/vegspec/validstates', vegspec.routeValidStates);
-app.all('/vegspec/dataerrors', vegspec.routeDataErrors);
-app.all('/vegspec/imagecredits', vegspec.routeImageCredits);
-app.all('/vegspec/imagesizes', vegspec.routeImageSizes);
-app.all('/vegspec/invalidmlra', vegspec.routeInvalidMLRA);
-app.all('/vegspec/invalidcps', vegspec.routeInvalidCPS);
-app.all('/vegspec/invalidseedperpound', vegspec.routeInvalidSeedPerPound);
-app.all('/vegspec/mixes', vegspec.routeMixes);
-app.all('/vegspec/info', vegspec.routeInfo);
-
+// MRV
 app.all('/mrv/categories', weather.routeMrvCategories);
 app.all('/mrv/setcategory', weather.routeMrvSetCategory);
 

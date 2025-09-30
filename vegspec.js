@@ -1,93 +1,11 @@
-/* eslint-disable no-await-in-loop */
-/* eslint-disable no-restricted-syntax */
-/* eslint-disable no-prototype-builtins */
-
-// test
 const sharp = require('sharp');
-const { pool } = require('./pools');
 
+const { pool } = require('./pools');
 const {
   debug, sendResults, simpleQuery, safeQuery,
 } = require('./database');
 
-/*
-  SELECT distinct b.plant_symbol as current_symbol, a.plant_symbol AS state_symbol
-  FROM (
-    SELECT plant_symbol, state_code, b.* FROM (
-      SELECT * FROM mlra_species a
-      LEFT JOIN plants3.plant_master_tbl b
-      USING (plant_symbol)
-    ) a
-    JOIN plants3.plant_synonym_tbl b
-    ON a.plant_master_id = synonym_plant_master_id
-  ) a
-  JOIN plants3.plant_master_tbl b
-  USING (plant_master_id);
-
-  UPDATE mlra_species SET plant_symbol = 'SYEL2' WHERE plant_symbol = 'SYEL';
-  UPDATE mlra_species SET plant_symbol = 'EUFI14' WHERE plant_symbol = 'EUFI2';
-  UPDATE mlra_species SET plant_symbol = 'LIPUM2' WHERE plant_symbol = 'LIMU';
-  UPDATE mlra_species SET plant_symbol = 'ARTRV' WHERE plant_symbol = 'SEVA';
-  UPDATE mlra_species SET plant_symbol = 'GLMA4' WHERE plant_symbol = 'GLSO80';
-  UPDATE mlra_species SET plant_symbol = 'SOBID' WHERE plant_symbol = 'SOBIS';
-  UPDATE mlra_species SET plant_symbol = 'OEFI3' WHERE plant_symbol = 'GAFI2';
-  UPDATE mlra_species SET plant_symbol = 'SCAR7' WHERE plant_symbol = 'SCPH';
-  UPDATE mlra_species SET plant_symbol = 'OEGA' WHERE plant_symbol = 'GABI2';
-  UPDATE mlra_species SET plant_symbol = 'NEAT' WHERE plant_symbol = 'PAAT';
-  UPDATE mlra_species SET plant_symbol = 'EUPU21' WHERE plant_symbol = 'EUPU10';
-  UPDATE mlra_species SET plant_symbol = 'TRRI' WHERE plant_symbol = 'TRRI8';
-  UPDATE mlra_species SET plant_symbol = 'EUMA9' WHERE plant_symbol = 'EUMA12';
-*/
-
-/*
-  SELECT * INTO plants3.nativity
-  FROM (
-    SELECT DISTINCT
-      plc.plant_master_id,
-      COALESCE(dpn.plant_nativity_id, 0) AS plant_nativity,
-      COALESCE(plant_excluded_location_ind, false) AS plant_excluded_ind,
-      COALESCE(pl.plant_nativity_region_id, 0) AS plant_nativity_region_id,
-      dpnr.plant_nativity_region_name,
-      COALESCE(plant_nativity_type, '') AS plant_nativity_type,
-      COALESCE(plant_nativity_name, '') AS plant_nativity_name,
-      country_identifier,
-      ROW_NUMBER() OVER (PARTITION BY plc.plant_master_id, dpnr.plant_nativity_region_name
-                        ORDER BY plant_nativity_type, dpnr.plant_nativity_region_name ASC) AS rn
-    FROM
-      plants3.plant_location_characteristic plc
-      INNER JOIN plants3.plant_location pl ON pl.plant_location_id = plc.plant_location_id
-      INNER JOIN plants3.d_plant_nativity dpn ON plc.plant_nativity_id = dpn.plant_nativity_id
-      INNER JOIN plants3.d_plant_nativity_region dpnr ON pl.plant_nativity_region_id = dpnr.plant_nativity_region_id
-    ORDER BY 1
-  ) alias;
-
-  CREATE TABLE plants3.states (
-    state VARCHAR(255),
-    plant_symbol VARCHAR(10),
-    cultivar_name VARCHAR(20),
-    parameter VARCHAR(50),
-    value VARCHAR(255),
-    notes TEXT
-  );
-
-  CREATE TABLE weather.canada30year (
-    lat NUMERIC,
-    lon NUMERIC,
-    fff_0 NUMERIC,
-    fff_2 NUMERIC,
-    fff_4 NUMERIC,
-    lsf_0 NUMERIC,
-    lsf_2 NUMERIC,
-    lsf_4 NUMERIC,
-    fff_0_date DATE,
-    fff_2_date DATE,
-    fff_4_date DATE,
-    lsf_0_date DATE,
-    lsf_2_date DATE,
-    lsf_4_date DATE
-  );
-*/
-
+// DONE
 const routeCharacteristics = async (req, res) => {
   const createCharacteristics = async () => {
     const sq = `
@@ -403,6 +321,7 @@ const routeCharacteristics = async (req, res) => {
         await createCharacteristics();
       }
     } catch (error) {
+      console.log(error);
       await createCharacteristics();
     }
   }
@@ -757,15 +676,6 @@ const routeCharacteristics = async (req, res) => {
   sendResults(req, res, finalResults);
 }; // routeCharacteristics
 
-const routeDeleteState = (req, res) => {
-  simpleQuery(
-    'DELETE FROM plants3.states WHERE state=$1',
-    [req.query.state],
-    req,
-    res,
-  );
-}; // routeDeleteState
-
 const routeRenameCultivar = async (req, res) => {
   try {
     await pool.query(
@@ -819,12 +729,10 @@ const routeSaveState = async (req, res) => {
 
   try {
     let i = 0;
-    // eslint-disable-next-line no-restricted-syntax
     for (const sym of symbols) {
       // console.log({
       //   state, sym, cultivar: cultivars[i], parameter: parameters[i], value: values[i], note: notes[i],
       // });
-      // eslint-disable-next-line no-await-in-loop
       await pool.query(
         'INSERT INTO plants3.states (state, plant_symbol, cultivar_name, parameter, value, notes) VALUES ($1, $2, $3, $4, $5, $6)',
         [state, sym || null, cultivars[i] || null, parameters[i] || null, values[i] || null, notes[i] || null],
@@ -838,6 +746,7 @@ const routeSaveState = async (req, res) => {
   }
 }; // routeSaveState
 
+// DONE
 const routeState = async (req, res) => {
   simpleQuery(
     `
@@ -901,8 +810,8 @@ const routeEditState = async (req, res) => {
   );
 }; // routeEditState
 
+// DONE
 const routeProps = async (req, res) => {
-  /* eslint-disable max-len */
   const results = await pool.query(`
     SELECT 'coppice_potential_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
     SELECT 'fall_conspicuous_ind' AS parm, ARRAY[null, 'true', 'false'] AS array_agg UNION ALL
@@ -969,7 +878,6 @@ const routeProps = async (req, res) => {
     SELECT 'palatability_graze' AS parm, ARRAY_AGG(DISTINCT palatability_graze ORDER BY palatability_graze NULLS FIRST) FROM plants3.characteristics UNION ALL
     SELECT 'protein_potential' AS parm, ARRAY_AGG(DISTINCT protein_potential ORDER BY protein_potential NULLS FIRST) FROM plants3.characteristics
   `);
-  /* eslint-enable max-len */
 
   const obj = {};
   results.rows.forEach((row) => {
@@ -986,6 +894,7 @@ const routeProps = async (req, res) => {
   sendResults(req, res, obj);
 }; // routeProps
 
+// DONE
 const routeSymbols = async (req, res) => {
   let results;
 
@@ -1028,6 +937,7 @@ const routeNewSpecies = async (req, res) => {
   );
 }; // routeNewSpecies
 
+// DONE
 const routeRecords = (req, res) => {
   // https://stackoverflow.com/a/38684225/3903374 and Chat-GPT
   const sq = `
@@ -1044,6 +954,7 @@ const routeRecords = (req, res) => {
   simpleQuery(sq, [], req, res);
 }; // routeRecords
 
+// DONE
 const routeStructure = (req, res) => {
   const { table } = req.query;
 
@@ -1058,10 +969,10 @@ const routeStructure = (req, res) => {
   simpleQuery(sq, table ? [table] : [], req, res);
 }; // routeStructure
 
+// DONE
 const routePlantsEmptyColumns = async (req, res) => {
   if (!req.query.generate) {
     const empty = {
-      // eslint-disable-next-line max-len
       plant_conservation_status_qualifier: [], plant_image_library: ['plant_image_library_id', 'plant_image_id', 'stream_id', 'last_change_date', 'last_changed_by', 'creation_date', 'created_by', 'active_record_ind'], plant_reserved_symbol_tbl: ['plant_family', 'plant_family_symbol', 'plant_family_id', 'subvariety', 'bauthor_data_source_id', 'tauthor_data_source_id', 'qauthor_data_source_id', 'ssauthor_data_source_id', 'fauthor_data_source_id', 'plant_category', 'plant_category_id', 'hybrid_parent', 'hybrid_parent1', 'hybrid_parent2', 'hybrid_parent3', 'suffix', 'svauthor', 'svauthor_id'], plant_conservation_status: [], county_gen2_project_webmercator: ['objectid', 'shape', 'name', 'state_name', 'fips', 'st'], generated_symbols_with_authorship: [], plant_noxious_status: [], d_plant_location_reference_subject: ['plant_location_reference_subject_description'], dw_plant_images: ['plant_images_id', 'plant_symbol', 'plant_master_id', 'parent_master_id', 'plant_rank', 'plant_synonym_ind', 'plant_full_scientific_name', 'plant_full_scientific_name_without_author', 'plant_scientific_name_html', 'plant_sciname_sort', 'plant_family', 'plant_family_symbol', 'plant_primary_vernacular', 'plant_image_type', 'plant_image_purpose', 'provided_by', 'provided_by_sortname', 'scanned_by', 'scanned_by_sortname', 'originally_from', 'originally_from_sortname', 'author', 'author_sortname', 'contributorindividual', 'contrib_ind_sortname', 'contributororganization', 'contrib_org_sortname', 'plantauthorship', 'plant_author_sortname', 'artist', 'artist_sortname', 'copyrightholder', 'copyright_sortname', 'other', 'other_sortname', 'plant_reference_title', 'plant_reference_place', 'plant_reference_year', 'plant_publication_volume_nbr', 'plant_publication_issue', 'plant_reference_publication', 'plant_reference_media_type', 'plant_reference_source_type', 'plant_institution_name', 'plant_image_website_url', 'plant_source_email', 'plant_imagelocation', 'plant_imagecreationdate', 'plant_copyright_ind', 'plant_image_country_fullname', 'plant_image_country_abbr', 'plant_image_state', 'plant_image_state_abbr', 'plant_image_county', 'plant_image_city', 'plant_image_locality', 'plant_image_fips', 'plant_image_geoid', 'plant_image_notes', 'plant_image_primary_ind', 'plant_image_display_ind', 'plant_image_id', 'plant_country_identifier', 'plant_location_id', 'plant_country_subdivision_id', 'plant_reference_id', 'plant_image_last_updated', 'plant_location_last_updated', 'plant_image_cred_last_updated', 'plant_reference_last_updated', 'dw_record_updated'], d_lifespan: [], plant_duration: [], plant_global_conservation: [], plant_hybrid_formula: [], d_common_name_type: [], d_country: [], d_plant_image_purpose: ['plant_image_purpose_description'], d_plant_wetland: [], staging_plant_invasive: ['staging_plant_invasive_id', 'plant_symbol', 'plant_synonym', 'accepted_sciname', 'useifdifferent_sci', 'common_name', 'state_status', 'plant_master_id', 'plant_syn_id', 'common_name_id', 'state_status_id', 'location_abbr', 'location_code', 'location_name', 'creation_date', 'created_by', 'processed'], d_plant_wildlife_food: [], plant_protected_status: [], plant_reference: ['plant_reference_acronym', 'state_county_code', 'secondary_reference_title', 'reference_hyperlink'], d_plant_pollinator: [], plant_usage: ['plant_usage_id', 'plant_use_id', 'plant_location_characteristic_id', 'active_record_ind', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by'], d_noxious_status: [], plant_notes: ['synonym_notes', 'subordinate_taxa_notes', 'legal_notes', 'noxious_notes', 'rarity_notes', 'wetland_notes', 'related_links_notes', 'wildlife_notes', 'sources_notes', 'characteristic_notes', 'pollinator_notes', 'cultural_notes', 'ethnobotany_notes'], d_protected_status_source: [], plant_data_source: ['plant_data_source_last_name', 'plant_data_source_first_name', 'plant_data_source_website_url'], d_plant_reference_purpose: [], d_noxious_status_source: [], audit_plant_master_tbl: ['plant_master_update_id', 'action_taken', 'plant_master_id', 'plant_hierarchy_id', 'plant_symbol', 'plant_status_id', 'plant_rank_id', 'plant_synonym_ind', 'plant_scientific_name', 'plant_author_name_id', 'plant_primary_vernacular_id', 'plant_revisor_id', 'full_scientific_name', 'full_scientific_name_html', 'full_scientific_name_without_author', 'is_active', 'parent_master_id', 'is_taxa', 'taxa_master_id', 'gsat', 'cover_crop', 'cultural_significant_ind', 'action_date', 'action_taken_by', 'action_generated_from'], audit_invasive_source: [], d_plant_wildlife_type: [], d_invasive_status_source: [], staging_plant_wetland: ['parent_region_id'], d_plant_wildlife_cover: [], d_plant_status: ['last_change_date', 'last_changed_by'], d_country_subdivision_type: [], entitlement: [], plant_ethnobotany: [], audit_plant_reference: ['plant_reference_acronym', 'plant_reference_second_title', 'plant_reference_place', 'state_county_code', 'plant_publication_volume_nbr', 'plant_website_url_text', 'plant_author', 'plant_publisher'], d_country_complete: ['end_date'], d_plant_occurrence_type: ['plant_occurrence_type_description'], plant_synonym_tbl: [], d_color: [], d_plant_use: ['plant_use_description', 'last_changed_by'], plant_wildlife: [], plant_data_sources: [], audit_plant_ref_association: ['plant_ref_assoc_id', 'plant_master_id', 'plant_literature_id', 'plant_reference_id', 'action_taken', 'action_date', 'is_active'], plant_image: ['plant_image_file_name', 'plant_image', 'plant_image_notes', 'plant_image_location_latitude', 'plant_image_location_longitude'], plant_unknown_tbl: [], plant_reference_source: [], plant_invasive_status: [], d_foliage_porosity: [], plant_region: [], plant_suitability_use: [], d_plant_nativity_region: [], plant_image_credit: [], plant_growth_requirements: [], d_plant_ethno_culture: ['plant_ethno_culture_notes'], plant_occurrence_location: [], plant_location_characteristic: ['plant_noxious_status_id'], audit_plant_location_common_name: ['plant_location_common_name_audit_id', 'action_taken', 'plant_master_id', 'plant_location_id', 'plant_primary_vernacular_id', 'action_taken_from', 'is_active', 'action_date', 'action_taken_by'], audit_plant_data_source: ['plant_data_source_email_address', 'contributor_id', 'plant_data_source_website_url'], linegeometries: ['id', 'shape', 'code'], d_foliage_texture: [], d_plant_nativity: [], plant_classifications_tbl: ['suborder', 'subfamily', 'classid_hybrid_author', 'taxquest'], d_plant_name_suffix: ['plant_name_suffix_description'], document_delete: ['Word Files', 'PDF files'], d_crop_type: [], audit_plant_synonym_tbl: ['plant_synonym_update_id', 'action_taken', 'plant_synonym_id', 'plant_master_id', 'synonym_plant_master_id', 'is_active', 'action_date', 'action_taken_by', 'action_generated_from'], plant_data_source_detail: ['plant_data_source_address', 'plant_data_source_city', 'plant_data_source_state', 'plant_data_source_phone', 'plant_data_source_affiliations'], d_extent: [], d_plant_taxonomic_status: ['last_changed_by'], d_shape_orientation: [], d_plant_ethno_use: ['plant_ethno_usage_definition'], '8ball_data': [], plant_reproduction: [], role_entitlement: [], plant_pollinator: [], d_plant_image_credit_type: [], staging_symbol_generator: ['reservedfor_id', 'formauthorid', 'varietyauthorid', 'subvarietyauthorid', 'subspeciesauthorid', 'speciesauthorid', 'genusauthorid', 'accepted_symbol', 'acceptedid'], d_plant_record_type: ['last_change_date', 'last_changed_by'], staging_plant_invasive_source: ['staging_plant_invasive_source_id', 'author', 'inv_year', 'hyperlink_txt', 'inv_url', 'location_abbr', 'location_code', 'location_name', 'creation_date', 'created_by', 'processed'], plant_master_image: ['plant_image_purpose_id'], plant_location_reference: ['plant_location_reference_id', 'plant_location_characteristic_id', 'plant_reference_id', 'plant_location_subject_id', 'plant_reference_purpose_id', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by', 'active_record_ind'], alternative_crop: [], d_plant_action: [], d_rate: [], audit_plant_image: ['plant_image_audit_id', 'plant_master_id', 'plant_image_id', 'plant_reference_id', 'plant_image_type_id', 'plant_image_taken_date', 'plant_image_primary_ind', 'plant_image_display_ind', 'plant_image_copyrighted_ind', 'plant_image_stream_id', 'plant_image_location', 'plant_image_notes', 'action_taken', 'action_date', 'action_taken_by', 'active_record_ind'], plant_vascular: ['taxa_master_id'], d_plant_vernacular: [], state_gen_nonus_project_webmercator: ['objectid', 'shape', 'state_name', 'identifier'], audit_plant_invasive_status: ['plant_invasive_id'], d_plant_wetland_region: [], audit_plant_master_image: ['plant_master_image_audit_id', 'plant_master_id', 'plant_master_image_id', 'plant_image_purpose_id', 'action_taken', 'action_date', 'action_taken_by', 'active_record_ind'], audit_plant_work_basket: ['audit_work_basket_id', 'plant_work_basket_id', 'table_name', 'table_record_id', 'process_status_id', 'notes', 'action_date', 'action_taken_by'], plant_herbarium_image: ['plant_herbarium_image_id', 'plant_herbarium_id', 'plant_image_id', 'active_record_ind', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by'], plant_cultural: [], d_plant_family_category: [], d_growth_form: [], audit_plant_wetland: ['plant_wetland_notes'], d_protected_status: [], audit_plant_image_credit: ['plant_image_credit_audit_id', 'plant_master_id', 'plant_image_credit_id', 'plant_image_id', 'plant_image_prefix_id', 'plant_image_credit_type_id', 'plant_image_data_source_id', 'plant_image_credit_display_ind', 'action_taken', 'action_date', 'action_taken_by', 'active_record_ind'], d_season: [], plants_work_basket: ['plant_work_basket_id', 'table_name', 'table_record_id', 'process_status_id', 'notes', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by'], plant_location_common_name: [], plant_occurrence: ['plant_collection_nbr', 'plant_location_description', 'plant_specific_location_description', 'plant_habitat_description', 'plant_determination_date'], plant_data_reference: ['plant_publication_chapter'], audit_plant_image_library: ['plant_image_library_audit_id', 'plant_image_library_id', 'plant_image_id', 'plant_image_name', 'plant_image_new_name', 'plant_stream_id', 'action_taken', 'action_date', 'action_taken_by', 'active_record_ind'], d_plant_website_type: [], plant_common_name: ['last_change_date', 'last_changed_by'], d_commercial_availability: [], plant_spotlight: ['last_change_date', 'last_changed_by'], dw_plant_wetland: ['plant_dw_wetland_id', 'plant_wetland_symbol', 'plant_accepted_symbol', 'plant_master_id', 'parent_master_id', 'plant_rank', 'plant_synonym_ind', 'plant_scientific_name', 'plant_full_scientific_name', 'plant_full_scientific_name_without_author', 'plant_scientific_name_html', 'plant_sciname_sort', 'plant_family', 'plant_family_symbol', 'plant_primary_vernacular', 'plant_region', 'plant_subregion', 'plant_region_description', 'plant_region_abbreviation', 'plant_parent_region_abbreviation', 'plant_parent_region_description', 'plant_wetland_notes', 'plant_wetland_status_abbreviation', 'plant_wetland_status_description', 'plant_wetland_status_name', 'plant_hydrophyte_ind', 'plant_location_id', 'plant_location_characteristic_id', 'plant_wetland_status_id1', 'plant_wetland_region_id', 'plant_wetland_parent_id', 'plant_region_last_updated', 'plant_base_data_last_updated', 'plant_wetland_status_last_updated', 'plant_dw_record_last_updated'], plant_literature_location: [], d_plant_rank: ['display_sequence', 'last_change_date', 'last_changed_by'], alternative_crop_information: [], d_plant_image_type: [], plant_master_tbl: ['taxa_master_id'], role: [], d_plant_herbarium: ['plant_reference_id'], d_plant_duration: [], d_country_subdivision_category: [], d_country_subdivision: ['country_subdivision_level'], plant_location: ['state_county_code', 'plant_location_shape'], plant_ethnobotany_source: [], d_plant_reserved_status: [], staging_plant_wetland_import: ['plant_wetland_import_id', 'plant_scientific_name', 'plant_symbol', 'plant_synonym', 'wetland_symbol', 'hi', 'cb', 'ak', 'aw', 'agcp', 'emp', 'gp', 'mw', 'ncne', 'wmvc', 'aki', 'acp', 'cil', 'crb', 'iah', 'ial', 'iam', 'ngl', 'nbr', 'nsl', 'pda', 'sph', 'spi', 'ukk', 'wbrmnt', 'wgc', 'creation_date', 'created_by'], odmt_authorized: ['odmt_role1', 'odmt_role2', 'odmt_role3', 'last_changed_by'], d_plant_reference_type: [], plant_literature: [], d_plant_reserved_for: [], plants_document_remove: ['plants_doc_remove_id', 'plant_document_name', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by', 'active_record_ind'], audit_plant_notes: ['synonym_notes', 'subordinate_taxa_notes', 'legal_notes', 'noxious_notes', 'rarity_notes', 'wetland_notes', 'related_links', 'wildlife_notes', 'sources_notes', 'characteristic_notes', 'pollinator_notes', 'cultural_notes', 'ethnobotany_notes'], d_plant_family: ['plant_family_alt_sym'], gsat_lkup: [], plant_related_website: ['plant_website_url_suffix'], d_conservation_status_rank: [], d_plant_growth_habit: [], d_state_county: ['coastal_county_ind', 'countyseat_geometry', 'state_county_geometry'], dw_plant_master_profile: ['plant_master_profile_id', 'plant_master_id', 'plant_symbol', 'plant_rank', 'plant_rank_id', 'plant_synonym_ind', 'plant_is_hybrid_ind', 'plant_full_scientific_name', 'plant_full_scientific_name_without_author', 'plant_scientific_name_html', 'plant_sciname_sort', 'plant_author', 'plant_author_id', 'plant_revisor', 'plant_revisor_id', 'plant_primary_vernacular', 'plant_primary_vernacular_id', 'plant_state_vernacular', 'plant_vernacular_state', 'plant_vernacular_trademark', 'plant_other_common_names', 'plant_group', 'plant_category', 'plant_family', 'plant_family_symbol', 'plant_family_vernacular', 'plant_noxious_ind', 'plant_global_rarity_ind', 'plant_us_rarity_ind', 'plant_wetland_ind', 'plant_invasive_ind', 'plant_vascular_ind', 'plant_duration1', 'plant_duration2', 'plant_duration3', 'plant_growth1', 'plant_growth2', 'plant_growth3', 'plant_growth4', 'plant_nat_l48', 'plant_nat_ak', 'plant_nat_hi', 'plant_nat_pr', 'plant_nat_vi', 'plant_nat_nav', 'plant_nat_can', 'plant_nat_gl', 'plant_nat_spm', 'plant_nat_na', 'plant_nat_pb', 'plant_nat_pfa', 'plantguide_pdf', 'plantguide_docx', 'factsheet_pdf', 'factsheet_docx', 'plant_master_notes', 'plant_synonym_notes', 'plant_subordinate_taxa_notes', 'plant_legal_notes', 'plant_taxonomic_status_suffix', 'gsat', 'cover_crop', 'cultural_significant_ind', 'is_taxa', 'taxa_master_id', 'parent_master_id', 'plant_hierarchy_id', 'plant_parent_hierarchy_id', 'plant_taxa_hierarchy_id', 'plant_hybrid_parent1', 'plant_hybrid_parent2', 'plant_hierarchy_level', 'plant_kingdom', 'plant_subkingdom', 'plant_superdivision', 'plant_division', 'plant_subdivision', 'plant_class', 'plant_order', 'plant_suborder', 'plant_subfamily', 'plant_xgenus', 'plant_genus', 'plant_xspecies', 'plant_species', 'plant_ssp', 'plant_xsubsp', 'plant_subspecies', 'plant_var', 'plant_xvariety', 'plant_variety', 'plant_subvariety', 'plant_f', 'plant_forma', 'bauthor', 'tauthor', 'qauthor', 'nomenclature', 'unaccept_reason', 'plant_base_data_last_updated', 'plant_classification_data_last_updated', 'dw_record_updated'], plant_growth_habit: [], plant_document_audit: [], state_nrcs_download: [], plant_master_document: [], d_toxicity: [], d_plant_data_source_type: ['plant_data_source_type_description'], d_plant_noxious_status: ['plant_noxious_status_name'], d_conservation_status_qualifier: [], d_shade_tolerance: [], state_gen_us_project_webmercator: ['objectid', 'shape', 'state_name', 'identifier'], d_process_status: ['process_status_id', 'process_status_name', 'process_status_definition', 'creation_date', 'created_by', 'last_change_date', 'last_changed_by', 'active_record_ind'], audit_plant_ref_source: [], audit_noxious_source: ['source_audit_id', 'action_taken', 'noxious_status_source_id', 'plant_location_id', 'noxious_status_sourc_text', 'is_active', 'action_date', 'action_taken_by'], plant_family_category: [], d_plant_image_prefix: [], plant_name_suffix: [], d_invasive_status: [], plant_morphology_physiology: ['hmaba_id', 'hmaba_display', 'ham_id', 'ham_display'],
     };
 
@@ -1083,7 +994,6 @@ const routePlantsEmptyColumns = async (req, res) => {
 
   const empty = {};
 
-  // eslint-disable-next-line no-restricted-syntax
   for await (const table of tables) {
     empty[table] = [];
     const results = await pool.query(`
@@ -1093,7 +1003,6 @@ const routePlantsEmptyColumns = async (req, res) => {
     `);
 
     const columns = results.rows.map((row) => row.column_name);
-    // eslint-disable-next-line no-restricted-syntax
     for await (const col of columns) {
       const result = await pool.query(`
         SELECT 1
@@ -1111,6 +1020,7 @@ const routePlantsEmptyColumns = async (req, res) => {
   sendResults(req, res, empty);
 }; // routePlantsEmptyColumns
 
+// DONE
 const routePlantsTable = (req, res) => {
   const table = safeQuery(req, 'table');
   const sq = `SELECT * FROM plants3.${table} ORDER BY 1`;
@@ -1118,6 +1028,7 @@ const routePlantsTable = (req, res) => {
   simpleQuery(sq, [], req, res, true);
 }; // routePlantsTable
 
+// DONE
 const routeMissingCultivars = async (req, res) => {
   const { state } = req.query;
 
@@ -1215,6 +1126,7 @@ const routeMoveCultivar = async (req, res) => {
   res.send(query);
 }; // routeMoveCultivar
 
+// DONE
 const routeDatabaseChanges = async (req, res) => {
   const fetchData = async (query) => {
     const result = await pool.query(query);
@@ -1235,7 +1147,6 @@ const routeDatabaseChanges = async (req, res) => {
     }, {});
 
   // Number.isNaN doesn't try to coerce to numeric like isNaN does.
-  // eslint-disable-next-line no-restricted-globals
   const format = (s) => (isNaN(s) ? `'${s}'` : s);
 
   let output = `
@@ -1319,6 +1230,7 @@ const routeDatabaseChanges = async (req, res) => {
   res.send(output);
 }; // routeDatabaseChanges
 
+// DONE
 const routeRetention = async (req, res) => {
   const sql = `
     SELECT DISTINCT
@@ -1345,6 +1257,7 @@ const routeRetention = async (req, res) => {
   simpleQuery(sql, null, req, res);
 };
 
+// DONE
 const routeValidStates = async (req, res) => {
   const sql = `
     SELECT DISTINCT state
@@ -1361,6 +1274,7 @@ const routeValidStates = async (req, res) => {
   );
 };
 
+// DONE
 const routeMissingCharacteristics = async (req, res) => {
   const sql = `
     SELECT
@@ -1456,95 +1370,7 @@ const routeMissingCharacteristics = async (req, res) => {
   simpleQuery(sql, null, req, res);
 };
 
-const routeDataErrors = async (req, res) => {
-  let s = `
-    <style>
-      body, table {
-        font: 13px arial;
-      }
-    
-      table {
-        border: 1px solid black;
-        border-spacing: 0; 
-        empty-cells: show;
-      }
-      
-      td, th {
-        padding: 0.2em 0.5em;
-        border-right: 1px solid #ddd;
-        border-bottom: 1px solid #bbb;
-      }
-
-      th {
-        background: #eee;
-        position: sticky;
-        top: 0;
-      }
-
-      h1 {
-        font-size: 110%;
-      }
-    </style>
-  `;
-
-  const unknownMLRA = async () => {
-    const validMlra = await (await fetch('https://polygons.vegspec.org/validmlra')).json();
-    const stateData = await pool.query(`SELECT * FROM plants3.states WHERE parameter = 'mlra'`);
-    const rows = [];
-    const unknown = new Set();
-    stateData.rows.forEach((row) => {
-      const mlras = row.value.split(',');
-      const u = [];
-      mlras.forEach((mlra) => {
-        if (!validMlra.includes(mlra)) {
-          unknown.add(mlra);
-          u.push(mlra);
-        }
-      });
-      if (u.length) {
-        row.mlra = u;
-        rows.push(row);
-      }
-    });
-
-    rows.sort((a, b) => (
-      a.mlra.toString().localeCompare(b.mlra.toString())
-      || a.value.localeCompare(b.value)
-      || a.plant_symbol.localeCompare(b.plant_symbol)
-      || a.state.localeCompare(b.state)
-    ));
-
-    const unknownSorted = [...unknown].sort((a, b) => (parseInt(a, 10) - parseInt(b, 10)) || a.localeCompare(b));
-
-    s += `
-      <h1>Unknown MLRAs:</h1>
-      <ul>
-        ${[...unknownSorted].map((u) => `<li>${u}</li>`).join('')}
-      </ul>
-      <h1>Complete listing:</h1>
-      <table>
-        <thead>
-          <tr><th>#<th>state<th>plant_symbol<th>cultivar_name<th>MLRAs<th>Unknown</tr>
-        </thead>
-        <tbody>
-          ${rows.map((row, i) => (`
-            <tr>
-              <td>${i + 1}</td>
-              <td>${row.state}</td>
-              <td>${row.plant_symbol}</td>
-              <td>${row.cultivar_name || ''}</td>
-              <td>${row.value}</td>
-              <td>${row.mlra}</td>
-            </tr>
-          `)).join('')}
-        </tbody>
-      </table>
-    `;
-  }; // unknownMLRA
-  await unknownMLRA();
-  res.send(s);
-};
-
+// DONE
 const routeImageCredits = async (req, res) => {
   const { show, symbol } = req.query;
 
@@ -1838,6 +1664,7 @@ const routeImageCredits = async (req, res) => {
   // res.send(results.rows);
 };
 
+// DONE
 const routeImageSizes = async (req, res) => {
   const results = await pool.query(`
     SELECT DISTINCT imagesizepath3
@@ -1870,6 +1697,7 @@ const routeImageSizes = async (req, res) => {
   }
 }; // routeImageSizes
 
+// DONE
 const routeInvalidMLRA = async (req, res) => {
   const query = `
     SELECT DISTINCT state, s.plant_symbol as symbol, cultivar_name, s.parameter, s.value, bad.mlra AS invalid_mlra
@@ -1886,6 +1714,7 @@ const routeInvalidMLRA = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidMLRA
 
+// DONE
 const routeInvalidCPS = async (req, res) => {
   const query = `
     WITH valid(cps) AS (
@@ -1911,6 +1740,7 @@ const routeInvalidCPS = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidCPS
 
+// DONE
 const routeInvalidSeedPerPound = async (req, res) => {
   const query = `
     SELECT DISTINCT
@@ -1931,6 +1761,7 @@ const routeInvalidSeedPerPound = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeInvalidSeedPerPound
 
+// DONE
 const routeMixes = async (req, res) => {
   const { state } = req.query;
   const query = state
@@ -1941,6 +1772,7 @@ const routeMixes = async (req, res) => {
   sendResults(req, res, results.rows);
 }; // routeMixes
 
+// DONE
 const routeInfo = async (req, res) => {
   const {
     state, symbol, cultivar, parameter,
@@ -1970,7 +1802,6 @@ module.exports = {
   routeRecords,
   routeStructure,
   routeSaveState,
-  routeDeleteState,
   routeState,
   routeEditState,
   routePlantsEmptyColumns,
@@ -1981,7 +1812,6 @@ module.exports = {
   routeRetention,
   routeMissingCharacteristics,
   routeValidStates,
-  routeDataErrors,
   routeImageCredits,
   routeImageSizes,
   routeInvalidMLRA,

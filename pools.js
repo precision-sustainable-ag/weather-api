@@ -1,6 +1,6 @@
-const { Pool } = require('pg');
-
 const fs = require('fs');
+
+const { Pool } = require('pg');
 
 const data = fs.readFileSync('./.env', 'utf8');
 
