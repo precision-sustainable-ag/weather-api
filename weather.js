@@ -5,7 +5,6 @@ const axios = require('axios');
 
 const { pool, googleAPIKey } = require('./pools');
 const { debug, sendResults, safeQuery } = require('./database');
-const { routeRecords, routeStructure } = require('./vegspec');
 
 const ipAddress = () => Object.values(networkInterfaces()).flat().find(i => i && i.family === 'IPv4' && !i.internal)?.address || '127.0.0.1';
 
@@ -2202,8 +2201,6 @@ const routeTest = async (req, res) => {
   testRequest.tests = [
     // routeNvm, // slow
     // routeRosetta, // todo
-    routeRecords,
-    routeStructure,
 
     routeAddresses,
     routeAverages,
