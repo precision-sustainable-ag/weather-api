@@ -1,39 +1,26 @@
 {
-  "name": "weather",
+  "name": "vegspec-api",
   "version": "1.0.0",
-  "description": "weather-api",
+  "description": "",
   "main": "index.js",
-  "dependencies": {
-    "axios": "^1.11.0",
-    "body-parser": "^2.2.0",
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
-    "pg": "^8.16.3",
-    "sharp": "^0.34.3",
-    "sql-formatter": "^15.6.8"
-  },
+  "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "build": "cd public/client && npm install && npm run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/precision-sustainable-ag/weather-api.git"
-  },
-  "keywords": [
-    "weather"
-  ],
-  "author": "Rick Hitchcock",
+  "keywords": [],
+  "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/precision-sustainable-ag/weather-api/issues"
+  "dependencies": {
+    "eslint-plugin-import": "^2.32.0",
+    "pg": "^8.16.3",
+    "sharp": "^0.34.4",
+    "simple-route": "file:../../simple-route",
+    "sql-formatter": "^15.6.10"
   },
-  "homepage": "https://github.com/precision-sustainable-ag/weather-api#readme",
   "devDependencies": {
     "@eslint/js": "^9.35.0",
     "eslint": "^9.35.0",
-    "eslint-plugin-import": "^2.32.0",
-    "globals": "^16.4.0"
+    "nodemon": "^3.1.10"
   }
 }

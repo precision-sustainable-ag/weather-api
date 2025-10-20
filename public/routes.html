@@ -1,0 +1,34 @@
+<div data-route="/databasesize">
+  Returns the database size as a human-readable string (e.g., '12 TB').
+</div>
+
+<div data-route="/indexes">
+  Lists all indexes on non-system tables, ordered by index name.
+</div>
+
+<div data-route="/yearlyprecipitation">
+  Returns the closest precipitation record to (lat, lon), along with distance to the weather station in meters.
+</div>
+
+<div data-route="/addresses">
+  For all locations searched by address rather than coordinates,
+  returns a list of matching addresses along with their latitude/longitude and bounding boxes.
+</div>
+
+<div data-route="/counttablesrows">
+  Returns the number of tables and approximate number of rows in the database.
+</div>
+
+<div data-route="/tables">
+  Returns tables in the weather schema with a positive <strong>estimated</strong> row count.
+</div>
+
+<div data-route="/mvm">
+  Compares each record to its neighbor ~0.01° north or east in in MRMS data,
+  returning only pairs where <code>|a.sum − b.sum|</code> &gt; <code>num</code>.
+</div>
+
+<div data-route="/frost">
+  Finds the nearest frost record to the given lat/lon within 0.7° —
+  only where firstfreeze, firstfrost, lastfreeze, and lastfrost are present.
+</div>

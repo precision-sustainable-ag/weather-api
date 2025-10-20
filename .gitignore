@@ -1,8 +1,3 @@
-node_modules/
-package-lock.json
 .env
-.git
-build/
-NOAA_files/
-todo.md
-unused.txt
+node_modules
+code.zip
