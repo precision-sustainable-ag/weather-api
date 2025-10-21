@@ -61,3 +61,30 @@
     setting <code>polygon=true</code> includes geometry fields in that default.
   </p>
 </div>
+
+<div data-route="/county">
+  <p>Returns county metadata for the point at (<code>lat,lon</code>).</p>
+  <p>
+    Optionally accept <code>attributes</code> (comma-separated) to choose fields;
+    using polygon in attributes expands to polygonarray (GeoJSON coordinates) and polygon (WKT).
+  </p>
+  <p>
+    If <code>attributes</code> is omitted, returns county, state, state_code, countyfips, statefips;
+    setting <code>polygon=true</code> adds the geometry fields.
+  </p>
+</div>
+
+<div data-route="/mlra">
+  <p>
+    Returns MLRA (Major Land Resource Area) data based on either a point (<code>lat,lon</code>) or a specific MLRA symbol (<code>mlra</code>).
+  </p>
+  <p>
+    If <code>mlra</code> is provided, returns the MLRA’s name, symbol, associated Land Resource Region (lrrsym, lrrname), and aggregated counties, states, codes, and FIPS values that intersect the MLRA;
+    optionally includes geometry fields when <code>polygon=true.</code>
+  </p>
+  <p>
+    If <code>lat/lon</code> are provided instead, returns the MLRA polygon(s) containing that point,
+    with attributes defined by the attributes parameter (comma-separated list, where polygon expands to both GeoJSON polygonarray and WKT polygon).
+    Defaults to returning name, mlrarsym, lrrsym, and lrrname.
+  </p>
+</div>

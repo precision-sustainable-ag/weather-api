@@ -1,6 +1,8 @@
 import { pool, makeSimpleRoute, schema200 } from 'simple-route';
 
 import watershed from './watershed.js';
+import routeCounty from './county.js';
+import routeMLRA from './mlra.js';
 
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
@@ -215,4 +217,31 @@ export default async function apiRoutes(app) {
     },
     { response: {} },
   );
+
+  await simpleRoute('/county',
+    'Other',
+    'County',
+    async (lat, lon, attributes, polygon) => (
+      routeCounty(lat, lon, attributes, polygon)
+    ),
+    {
+      lat, lon,
+      polygon: { type: 'boolean' },
+    },
+    { response: {} },
+  );
+
+  await simpleRoute('/mlra',
+    'Other',
+    'MLRA',
+    async (lat, lon, attributes, polygon, mlra) => (
+      routeMLRA(lat, lon, attributes, polygon, mlra)
+    ),
+    {
+      lat: { type: 'number', examples: [35] },
+      lon: { type: 'number', examples: [-79] },
+      polygon: { type: 'boolean' },
+    },
+    { response: {} },
+  );  
 }
