@@ -1,5 +1,7 @@
 import { pool, makeSimpleRoute, schema200 } from 'simple-route';
 
+import watershed from './watershed.js';
+
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
 
@@ -45,6 +47,7 @@ export default async function apiRoutes(app) {
         WHERE reltuples > 0
       `,
     Indexes: `SELECT * FROM pg_indexes WHERE tablename NOT LIKE 'pg%' ORDER BY indexname`,
+    CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'weather'`,
     Addresses: 'SELECT * FROM weather.addresses ORDER BY address',
     Hits:
       `
@@ -173,5 +176,43 @@ export default async function apiRoutes(app) {
       state: { examples: ['SPAINCALIBRACIONPRISMA2025'] },
       date: { examples: ['25-0625'] },
     },
+  );
+
+  // Other -----------------------------------------------------------------------------------------------------------------------
+  const elevations = {};
+  await simpleRoute('/elevation',
+    'Other',
+    'Elevation',
+    async (lat, lon) => {
+      lat = lat.toFixed(6);
+      lon = lon.toFixed(6);
+      const latLon = `${lat} ${lon}`;
+
+      if (!elevations[latLon]) {
+        const url = `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lon}`;
+        elevations[latLon] = (await (
+          await fetch(url)
+        ).json()).results[0];
+        console.log('fetched', url, JSON.stringify(elevations[latLon]));
+      }
+
+      return elevations[latLon];
+    },
+    { lat, lon },
+    { object: true },
+  );
+
+  await simpleRoute('/watershed',
+    'Other',
+    'Watershed',
+    async (lat, lon, attributes, polygon, state, huc, location) => (
+      await watershed(lat, lon, attributes, polygon, state, huc, location)
+    ),
+    {
+      lat: { type: 'number', examples: [35] },
+      lon: { type: 'number', examples: [-79] },
+      polygon: { type: 'boolean' },
+    },
+    { response: {} },
   );
 }

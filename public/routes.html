@@ -32,3 +32,32 @@
   Finds the nearest frost record to the given lat/lon within 0.7° —
   only where firstfreeze, firstfrost, lastfreeze, and lastfrost are present.
 </div>
+
+<div data-route="/elevation">
+  Returns the elevation (meters) for the given latitude/longitude by querying Open-Elevation.
+</div>
+
+<div data-route="/watershed">
+  <p>
+    Returns watershed (HUC) attributes based on one of:
+  </p>
+  <ul>
+    <li>a point (<code>lat,lon</code>)</li>
+    <li>an address (<code>location</code>, which is geocoded to lat/lon)</li>
+    <li>a state filter (<code>state</code>)</li>
+    <li>a HUC prefix (<code>huc</code>)</li>
+  </ul>
+  <p>If no filter is provided, returns the HUC12 containing the point.</p>
+  <p>
+    The optional <code>attributes</code> parameter is a comma-separated list of fields to return, which may include any of the following:
+    <br>
+    huc12, name, huc10, huc10name, huc8, huc8name, huc6, huc6name, huc4, huc4name, huc2, huc2name, tnmid, metasourceid,
+    sourcedatadesc, sourceoriginator, sourcefeatureid, loaddate, referencegnis_ids, areaacres, areasqkm, states, hutype, humod,
+    tohuc, noncontributingareaacres, noncontributingareasqkm, globalid, shape_length, shape_area, polygonarray, polygon
+  </p>
+  
+  <p>
+    When <code>attributes</code> is omitted, a default set of identifiers and metadata is returned;
+    setting <code>polygon=true</code> includes geometry fields in that default.
+  </p>
+</div>

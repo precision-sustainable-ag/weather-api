@@ -425,7 +425,7 @@ const init = async (req, res) => {
     }
 
     try {
-      const data = await (await fetch.get(
+      const data = await (await fetch(
         `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(results.lats[0])},${NLDASlon(results.lons[0])}&timestamp=0&key=${googleAPIKey}`,
       )).json();
 
@@ -457,94 +457,6 @@ const init = async (req, res) => {
     }
   }; // getTimeZone
 
-  /** ____________________________________________________________________________________________________________________________________
-   * Gets the latitude and longitude coordinates of a location using the Google Maps API or the database.
-   * (New locations are added to the database.)
-   * If `location` is a valid ZIP code, it will be automatically converted to "zip <code>".
-   * If `rect` is `true`, also calculates the bounding box (minLat, maxLat, minLon, maxLon) for the location.
-   * If `func` is provided, it will be called with the resulting latitude and longitude arrays.
-   *
-   * @param {Object} res - Express response object.
-   * @param {Function} func - Optional callback function to receive the resulting latitude and longitude arrays.
-   */
-  const getLocation = async () => {
-    let lresults;
-
-    if (+location) {
-      location = `zip ${location}`;
-    }
-    try {
-      lresults = await pool.query(
-        'SELECT * FROM weather.addresses WHERE address=$1',
-        [location],
-      );
-    } catch (err) {
-      sendResults(req, res, err);
-    }
-
-    if (lresults.rows.length) {
-      // debug(`Found ${location}`);
-      results.lats = [lresults.rows[0].lat];
-      results.lons = [lresults.rows[0].lon];
-      if (results.rect) {
-        results.minLat = Math.min(lresults.rows[0].lat1, lresults.rows[0].lat2);
-        results.maxLat = Math.max(lresults.rows[0].lat1, lresults.rows[0].lat2);
-        results.minLon = Math.min(lresults.rows[0].lon1, lresults.rows[0].lon2);
-        results.maxLon = Math.max(lresults.rows[0].lon1, lresults.rows[0].lon2);
-      }
-    } else {
-      try {
-        console.time(`Looking up ${location}`);
-        alert('axios');
-        const data = await (await(fetch.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`))).json();
-        console.timeEnd(`Looking up ${location}`);
-
-        try {
-          const lat = data.results[0].geometry.location.lat;
-          const lon = data.results[0].geometry.location.lng;
-          const lat1 = data.results[0].geometry.viewport.northeast.lat;
-          const lon1 = data.results[0].geometry.viewport.northeast.lng;
-          const lat2 = data.results[0].geometry.viewport.southwest.lat;
-          const lon2 = data.results[0].geometry.viewport.southwest.lng;
-
-          debug({
-            location,
-            lat,
-            lon,
-            lat1,
-            lon1,
-            lat2,
-            lon2,
-          });
-
-          results.lats = [lat];
-          results.lons = [lon];
-
-          pool.query(`
-            insert into weather.addresses
-            (address, lat, lon, lat1, lon1, lat2, lon2)
-            values ('${location}', ${lat}, ${lon}, ${lat1}, ${lon1}, ${lat2}, ${lon2})
-          `);
-
-          if (rect) {
-            results.minLat = Math.min(lat1, lat2);
-            results.maxLat = Math.max(lat1, lat2);
-            results.minLon = Math.min(lon1, lon2);
-            results.maxLon = Math.max(lon1, lon2);
-          }
-
-          // if (func) {
-          //   func(lats, lons);
-          // }
-        } catch (ee) {
-          debug(ee.message);
-        }
-      } catch (err) {
-        debug({ trigger: 'Google Maps Geocode', location, err }, req, res, 400);
-      }
-    }
-  }; // getLocation
-
   if (location) {
     await getLocation();
   }
@@ -571,6 +483,79 @@ const range = (start, end) => {
 
   return result;
 }; // range
+
+/** ____________________________________________________________________________________________________________________________________
+ * Gets the latitude and longitude coordinates of a location using the Google Maps API or the database.
+ * (New locations are added to the database.)
+ * If `location` is a valid ZIP code, it will be automatically converted to "zip <code>".
+ * If `rect` is `true`, also calculates the bounding box (minLat, maxLat, minLon, maxLon) for the location.
+ * If `func` is provided, it will be called with the resulting latitude and longitude arrays.
+ *
+ * @param {Object} res - Express response object.
+ * @param {Function} func - Optional callback function to receive the resulting latitude and longitude arrays.
+ */
+const getLocation = async (location, results, rect) => {
+  if (+location) {
+    location = `zip ${location}`;
+  }
+
+  const lresults = await pool.query(
+    'SELECT * FROM weather.addresses WHERE address=$1',
+    [location],
+  );
+
+  console.log(lresults.rows);
+  if (lresults.rows.length) {
+    results.lats = [lresults.rows[0].lat];
+    results.lons = [lresults.rows[0].lon];
+    if (results.rect) {
+      results.minLat = Math.min(lresults.rows[0].lat1, lresults.rows[0].lat2);
+      results.maxLat = Math.max(lresults.rows[0].lat1, lresults.rows[0].lat2);
+      results.minLon = Math.min(lresults.rows[0].lon1, lresults.rows[0].lon2);
+      results.maxLon = Math.max(lresults.rows[0].lon1, lresults.rows[0].lon2);
+    }
+  } else {
+    try {
+      console.log(googleAPIKey);
+      console.time(`Looking up ${location}`);
+      const data = await (await(fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`))).json();
+      console.timeEnd(`Looking up ${location}`);
+
+      try {
+        const lat = data.results[0].geometry.location.lat;
+        const lon = data.results[0].geometry.location.lng;
+        const lat1 = data.results[0].geometry.viewport.northeast.lat;
+        const lon1 = data.results[0].geometry.viewport.northeast.lng;
+        const lat2 = data.results[0].geometry.viewport.southwest.lat;
+        const lon2 = data.results[0].geometry.viewport.southwest.lng;
+
+        results.lats = [lat];
+        results.lons = [lon];
+
+        pool.query(`
+          insert into weather.addresses
+          (address, lat, lon, lat1, lon1, lat2, lon2)
+          values ('${location}', ${lat}, ${lon}, ${lat1}, ${lon1}, ${lat2}, ${lon2})
+        `);
+
+        if (rect) {
+          results.minLat = Math.min(lat1, lat2);
+          results.maxLat = Math.max(lat1, lat2);
+          results.minLon = Math.min(lon1, lon2);
+          results.maxLon = Math.max(lon1, lon2);
+        }
+
+        // if (func) {
+        //   func(lats, lons);
+        // }
+      } catch (ee) {
+        console.log(ee.message);
+      }
+    } catch (err) {
+      console.log({ trigger: 'Google Maps Geocode', location, err });
+    }
+  }
+}; // getLocation
 
 const runQuery = async (req, res, type, start, end, format2, daily) => {
   let years;
@@ -1218,4 +1203,4 @@ const runQuery = async (req, res, type, start, end, format2, daily) => {
   query(timeOffset);
 }; // runQuery
 
-export default runQuery;
+export { runQuery, getLocation };
