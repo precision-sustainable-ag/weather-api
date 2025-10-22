@@ -3,6 +3,8 @@ import { pool, makeSimpleRoute, schema200 } from 'simple-route';
 import watershed from './watershed.js';
 import routeCounty from './county.js';
 import routeMLRA from './mlra.js';
+import { nvm2, nvm2Query, nvm2Update } from './nvm2.js';
+import yearly from './yearly.js';
 
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
@@ -140,12 +142,6 @@ export default async function apiRoutes(app) {
     await schema200(pool, `SELECT 0.0 AS delta, 0.0 AS alat, 0.0 AS alon, 0.0 AS asum, 0.0 AS blat, 0.0 AS blon, 0.0 AS bsum `),
   );
 
-  await simpleRoute('/nvm2Data',
-    'NVM',
-    'NVM data',
-    'SELECT DISTINCT lat, lon, year FROM weather.nvm2',
-  );
-
   await simpleRoute('/frost',
     'Weather',
     'Frost data',
@@ -162,6 +158,58 @@ export default async function apiRoutes(app) {
     `,
     { lat, lon },
     { object: true },
+  );
+
+  await simpleRoute('/yearly',
+    'Weather',
+    'Yearly weather aggregates (NLDAS grid)',
+    yearly,
+    {
+      lat, lon,
+      year: { examples: [2020] },
+    },
+    {
+      200: {},
+    },
+  );
+
+  // NVM -----------------------------------------------------------------------------------------------------------------------
+
+  await simpleRoute('/nvm2Data',
+    'NVM',
+    'NVM data',
+    'SELECT DISTINCT lat, lon, year FROM weather.nvm2',
+  );
+
+  await simpleRoute('/nvm2',
+    'NVM',
+    'NVM output',
+    async (lat, lon, year) => (
+      await nvm2(lat, lon, year)
+    ),
+    undefined,
+    {
+      response: {},
+      respondAsHtmlWhen: () => true,
+    },
+  );
+
+  await simpleRoute('/nvm2Query',
+    'NVM',
+    'NVM query',
+    async (condition) => (
+      await nvm2Query(condition)
+    ),
+    {
+      condition: { examples: ['mrms IS NOT NULL'] },
+    },
+    { response: {} },
+  );
+
+  await simpleRoute('/nvm2Update',
+    'NVM',
+    'NVM update',
+    nvm2Update,
   );
 
   // MRV -----------------------------------------------------------------------------------------------------------------------
@@ -244,4 +292,35 @@ export default async function apiRoutes(app) {
     },
     { response: {} },
   );  
+
+  await simpleRoute('/rosetta',
+    'Other',
+    'Rosetta',
+    async (soildata) => {
+      const resp = await fetch('https://www.handbook60.org/api/v1/rosetta/1', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ soildata }),
+      });
+      
+      const data = await resp.json();
+      return data;
+    },
+    {
+      soildata: {
+        type: 'array',
+        examples: [
+          [
+            [30, 30, 40, 1.5, 0.3, 0.1],
+            [20, 60, 20],
+            [55, 25, 20, 1.1],
+          ],
+        ],
+      },
+    },
+    {
+      method: 'post',
+      response: {},
+    },
+  );
 }

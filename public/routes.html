@@ -88,3 +88,28 @@
     Defaults to returning name, mlrarsym, lrrsym, and lrrname.
   </p>
 </div>
+
+<div data-route="/rosetta">
+  <p>
+    Predicts van Genuchten parameters from soil characterization data (sand, silt, clay; optional bulk density, th33, th1500).
+  </p>
+  <p>
+    Calls the API described at
+    <a href="https://github.com/usda-ars-ussl/rosetta-soil">https://github.com/usda-ars-ussl/rosetta-soil</a>,
+    and simply handles the CORS issue with that server.
+  </p>
+  <p>
+    Currently used for the Water DST only.
+  </p>
+</div>
+
+<div data-route="/yearly">
+  <p>
+    Returns yearly aggregate weather metrics for the NLDAS 0.125° grid cell containing the provided coordinates.
+    Inputs are snapped to the grid (lat rounded up, lon rounded down), and the requested year or year
+    range is clamped to 2018–2022.
+  </p>
+  <p style="color: red !important">
+    TODO:  Add new yearly data once new server is set up.
+  </p>
+</div>
