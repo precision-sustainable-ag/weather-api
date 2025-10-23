@@ -1,6 +1,7 @@
 import { setup } from 'simple-route';
 
 import apiRoutes from './routes/api.js';
+import mrvRoutes from './routes/mrv.js';
 
 await setup({
   title: 'Weather API',
@@ -8,5 +9,6 @@ await setup({
   trusted: ['https://weather.covercrop-data.org/', 'https://developweather.covercrop-data.org/'],
   plugins: {
     '': apiRoutes,
+    'mrv': mrvRoutes,
   },
 });

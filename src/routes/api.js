@@ -9,90 +9,12 @@ import yearly from './yearly.js';
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
 
-  // -----------------------------------------------------------------------------------------------------------------------
-  await simpleRoute('/status',
-    'Database',
-    'Health check',
-    `SELECT 'Connected to database' AS status`,
-    undefined,
-    { object: true },
-  );
-
-  // Weather -----------------------------------------------------------------------------------------------------------------------
+  const elevations = {};
 
   const lat = { type: 'number', required: true, examples: [35] };
   const lon = { type: 'number', required: true, examples: [-79] };
 
-  const dbRoutes = {
-    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('postgres')) AS size`,
-    Tables:
-      `
-        SELECT table_name AS table, reltuples AS rows
-        FROM (
-          SELECT * FROM information_schema.tables
-          WHERE table_schema='weather'
-        ) a
-        LEFT JOIN pg_class b
-        ON a.table_name = b.relname
-        WHERE reltuples > 0
-        ORDER BY table_name
-      `,
-    CountTablesRows:
-      `
-        SELECT
-          COUNT(*) AS tables,
-          SUM(reltuples) AS rows
-        FROM (
-          SELECT * FROM information_schema.tables
-          WHERE table_schema='weather'
-        ) a
-        LEFT JOIN pg_class b
-        ON a.table_name = b.relname
-        WHERE reltuples > 0
-      `,
-    Indexes: `SELECT * FROM pg_indexes WHERE tablename NOT LIKE 'pg%' ORDER BY indexname`,
-    CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'weather'`,
-    Addresses: 'SELECT * FROM weather.addresses ORDER BY address',
-    Hits:
-      `
-        SELECT date, ip, query, ms, email
-        FROM weather.hits
-        WHERE
-          query NOT LIKE '%explain%' AND query NOT LIKE '%nvm%' AND
-          (date > current_date - 1 OR (ip <> '::ffff:172.18.186.142' AND query NOT LIKE '%25172.18.186%25'))
-        ORDER BY date DESC
-        LIMIT 1000
-      `,
-  };
-
-  for (const [route, query] of Object.entries(dbRoutes)) {
-    await simpleRoute(`/${route.toLowerCase()}`,
-      'Database',
-      route.replace(/[A-Z]/g, (c) => ` ${c}`).trim(),
-      query,
-    );
-  };
-
-  await simpleRoute('/hardinesszone',
-    'Weather',
-    'Hardiness Zone',
-    `
-      SELECT
-        id, gridcode, zone, trange, zonetitle,
-        CASE WHEN $3::boolean
-          THEN (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates')
-          ELSE NULL
-        END AS polygonarray
-      FROM hardiness_zones
-      WHERE ST_Intersects(ST_SetSRID(ST_MakePoint($2, $1), 4326), geometry)
-    `,
-    {
-      lat,
-      lon,
-      polygon: { type: 'boolean' },
-    },
-  );
-
+  // Weather -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/yearlyprecipitation',
     'Weather',
     'Yearly Precipitation',
@@ -173,63 +95,7 @@ export default async function apiRoutes(app) {
     },
   );
 
-  // NVM -----------------------------------------------------------------------------------------------------------------------
-
-  await simpleRoute('/nvm2Data',
-    'NVM',
-    'NVM data',
-    'SELECT DISTINCT lat, lon, year FROM weather.nvm2',
-  );
-
-  await simpleRoute('/nvm2',
-    'NVM',
-    'NVM output',
-    async (lat, lon, year) => (
-      await nvm2(lat, lon, year)
-    ),
-    undefined,
-    {
-      response: {},
-      respondAsHtmlWhen: () => true,
-    },
-  );
-
-  await simpleRoute('/nvm2Query',
-    'NVM',
-    'NVM query',
-    async (condition) => (
-      await nvm2Query(condition)
-    ),
-    {
-      condition: { examples: ['mrms IS NOT NULL'] },
-    },
-    { response: {} },
-  );
-
-  await simpleRoute('/nvm2Update',
-    'NVM',
-    'NVM update',
-    nvm2Update,
-  );
-
-  // MRV -----------------------------------------------------------------------------------------------------------------------
-  await simpleRoute('/mrv/categories',
-    'MRV',
-    'MRV Categories',
-    `
-      SELECT field, category
-      FROM mrv
-      WHERE UPPER(state) = UPPER($1) AND TO_CHAR(date, 'YY-MMDD') = $2
-      ORDER BY field
-    `,
-    {
-      state: { examples: ['SPAINCALIBRACIONPRISMA2025'] },
-      date: { examples: ['25-0625'] },
-    },
-  );
-
   // Other -----------------------------------------------------------------------------------------------------------------------
-  const elevations = {};
   await simpleRoute('/elevation',
     'Other',
     'Elevation',
@@ -279,6 +145,26 @@ export default async function apiRoutes(app) {
     { response: {} },
   );
 
+  await simpleRoute('/hardinesszone',
+    'Other',
+    'Hardiness Zone',
+    `
+      SELECT
+        id, gridcode, zone, trange, zonetitle,
+        CASE WHEN $3::boolean
+          THEN (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates')
+          ELSE NULL
+        END AS polygonarray
+      FROM hardiness_zones
+      WHERE ST_Intersects(ST_SetSRID(ST_MakePoint($2, $1), 4326), geometry)
+    `,
+    {
+      lat,
+      lon,
+      polygon: { type: 'boolean' },
+    },
+  );
+
   await simpleRoute('/mlra',
     'Other',
     'MLRA',
@@ -323,4 +209,101 @@ export default async function apiRoutes(app) {
       response: {},
     },
   );
-}
+
+  // Database -----------------------------------------------------------------------------------------------------------------------
+  await simpleRoute('/status',
+    'Database',
+    'Health check',
+    `SELECT 'Connected to database' AS status`,
+    undefined,
+    { object: true },
+  );
+
+  const dbRoutes = {
+    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('postgres')) AS size`,
+    Tables:
+      `
+        SELECT table_name AS table, reltuples AS rows
+        FROM (
+          SELECT * FROM information_schema.tables
+          WHERE table_schema='weather'
+        ) a
+        LEFT JOIN pg_class b
+        ON a.table_name = b.relname
+        WHERE reltuples > 0
+        ORDER BY table_name
+      `,
+    CountTablesRows:
+      `
+        SELECT
+          COUNT(*) AS tables,
+          SUM(reltuples) AS rows
+        FROM (
+          SELECT * FROM information_schema.tables
+          WHERE table_schema='weather'
+        ) a
+        LEFT JOIN pg_class b
+        ON a.table_name = b.relname
+        WHERE reltuples > 0
+      `,
+    Indexes: `SELECT * FROM pg_indexes WHERE tablename NOT LIKE 'pg%' ORDER BY indexname`,
+    CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'weather'`,
+    Addresses: 'SELECT * FROM weather.addresses ORDER BY address',
+    Hits:
+      `
+        SELECT date, ip, query, ms, email
+        FROM weather.hits
+        WHERE
+          query NOT LIKE '%explain%' AND query NOT LIKE '%nvm%' AND
+          (date > current_date - 1 OR (ip <> '::ffff:172.18.186.142' AND query NOT LIKE '%25172.18.186%25'))
+        ORDER BY date DESC
+        LIMIT 1000
+      `,
+  };
+
+  for (const [route, query] of Object.entries(dbRoutes)) {
+    await simpleRoute(`/${route.toLowerCase()}`,
+      'Database',
+      route.replace(/[A-Z]/g, (c) => ` ${c}`).trim(),
+      query,
+    );
+  };
+  
+  // NVM -----------------------------------------------------------------------------------------------------------------------
+  await simpleRoute('/nvm2Data',
+    'NLDAS vs. MRMS',
+    'NVM data',
+    'SELECT DISTINCT lat, lon, year FROM weather.nvm2',
+  );
+
+  await simpleRoute('/nvm2',
+    'NLDAS vs. MRMS',
+    'NVM output',
+    async (lat, lon, year) => (
+      await nvm2(lat, lon, year)
+    ),
+    undefined,
+    {
+      response: {},
+      respondAsHtmlWhen: () => true,
+    },
+  );
+
+  await simpleRoute('/nvm2Query',
+    'NLDAS vs. MRMS',
+    'NVM query',
+    async (condition) => (
+      await nvm2Query(condition)
+    ),
+    {
+      condition: { examples: ['mrms IS NOT NULL'] },
+    },
+    { response: {} },
+  );
+
+  await simpleRoute('/nvm2Update',
+    'NLDAS vs. MRMS',
+    'NVM update',
+    nvm2Update,
+  );
+};
