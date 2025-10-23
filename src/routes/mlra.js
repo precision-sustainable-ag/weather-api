@@ -10,7 +10,7 @@ const routeMLRA = async (lat, lon, attributes, polygon, mlra) => {
     if (mlra) {
       const { rows } = await pool.query(`
         SELECT
-          b.name,b.mlrarsym,b.lrrsym,b.lrrname,
+          b.name, b.mlrarsym, b.lrrsym, b.lrrname,
           STRING_AGG(DISTINCT county || ' County' || ' ' || state, ', ') as counties,
           STRING_AGG(DISTINCT state, ', ') as states,
           STRING_AGG(DISTINCT state_code,', ') as state_codes,

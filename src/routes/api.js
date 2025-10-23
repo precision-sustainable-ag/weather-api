@@ -1,4 +1,4 @@
-import { pool, makeSimpleRoute, schema200 } from 'simple-route';
+import { pool, makeSimpleRoute } from 'simple-route';
 
 import watershed from './watershed.js';
 import routeCounty from './county.js';
@@ -26,15 +26,13 @@ export default async function apiRoutes(app) {
       ORDER BY geog <-> ST_SetSRID(ST_MakePoint($2, $1), 4326)
       LIMIT 1
     `,
-    {
-      lat,
-      lon,
-    },
+    { lat, lon },
+    { object: true },
   );
 
   await simpleRoute('/mvm',
     'Weather',
-    'MVM',
+    'MRMS vs. MRMS',
     async (lat, lon, num) => {
       const { rows } = await pool.query(`
         SELECT
@@ -51,17 +49,14 @@ export default async function apiRoutes(app) {
           )
         WHERE
           b.lat IS NOT NULL AND
-          ABS(a.sum - b.sum) > ${num}
+          ABS(a.sum - b.sum) > $1
         ORDER BY 1 DESC
-      `);
+      `, [num]);
       
       return rows;
     },
-    {
-      lat, lon,
-      num: { type: 'number', examples: [50] },
-    },
-    await schema200(pool, `SELECT 0.0 AS delta, 0.0 AS alat, 0.0 AS alon, 0.0 AS asum, 0.0 AS blat, 0.0 AS blon, 0.0 AS bsum `),
+    { lat, lon, num: { type: 'number', examples: [50] } },
+    { numbers: ['delta', 'alat', 'alon', 'asum', 'blat', 'blon', 'bsum'] },
   );
 
   await simpleRoute('/frost',
@@ -86,12 +81,12 @@ export default async function apiRoutes(app) {
     'Weather',
     'Yearly weather aggregates (NLDAS grid)',
     yearly,
+    { lat, lon, year: { examples: [2020] } },
     {
-      lat, lon,
-      year: { examples: [2020] },
-    },
-    {
-      200: {},
+      numbers: [
+        'year', 'lat', 'lon', 'min_air_temperature', 'max_air_temperature',
+        'min_precipitation', 'max_precipitation', 'avg_precipitation',
+      ],
     },
   );
 
@@ -115,7 +110,10 @@ export default async function apiRoutes(app) {
       return elevations[latLon];
     },
     { lat, lon },
-    { object: true },
+    {
+      numbers: ['latitude', 'longitude', 'elevation'],
+      object: true,
+    },
   );
 
   await simpleRoute('/watershed',
@@ -129,22 +127,34 @@ export default async function apiRoutes(app) {
       lon: { type: 'number', examples: [-79] },
       polygon: { type: 'boolean' },
     },
-    { response: {} },
+    {
+      strings: [
+        'huc12', 'name', 'huc10', 'huc10name', 'huc8', 'huc8name', 'huc6', 'huc6name', 'huc4', 'huc4name', 'huc2', 'huc2name',
+        'tnmid', 'metasourceid', 'sourcedatadesc', 'sourceoriginator', 'sourcefeatureid', 'referencegnis_ids',
+        'states', 'hutype', 'humod', 'tohuc', 'globalid', 'polygon',
+      ],
+      arrays: ['polygonarray'],
+      numbers: [
+        'areaacres', 'areasqkm', 'noncontributingareaacres', 'noncontributingareasqkm', 'shape_length', 'shape_area',
+      ],
+      dates: [ 'loaddate' ],
+    },
   );
 
   await simpleRoute('/county',
     'Other',
     'County',
-    async (lat, lon, attributes, polygon) => (
-      routeCounty(lat, lon, attributes, polygon)
-    ),
+    routeCounty,
     {
       lat, lon,
       polygon: { type: 'boolean' },
     },
-    { response: {} },
+    {
+      strings: ['county', 'state', 'state_code', 'countyfips', 'statefips', 'polygonarray', 'polygon'],
+      arrays: ['polygonarray'],
+    },
   );
-
+  
   await simpleRoute('/hardinesszone',
     'Other',
     'Hardiness Zone',
@@ -152,32 +162,30 @@ export default async function apiRoutes(app) {
       SELECT
         id, gridcode, zone, trange, zonetitle,
         CASE WHEN $3::boolean
-          THEN (ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates')
-          ELSE NULL
+          THEN ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates'
+          ELSE NULL::jsonb
         END AS polygonarray
       FROM hardiness_zones
       WHERE ST_Intersects(ST_SetSRID(ST_MakePoint($2, $1), 4326), geometry)
     `,
-    {
-      lat,
-      lon,
-      polygon: { type: 'boolean' },
-    },
+    { lat, lon, polygon: { type: 'boolean' } },
+    { object: true },
   );
 
   await simpleRoute('/mlra',
     'Other',
     'MLRA',
-    async (lat, lon, attributes, polygon, mlra) => (
-      routeMLRA(lat, lon, attributes, polygon, mlra)
-    ),
+    routeMLRA,
     {
       lat: { type: 'number', examples: [35] },
       lon: { type: 'number', examples: [-79] },
       polygon: { type: 'boolean' },
     },
-    { response: {} },
-  );  
+    {
+      strings: ['name', 'mlrarsym', 'lrrsym', 'lrrname', 'counties', 'states', 'state_codes', 'countyfips', 'statefips', 'polygon'],
+      arrays: ['polygonarray'],
+    },
+  );
 
   await simpleRoute('/rosetta',
     'Other',
@@ -279,26 +287,19 @@ export default async function apiRoutes(app) {
   await simpleRoute('/nvm2',
     'NLDAS vs. MRMS',
     'NVM output',
-    async (lat, lon, year) => (
-      await nvm2(lat, lon, year)
-    ),
-    undefined,
+    nvm2,
     {
-      response: {},
-      respondAsHtmlWhen: () => true,
+      lat, lon,
+      year: { type: 'number', examples: [2019] },
     },
+    { html: true },
   );
 
   await simpleRoute('/nvm2Query',
     'NLDAS vs. MRMS',
     'NVM query',
-    async (condition) => (
-      await nvm2Query(condition)
-    ),
-    {
-      condition: { examples: ['mrms IS NOT NULL'] },
-    },
-    { response: {} },
+    nvm2Query,
+    { condition: { examples: ['mrms IS NOT NULL'] } },
   );
 
   await simpleRoute('/nvm2Update',
