@@ -1,303 +1,155 @@
-# using GRIB
-using HTTP
-using Downloads
-using SparseArrays
-using Suppressor
-using LibPQ
-using Printf
-using Dates
-using GZip
-using NCDatasets
-
-# using Base64
-# using Base: run
-# using Base
-
-# ________________________________________________________________________________________________________________________
-function showSyntax()
-  function green(string)
-    return "\u001b[1m\u001b[32m$(string)\u001b[0m"
-  end
-  
-  println("""
-    Syntax:
-      These create queries but don't execute them:
-        autovacuum "wildcard" true|false :  $(green("autovacuum \"hourly%2015\" true"))
-        deleteDate "yyyy-mm-hh hh:mm:ss" "wildcard":  $(green("deleteDate \"2015-11-01 05:00:00\" \"hourly%2015\""))
-        dropTables "wildcard":  $(green("dropTables \"hourly%2015\""))
-        renameTables "wildcard":  $(green("renameTables \"hourly%2015\""))
-
-      These execute queries:
-        createIndexes "wildcard":  $(green("createIndexes \"hourly%2015\""))
-        hourlyAverages
-        schemas
-        showQueries
-        schemaSize schema:  $(green("schemaSize plants3"))
-        yearlyNLDAS:  $(green("yearlyNLDAS"))
-  """)
+import Pkg
+for pkg in ["ConfigEnv", "NCDatasets", "LibPQ"]
+  Base.find_package(pkg) === nothing && Pkg.add(pkg)
 end
 
-if (length(ARGS) < 1)
-  showSyntax()
-  exit()
+using ConfigEnv, Printf, Dates, NCDatasets, Base.Threads, LibPQ
+
+home = homedir()
+
+dotenv("$(home)/weather/.env")
+
+conn = LibPQ.Connection("
+  host      =$(ENV["DB_HOST"])
+  port      =$(get(ENV, "DB_PORT", 5432))
+  dbname    =$(ENV["DB_DATABASE"])
+  user      =$(ENV["DB_USERNAME"])
+  password  =$(ENV["DB_PASSWORD"])
+")
+
+row = only(execute(conn, "SELECT now() AS current_time;"))
+println(row.current_time)
+
+@inline function tile_id_from(lat, lon)
+  lat_bin = floor(Int, (lat + 90.0)  * 8)
+  lon_bin = floor(Int, (lon + 180.0) * 8)
+  return (lat_bin << 12) | lon_bin
 end
 
-# ________________________________________________________________________________________________________________________
-# cd /dev/shm
-# sudo -s
-# nohup julia ~/API/importNew.jl yearlyNLDAS > output2.log 2>&1 &
+LibPQ.execute(conn, "SET client_min_messages = WARNING"); 
+LibPQ.execute(conn, "
+  CREATE TABLE IF NOT EXISTS weather (
+    date timestamp without time zone,
+    lat real,
+    lon real,
+    air_temperature real,
+    humidity real,
+    pressure real,
+    zonal_wind_speed real,
+    meridional_wind_speed real,
+    longwave_radiation real,
+    convective_precipitation real,
+    potential_energy real,
+    potential_evaporation real,
+    precipitation real,
+    shortwave_radiation real,
+    relative_humidity real,
+    wind_speed real,
+    nswrs real,
+    nlwrs real,
+    dswrf real,
+    dlwrf real,
+    lhtfl real,
+    shtfl real,
+    gflux real,
+    snohf real,
+    asnow real,
+    arain real,
+    evp real,
+    ssrun real,
+    bgrun real,
+    snom real,
+    avsft real,
+    albdo real,
+    weasd real,
+    snowc real,
+    snod real,
+    tsoil real,
+    soilm1 real,
+    soilm2 real,
+    soilm3 real,
+    soilm4 real,
+    soilm5 real,
+    mstav1 real,
+    mstav2 real,
+    soilm6 real,
+    evcw real,
+    trans real,
+    evbs real,
+    sbsno real,
+    cnwat real,
+    acond real,
+    ccond real,
+    lai real,
+    veg real,
+    tile_id integer
+  )
+  PARTITION BY RANGE (date);
+")
 
-# psql:
-#   SET work_mem = '100MB';   -- 8MB
-#   SET work_mem = '128MB';   -- 64MB
-#   SELECT pg_reload_conf();
+# const BUCKETS = 16
+# for y in 1975:2099, m in 1:12
+#   y2 = (m == 12) ? y + 1 : y       # next year if Dec
+#   m2 = (m == 12) ? 1     : m + 1   # next month (wrap at Dec)
 
-# auth = Base64.base64encode("user:pwd")
-# params_diction = Dict("fields"=>fields)
-# r = HTTP.request("GET", "https://user:pwd@urs.earthdata.nasa.gov/", ["Authorization" => "Basic $(auth)"]) #, query = params_diction)
-# r = HTTP.request("GET", "https://urs.earthdata.nasa.gov/", ["Authorization" => "Basic $(auth)"]) #, query = params_diction)
-# r = HTTP.request("GET", "https://user:pwd@urs.earthdata.nasa.gov/") #, query = params_diction)
-# HTTP.download("https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.002/2021/001/NLDAS_FORA0125_H.A20210101.0000.002.grb")
+#   tbl = @sprintf("weather_%d_%02d", y, m)
+#   sql = @sprintf("
+#     CREATE TABLE IF NOT EXISTS %s
+#     PARTITION OF weather
+#     FOR VALUES FROM ('%04d-%02d-01') TO ('%04d-%02d-01')
+#     PARTITION BY HASH (tile_id);
+#   ", tbl, y, m, y2, m2)
 
-# lat = 38.032056
-# lon = -75.0
-# lat = round(-(floor(-lat * 8) / 8); digits = 3)
-# lon = round(floor(lon * 8) / 8; digits = 3)
-# println(lat)
-# println(lon)
-# exit();
+#   LibPQ.execute(conn, sql)
 
-open("/home/administrator/API/.env") do f
-  s = readline(f)
-  type, user, pwd = split(s, "|")
-  host="localhost"
-  db="postgres"
-  global conn = LibPQ.Connection("host=$host dbname=$db user=$user password=$pwd")
-  execute(conn, "SET client_min_messages TO WARNING;")  
+#   for r in 0:BUCKETS - 1
+#     LibPQ.execute(conn, "
+#       CREATE TABLE IF NOT EXISTS $(tbl)_p$(r)
+#       PARTITION OF $(tbl)
+#       FOR VALUES WITH (MODULUS $(BUCKETS), REMAINDER $(r))
+#     ")
+#   end  
+# end
+
+for y in 1975:2099, m in 1:12
+  y2 = (m == 12) ? y + 1 : y       # next year if Dec
+  m2 = (m == 12) ? 1     : m + 1   # next month (wrap at Dec)
+
+  tbl = @sprintf("weather_%d_%02d", y, m)
+  sql = @sprintf("
+    CREATE TABLE IF NOT EXISTS %s
+    PARTITION OF weather
+    FOR VALUES FROM ('%04d-%02d-01') TO ('%04d-%02d-01')
+  ", tbl, y, m, y2, m2)
+
+  LibPQ.execute(conn, sql)
 end
 
-files = Dict()
+LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_date_lat_lon_idx ON weather (date, lat, lon);")
+LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_date_idx         ON weather (date);")
 
-# ________________________________________________________________________________________________________________________
-function writeToPostgres(fname, files, year)
-  @time begin
-    println("writeToPostgres start")
-    flush(stdout)
-
-    for file in keys(files)
-      table = "nldas_hourly"
-      result = execute(conn, """
-        CREATE TABLE IF NOT EXISTS weather.$(table) (
-          date timestamp without time zone,
-          lat real,
-          lon real,
-          air_temperature real,
-          humidity real,
-          pressure real,
-          zonal_wind_speed real,
-          meridional_wind_speed real,
-          longwave_radiation real,
-          convective_precipitation real,
-          potential_energy real,
-          potential_evaporation real,
-          precipitation real,
-          shortwave_radiation real,
-          relative_humidity real,
-          wind_speed real,
-          nswrs real,
-          nlwrs real,
-          dswrf real,
-          dlwrf real,
-          lhtfl real,
-          shtfl real,
-          gflux real,
-          snohf real,
-          asnow real,
-          arain real,
-          evp real,
-          ssrun real,
-          bgrun real,
-          snom real,
-          avsft real,
-          albdo real,
-          weasd real,
-          snowc real,
-          snod real,
-          tsoil real,
-          soilm1 real,
-          soilm2 real,
-          soilm3 real,
-          soilm4 real,
-          soilm5 real,
-          mstav1 real,
-          mstav2 real,
-          soilm6 real,
-          evcw real,
-          trans real,
-          evbs real,
-          sbsno real,
-          cnwat real,
-          acond real,
-          ccond real,
-          lai real,
-          veg real
-        ) WITH (autovacuum_enabled = false);
-      """)
-
-      waitIdle()
-      result = execute(conn, "COPY weather.$(table) FROM '/dev/shm/$(file).csv' delimiter ',' CSV HEADER ;")
-    end
-  end
-  # exit()
-end
-
-# ________________________________________________________________________________________________________________________
-function readMRMSOld(fname)
-  vals = []
-  @time begin
-    fh = GZip.open(fname, "r")
-    d = read(fh)
-    io = open("data.grib2", "w")
-    write(io, d)
-    close(io)
-
-    files = Dict()
-
-    GribFile("data.grib2") do f
-      for message in f
-        date = string(message["date"])
-        time = string(Int(message["time"] / 100))
-        datetime = "$(date[1:4])-$(date[5:6])-$(date[7:8]) $(lpad(time, 2, "0")):00:00"
-        lons, lats, values = data(message)
-        i = 0
-        for lon in lons
-          i += 1
-          lon -= 360
-          # Conterminous US data only
-          # if 25 <= lats[i] <= 50 && -125 <= lon <= -67
-          if true
-            # Exclude non-detectable precipitation to save space
-            if values[i] > 0
-              fn = "$(trunc(Int, lats[i]))_$(trunc(Int, -lon))"
-              if !haskey(files, fn)
-                files[fn] = open("csv/$fn.csv", "w");
-                write(files[fn], "precipitation,date,lat,lon\n")
-              end
-              write(files[fn], "$(@sprintf("%.1f", values[i])),$(datetime),$(@sprintf("%.4f", lats[i])),$(@sprintf("%.4f", lon))\r\n")
-            end
-          end
-        end
-      end
-    end
-
-  end
-
-  return vals
-end
-
-# ________________________________________________________________________________________________________________________
-function readMRMSOK(fname)
-  vals = Dict()
-  @time begin
-    fh = GZip.open(fname, "r")
-    d = read(fh)
-    io = open("data.grib2", "w")
-    write(io, d)
-    close(io)
-
-    GribFile("data.grib2") do f
-      for message in f
-        date = string(message["date"])
-        time = string(Int(message["time"] / 100))
-        datetime = "$(date[1:4])-$(date[5:6])-$(date[7:8]) $(lpad(time, 2, "0")):00:00"
-        lons, lats, v = data(message)
-        for (lon, lat) in zip(lons, lats)
-          lon2 = round(floor((lon - 360) * 8) / 8; digits = 3)
-          lat2 = round(-(floor(-lat * 8) / 8); digits = 3)
-          println("$lon2 $lat2")
-          if !haskey(vals, "$lon2 $lat2")
-            vals["$lon2 $lat2"] = []
-          end
-          push!(vals["$lon2 $lat2"], vcat(lon, lat, v))
-        end
+function download(url, output)
+  if !isfile(output)
+    println(output)
+    while true
+      try
+        run(`
+          curl
+            --cookie $home/.urs_cookies \
+            --cookie-jar $home/.urs_cookies \
+            --silent \
+            --retry 5 --retry-delay 2 --retry-connrefused \
+            --output $output $url
+        `)
+        return
+      catch e
+        @warn "download error" error=e url=url dest=output
+        sleep(2)
       end
     end
   end
-  println("ok")
-  println(vals)
-  return vals
 end
 
-# ________________________________________________________________________________________________________________________
-function readMRMS(fname)  # Chat-GPT
-  @time begin
-    println("MRMS" * fname)
-    vals = sparse(zeros(Float64, 360 * 8, 180 * 8))
-    fh = GZip.open(fname, "r")
-    d = read(fh)
-    io = open("data.grib2", "w")
-    write(io, d)
-    close(io)
-    
-    GribFile("data.grib2") do f
-      for message in f
-        date = string(message["date"])
-        time = string(Int(message["time"] / 100))
-        datetime = "$(date[1:4])-$(date[5:6])-$(date[7:8]) $(lpad(time, 2, "0")):00:00"
-        lons, lats, v = data(message)
-        for (lon, lat, val) in zip(lons, lats, v)
-          lon2 = round(floor((lon - 360) * 8) / 8; digits = 3)
-          lat2 = round(-(floor(-lat * 8) / 8); digits = 3)
-          row = Int((lon2 + 360) * 8)
-          col = Int((lat2 + 90) * 8)
-          # println("$lon2 $lat2")
-          vals[row, col] += val
-        end
-      end
-    end
-  end
-  return vals
-end
-
-# ________________________________________________________________________________________________________________________
-function haltIfFileExists(file_path)
-  if isfile(file_path)
-    error("File $file_path already exists. Halting execution.")
-  end
-end
-
-# ________________________________________________________________________________________________________________________
-function getRunningQueries()
-  result = execute(conn, "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active' AND query NOT LIKE '%sleep%';")
-  return first(result)[1]
-end
-
-# ________________________________________________________________________________________________________________________
-function showQueries()
-  result = execute(conn, "SELECT query FROM pg_stat_activity WHERE state = 'active' AND query NOT LIKE '%sleep%';")
-  for row in result
-    println(row[1]);
-  end
-end
-
-# ________________________________________________________________________________________________________________________
-function waitIdle(s = "")
-  running_queries = getRunningQueries()
-  
-  if running_queries > 0
-    print("Waiting for running queries to complete $s")
-    sleep(3)
-    
-    while running_queries > 1
-      print(".")
-      sleep(3)
-      running_queries = getRunningQueries()
-    end
-    println()
-  end
-end
-
-# ________________________________________________________________________________________________________________________
 function readNLDAS(fname1, fname2, year, hour, cdate)
   # for fname in [fname1, fname2]
   #   f = GribFile(fname)
@@ -313,7 +165,6 @@ function readNLDAS(fname1, fname2, year, hour, cdate)
   @time begin
     println("readNLDAS")
     @inbounds begin
-      global files
       vals = Vector{Any}(undef, 11 + 2 + 37)
 
       for fname in [fname1, fname2]
@@ -400,381 +251,84 @@ function readNLDAS(fname1, fname2, year, hour, cdate)
           ]
           lons = ds["lon"][:]
           lats = ds["lat"][:]
-          k = 0
-          for i in 1:size(lats)[1]
-            for j in 1:size(lons)[1]
-              lat = round(-(floor(-lats[i] * 8) / 8); digits = 3)
-              lon = round(floor(lons[j] * 8) / 8; digits = 3)
-              k += 1
-              if !ismissing(vals[1][k])
-                # fn = "$(trunc(Int, lat))_$(trunc(Int, -lon))"
-                fn = "nldas"
-                if !haskey(files, fn)
-                  files[fn] = open("$fn.csv", "w")
-                  write(files[fn], "date,lat,lon,air_temperature,humidity,pressure,zonal_wind_speed,meridional_wind_speed,longwave_radiation,convective_precipitation,potential_energy,potential_evaporation,precipitation,shortwave_radiation,relative_humidity,wind_speed,nswrs,nlwrs,dswrf,dlwrf,lhtfl,shtfl,gflux,snohf,asnow,arain,evp,ssrun,bgrun,snom,avsft,albdo,weasd,snowc,snod,tsoil,soilm1,soilm2,soilm3,soilm4,soilm5,mstav1,mstav2,soilm6,evcw,trans,evbs,sbsno,cnwat,acond,ccond,lai,veg\n")
+
+          yyyy = Dates.format(ds["time"][1:1][1], "yyyy")
+          mm   = Dates.format(ds["time"][1:1][1], "mm")
+          sql = "
+            COPY weather_$(yyyy)_$(mm) (
+              date, lat, lon,
+              air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed,
+              longwave_radiation, convective_precipitation, potential_energy, potential_evaporation,
+              precipitation, shortwave_radiation, relative_humidity, wind_speed,
+              nswrs, nlwrs, dswrf, dlwrf, lhtfl, shtfl, gflux, snohf, asnow, arain,
+              evp, ssrun, bgrun, snom, avsft, albdo, weasd, snowc, snod, tsoil,
+              soilm1, soilm2, soilm3, soilm4, soilm5, mstav1, mstav2, soilm6, evcw,
+              trans, evbs, sbsno, cnwat, acond, ccond, lai, veg, tile_id
+            )
+            FROM STDIN WITH (FORMAT csv, HEADER false, NULL '')
+          "
+          ch = Channel{String}(256) do c
+            buf = IOBuffer()
+            @inbounds begin
+              k = 0
+              for i in eachindex(lats)
+                lat = round(-(floor(-lats[i] * 8) / 8); digits = 3)
+                for j in eachindex(lons)
+                  lon = round(floor(lons[j] * 8) / 8; digits = 3)
+                  k += 1
+                  if ismissing(vals[1][k])
+                    continue
+                  end
+
+                  # build one CSV line
+                  print(buf, datetime, ',', lat, ',', lon)
+                  for col in vals
+                    write(buf, ',')
+                    v = col[k]
+                    v === missing || print(buf, v)  # empty field => NULL '' on COPY
+                  end
+                  write(buf, ',')
+                  print(buf, tile_id_from(lat, lon))
+                  write(buf, '\n')
+
+                  put!(c, String(take!(buf)))  # take! clears buf
                 end
-                write(files[fn], "$(datetime),$(@sprintf("%.4f", lat)),$(@sprintf("%.4f", lon)),$(join(map(x -> ismissing(x[k]) ? 9999.0 : round(x[k], sigdigits=6), vals), ","))\n")
               end
             end
           end
+          LibPQ.execute(conn, LibPQ.CopyIn(sql, ch))
         end
         close(ds)
       end
-
-      if true # hour == 23 # && dayofweek(cdate) == 7
-        for file in values(files)
-          close(file)
-        end
-
-        waitIdle(fname1)
-
-        writeToPostgres(fname1, files, year)
-        sleep(2)
-        files = Dict()
-      end
-    end
-  end
-  # exit()
-end
-
-function contains(filename, string)
-  file = open(filename, "r")
-  file_contents = read(file, String)
-  close(file)
-  return occursin(string, file_contents)
-end
-
-# ________________________________________________________________________________________________________________________
-# Downloads and imports NLDAS data for a given year.
-function yearlyNLDAS()
-  home = homedir()
-
-  # start_date = nothing  
-  # try
-  #   println("SELECT MAX(date) FROM weather.nldas_hourly");
-  #   result = execute(conn, "SELECT MAX(date) FROM weather.nldas_hourly;")
-  #   rows = collect(result)  # Convert the result into a collection
-    
-  #   if !isempty(rows)
-  #     start_date = rows[1][1] + Dates.Hour(1)  # Extract the MAX(date) value
-  #     println("Start date determined: ", start_date)
-  #   else
-  #     println("No rows returned in the result.")
-  #   end    
-  # catch e
-  #   println("Couldn't determine max date. Error: ", e)
-  #   exit();
-  # end
-
-  # start_date = DateTime(2018, 5, 20, 11, 0, 0)
-  # end_date = start_date
-  # end_date = now()
-
-  start_date = DateTime(2020, 03, 16, 21, 0, 0)
-  end_date = DateTime(2024, 12, 31, 23, 0, 0)
-
-  date = start_date
-  println("$(start_date) $(end_date)")
-  while date <= end_date
-    @time begin
-      println("yearlyNLDAS")
-      day = lpad(dayofyear(date), 3, "0")
-      year = Dates.year(date)
-      m2 = lpad(Dates.month(date), 2, "0")
-      d2 = lpad(Dates.day(date),  2, "0")
-      hour = Dates.hour(date)
-      h2 = lpad(hour, 2, "0")
-
-      mrms   = "MultiSensor_QPE_01H_Pass2_00.00_$(year)$(m2)$(d2)-$(h2)0000.grib2.gz"
-      # fname1 = "NLDAS_FORA0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
-      # fname2 = "NLDAS_MOS0125_H.A$(year)$(m2)$(d2).$(h2)00.002.grb"
-
-      fname1 = "NLDAS_FORA0125_H.A$(year)$(m2)$(d2).$(h2)00.020.nc"
-      fname2 = "NLDAS_MOS0125_H.A$(year)$(m2)$(d2).$(h2)00.020.nc"
-
-      # download(year, m2, d2, h2)
-      # url = "https://mtarchive.geol.iastate.edu/$(year)/$(m2)/$(d2)/mrms/ncep/MultiSensor_QPE_01H_Pass2/$(mrms)"
-      # run(`curl -s -O -b ~/.urs_cookies -c ~/.urs_cookies -L -n "$(url)" > /dev/null 2>&1`)
-      # mrmsdata = readMRMS(mrms)
-      # exit()
-
-      url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.2.0/$(year)/$(day)/$(fname1)"
-      println(url)
-      while true
-        try
-          run(`curl -s -o "file1" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
-          if contains("file1", "DOCTYPE")
-            println("No more data.  Waiting one hour.")
-            flush(stdout)
-            sleep(3600)
-          else
-            ds = Dataset("file1")
-            datetime = Dates.format(ds["time"][1:1][1], "yyyy-mm-dd HH:MM:ss")
-            break
-          end
-        catch e
-          println("Error: ", e)
-          println("Waiting one hour.")
-          flush(stdout)
-          sleep(3600)
-        end
-      end
-
-      url = "https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.2.0/$(year)/$(day)/$(fname2)"
-      println(url)
-      while true
-        try
-          run(`curl -s -o "file2" -b $(home)/.urs_cookies -c $(home)/.urs_cookies -L -n $(url)`)
-          if contains("file2", "DOCTYPE")
-            println("No more data.  Waiting one hour.")
-            flush(stdout)
-            sleep(3600)
-          else
-            ds = Dataset("file2")
-            datetime = Dates.format(ds["time"][1:1][1], "yyyy-mm-dd HH:MM:ss")
-            break
-          end
-        catch e
-          println("Error: ", e)
-          println("Waiting one hour.")
-          flush(stdout)
-          sleep(3600)
-        end
-      end
-      
-      println("Downloaded $fname1, $fname2, $mrms")
-      flush(stdout)
-
-      readNLDAS("file1", "file2", year, hour, date)
-    end
-    date += Hour(1)
-    haltIfFileExists("/home/administrator/API/halt")
-  end
-end
-
-# ________________________________________________________________________________________________________________________
-function tables(match, condition="", having="")
-  return execute(
-    conn,
-    """
-      SELECT t.tablename
-      FROM pg_tables t
-      LEFT JOIN pg_indexes i ON t.schemaname = i.schemaname AND t.tablename = i.tablename
-      WHERE t.tablename LIKE '$(match)' $(condition)
-      GROUP BY t.tablename
-      $(having)
-      ORDER BY 1;
-    """
-  )
-end
-
-# ________________________________________________________________________________________________________________________
-# Creates date and lat/lon indexes
-# Example: createIndexes("nldas_hourly%2016")
-function createIndexes(match)
-  for row in tables(match, "", "HAVING COUNT(i.indexname) < 2")
-    println("Creating date and lat/lon indexes on $(row[1])")
-    waitIdle()
-    execute(conn, "CREATE INDEX ON weather.$(row[1]) (date)");
-    waitIdle()
-    execute(conn, "CREATE INDEX ON weather.$(row[1]) (lat, lon)");
-  end
-end
-
-# ________________________________________________________________________________________________________________________
-# Deletes a specific date-time from the weather database.
-# Useful if a GRIB file is aborted during an import.
-# Example: deleteDate("2015-11-01 05:00:00", "nldas_hourly%2015")
-function deleteDate(date, match)
-  open("/dev/shm/output.sql", "w") do f
-    for row in tables(match)
-      println(f, "DELETE FROM weather.$(row[1]) WHERE \"date\" = '$(date)';")
-    end
-  end
-  println("Proof /dev/shm/output.sql, then import it using \\i");
-end
-
-function autovacuum(match, bool)
-  open("/dev/shm/vac.sql", "w") do f
-    for row in tables(match)
-      println(f, "ALTER TABLE weather.$(row[1]) SET (autovacuum_enabled = $(bool));")
-    end
-  end
-  println("Proof /dev/shm/vac.sql, then import it using \\i");
-end
-
-# ________________________________________________________________________________________________________________________
-# Drops tables from the weather database.
-# Example: dropTables("nldas_hourly%2015")
-function dropTables(match)
-  open("/dev/shm/output.sql", "w") do f
-    for row in tables(match)
-      println(f, "DROP TABLE IF EXISTS weather.$(row[1]);")
-    end
-  end
-  println("Proof /dev/shm/output.sql, then import it using \\i");
-end
-
-# ________________________________________________________________________________________________________________________
-# Renames hourly tables to their nldas equivalent.
-# Use after importing a year's data.
-# Example: renameTables("hourly%2016")
-function renameTables(match)
-  open("/dev/shm/output.sql", "w") do f
-    for row in tables(match)
-      println(f, "DROP TABLE IF EXISTS weather.nldas_$(row[1]);")
-      println(f, "ALTER TABLE weather.$(row[1]) RENAME TO nldas_$(row[1]);")
-    end
-  end
-  println("Proof /dev/shm/output.sql, then import it using \\i");
-end
-
-# ________________________________________________________________________________________________________________________
-function schemaSize(schema)
-  # result = execute(conn, """
-  #   SELECT count(*), pg_catalog.pg_size_pretty(sum(pg_catalog.pg_total_relation_size(c.oid)))
-  #   FROM pg_catalog.pg_namespace n
-  #   LEFT JOIN pg_catalog.pg_class c ON n.oid = c.relnamespace
-  #   WHERE n.nspname = '$(schema)';
-  # """)
-
-  result = execute(conn, """
-    SELECT 
-      (SELECT COUNT(*) 
-      FROM pg_catalog.pg_namespace n2
-      LEFT JOIN pg_catalog.pg_class c2 ON n2.oid = c2.relnamespace
-      WHERE n2.nspname = '$(schema)') AS row_count,
-      COUNT(*) AS object_count,
-      pg_catalog.pg_size_pretty(sum(pg_catalog.pg_total_relation_size(c.oid))) AS total_size
-    FROM pg_catalog.pg_namespace n
-    LEFT JOIN pg_catalog.pg_class c ON n.oid = c.relnamespace  
-    WHERE n.nspname = '$(schema)'  
-    """)
-  println(first(result))
-  println(first(result)[1], " tables")
-  println(first(result)[2])
-end
-
-# ________________________________________________________________________________________________________________________
-function schemas()
-  result = execute(conn, """
-    SELECT nspname AS schema_name 
-    FROM pg_catalog.pg_namespace
-    WHERE nspname NOT IN ('information_schema', 'pg_catalog', 'public')
-    ORDER BY schema_name;  
-  """)
-  for row in result
-    println(row[1])
-  end
-end
-
-# ________________________________________________________________________________________________________________________
-function hourlyAverages()
-  execute(conn, "DELETE FROM weather.queries WHERE url LIKE '%averages%'")
-
-  year = Dates.year(Dates.today()) - 1
-  
-  columns = join(
-    [
-      "lat", "lon", "air_temperature", "humidity", "pressure", "zonal_wind_speed", "meridional_wind_speed", "longwave_radiation",
-      "convective_precipitation", "potential_energy", "potential_evaporation", "precipitation", "shortwave_radiation",
-      "relative_humidity", "wind_speed"
-    ],
-    ", "
-  )
-
-  # for row in tables("nldas%$(year)")
-  for row in tables("nldas%$(year)", "AND t.tablename > 'nldas_hourly_52_106'")
-    _, hourly, lat, lon = split(row[1], "_")
-    
-    println("weather.ha_$(lat)_$(lon)")
-    
-    execute(conn, "DROP TABLE IF EXISTS weather.ha_$(lat)_$(lon);")
-    
-    waitIdle()
-    execute(conn, """
-      SELECT * INTO weather.ha_$(lat)_$(lon)
-      FROM (
-        SELECT
-          date2 AS date, lat, lon, 
-          avg(air_temperature) AS air_temperature,
-          avg(humidity) AS humidity,
-          avg(pressure) AS pressure,
-          avg(zonal_wind_speed) AS zonal_wind_speed,
-          avg(meridional_wind_speed) AS meridional_wind_speed,
-          avg(longwave_radiation) AS longwave_radiation,
-          avg(convective_precipitation) AS convective_precipitation,
-          avg(potential_energy) AS potential_energy,
-          avg(potential_evaporation) AS potential_evaporation,
-          avg(precipitation) AS precipitation,
-          avg(shortwave_radiation) AS shortwave_radiation,
-          avg(relative_humidity) AS relative_humidity,
-          avg(wind_speed) AS wind_speed
-        FROM (
-          SELECT date + INTERVAL '$(2103 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 4)
-          UNION ALL
-          SELECT date + INTERVAL '$(2102 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 3)
-          UNION ALL
-          SELECT date + INTERVAL '$(2101 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 2)
-          UNION ALL
-          SELECT date + INTERVAL '$(2100 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 1)
-          UNION ALL
-          SELECT date + INTERVAL '$(2099 - year) years' AS date2, $(columns) FROM weather.nldas_hourly_$(lat)_$(lon)_$(year - 0)
-        ) a
-        GROUP BY date2, lat, lon
-      ) b;
-    """)
-  end
-end
-
-# ________________________________________________________________________________________________________________________
-try
-  if ARGS[1] == "createIndexes" && length(ARGS) == 2
-    createIndexes(ARGS[2])
-  elseif ARGS[1] == "deleteDate" && length(ARGS) == 3
-    deleteDate(ARGS[2], ARGS[3])
-  elseif ARGS[1] == "dropTables" && length(ARGS) == 2
-    dropTables(ARGS[2])
-  elseif ARGS[1] == "renameTables" && length(ARGS) == 2
-    renameTables(ARGS[2])
-  elseif ARGS[1] == "yearlyNLDAS"
-    yearlyNLDAS()
-  elseif ARGS[1] == "schemaSize" && length(ARGS) == 2
-    schemaSize(ARGS[2])
-  elseif ARGS[1] == "schemas"
-    schemas()
-  elseif ARGS[1] == "showQueries"
-    showQueries()
-  elseif ARGS[1] == "hourlyAverages"
-    hourlyAverages()
-  elseif ARGS[1] == "autovacuum" && length(ARGS) == 3
-    autovacuum(ARGS[2], ARGS[3])
-  else
-    showSyntax()
-  end
-catch e
-  Base.show_backtrace(stderr, catch_backtrace())
-  for (i, bt) in enumerate(Base.catch_backtrace())
-    println(bt)
-    if i >= 5  # Limit to the first 5 frames
-      println("... (stack trace truncated)")
-      break
     end
   end
 end
 
-# readMRMS("mrms.grib2.gz")
+year0 = 2015
+start_date = DateTime(year0,       1,  1,  0, 0, 0)
+end_date   = DateTime(year0 + 10, 10, 24, 23, 0, 0)
 
-# GribFile("/home/administrator/Public/NLDAS_MOS0125_H.A20170101.0000.002.grb") do f
-#   for message in f
-#     date = string(message["date"])
-#     time = string(Int(message["time"] / 100))
-#     lons, lats, values = data(message)
-#     println(message["parameterName"])
-#     # for key in keys(message)
-#     #   println(values)
-#     # end
-#     # exit()
-#   end
-# end
-# exit()
+dates = collect(start_date:Hour(1):end_date)
+
+# @threads for i in 1:length(dates)
+for i in eachindex(dates)
+  date = dates[i]
+  jd = lpad(dayofyear(date), 3, "0")
+  y = year(date)
+  m2 = lpad(month(date), 2, "0")
+  d2 = lpad(day(date), 2, "0")
+  h2 = lpad(hour(date), 2, "0")
+
+  fname1 = "NLDAS_FORA0125_H.A$(y)$(m2)$(d2).$(h2)00.020.nc"
+  fname2 = "NLDAS_MOS0125_H.A$(y)$(m2)$(d2).$(h2)00.020.nc"
+  out1 = "/mnt/data/$y$m2$d2$h2.nc"
+  out2 = "/mnt/data/m$y$m2$d2$h2.nc"
+
+  # out1 = "/dev/shm/$y$m2$d2$h2.nc"
+  # out2 = "/dev/shm/m$y$m2$d2$h2.nc"
+
+  download("https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.2.0/$y/$jd/$fname1", out1)
+  download("https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.2.0/$y/$jd/$fname2", out2)
+  println(out1)
+  readNLDAS(out1, out2, y, hour(date), date)
+end

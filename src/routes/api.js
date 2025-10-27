@@ -5,6 +5,7 @@ import routeCounty from './county.js';
 import routeMLRA from './mlra.js';
 import { nvm2, nvm2Query, nvm2Update } from './nvm2.js';
 import yearly from './yearly.js';
+import { routeHourly, routeDaily } from './query.js';
 
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
@@ -13,8 +14,53 @@ export default async function apiRoutes(app) {
 
   const lat = { type: 'number', required: true, examples: [35] };
   const lon = { type: 'number', required: true, examples: [-79] };
+  const predicted = { type: 'boolean' };
+  const explain   = { type: 'boolean' };
+  const beta      = { type: 'boolean' };
+  const limit     = { type: 'number' };
+  const offset    = { type: 'number' };
 
   // Weather -----------------------------------------------------------------------------------------------------------------------
+  await simpleRoute('/hourly',
+    'Weather',
+    'Hourly weather data',
+    routeHourly,
+    {
+      lat:        { examples: [35] },
+      lon:        { examples: [-79] },
+      start:      { examples: ['2018-11-01'] },
+      end:        { examples: ['2018-11-30'] },
+      predicted,
+      limit,
+      offset,
+      explain,
+      beta,
+    },
+    {
+      response: {},
+    },
+  );
+
+  await simpleRoute('/daily',
+    'Weather',
+    'Daily weather data',
+    routeDaily,
+    {
+      lat:        { examples: [35] },
+      lon:        { examples: [-79] },
+      start:      { examples: ['2018-11-01'] },
+      end:        { examples: ['2018-11-30'] },
+      predicted,
+      limit,
+      offset,
+      explain,
+      beta,
+    },
+    {
+      response: {},
+    },
+  );
+
   await simpleRoute('/yearlyprecipitation',
     'Weather',
     'Yearly Precipitation',
@@ -84,7 +130,8 @@ export default async function apiRoutes(app) {
     { lat, lon, year: { examples: [2020] } },
     {
       numbers: [
-        'year', 'lat', 'lon', 'min_air_temperature', 'max_air_temperature',
+        'year', 'lat', 'lon',
+        'min_air_temperature', 'max_air_temperature',
         'min_precipitation', 'max_precipitation', 'avg_precipitation',
       ],
     },
@@ -104,7 +151,6 @@ export default async function apiRoutes(app) {
         elevations[latLon] = (await (
           await fetch(url)
         ).json()).results[0];
-        console.log('fetched', url, JSON.stringify(elevations[latLon]));
       }
 
       return elevations[latLon];
@@ -119,9 +165,7 @@ export default async function apiRoutes(app) {
   await simpleRoute('/watershed',
     'Other',
     'Watershed',
-    async (lat, lon, attributes, polygon, state, huc, location) => (
-      await watershed(lat, lon, attributes, polygon, state, huc, location)
-    ),
+    watershed,
     {
       lat: { type: 'number', examples: [35] },
       lon: { type: 'number', examples: [-79] },
@@ -134,9 +178,7 @@ export default async function apiRoutes(app) {
         'states', 'hutype', 'humod', 'tohuc', 'globalid', 'polygon',
       ],
       arrays: ['polygonarray'],
-      numbers: [
-        'areaacres', 'areasqkm', 'noncontributingareaacres', 'noncontributingareasqkm', 'shape_length', 'shape_area',
-      ],
+      numbers: ['areaacres', 'areasqkm', 'noncontributingareaacres', 'noncontributingareasqkm', 'shape_length', 'shape_area'],
       dates: [ 'loaddate' ],
     },
   );

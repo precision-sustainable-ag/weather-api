@@ -8,7 +8,6 @@ const watershed = async (lat, lon, attributes, polygon, state, huc, location) =>
     await getLocation(location, results);
     lat = results.lats[0];
     lon = results.lons[0];
-    console.log({ lat, lon });
   }
 
   const query = async (sq) => {

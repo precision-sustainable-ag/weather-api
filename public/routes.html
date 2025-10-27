@@ -1,3 +1,72 @@
+<div data-route="/hourly">
+  <p>Returns hourly NLDAS2 data.</p>
+  <p><strong>Examples:</strong></p>
+  <ol>
+    <li>
+      Show November 2018 real hourly data for Beltsville MD, all parameters:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html]
+    </li>
+    <li>
+      Show November 2018 real hourly data for Beltsville MD's midpoint, ordered by descending air temperature:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&order=air_temperature desc&output=html]
+    </li>
+    <li>
+      Show November 1 2018 real hourly data for all of Clarke County GA. Allow graphing:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2018-11-01&end=2018-11-1&options=rect,graph&output=html]
+    </li>
+    <li>
+      Show real hourly data Clarke County GA, 2025-10-13 through 2025-11-10:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2025-10-13&end=2025-11-10&output=html]
+    </li>
+    <li>
+      Show hourly data Clarke County GA, 2025-10-13 through 2025-11-10, substituting 5-year averages for missing data:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2025-10-13&end=2025-11-10&options=predicted&output=html]
+    </li>
+  </ol>
+</div>
+
+<div data-route="/daily">
+  <p>Returns daily NLDAS2 data.</p>
+  <p><strong>Examples:</strong></p>
+  <ol>
+    <li>
+      Show November 2018 daily ranges and statistics for Beltsville MD, all parameters:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/daily?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html]
+    </li>
+    <li>
+      Show November 2018 daily ranges and statistics for 2400 College Station Road Athens GA, all parameters:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/daily?location=2400 College Station Road Athens GA&start=2018-11-01&end=2018-11-30&output=html]
+    </li>
+    <li>
+      Show November 2018 daily ranges and statistics for 2400 College Station Road Athens GA, temperature and specific humidity:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/daily?location=2400 College Station Road Athens GA&start=2018-11-01&end=2018-11-30&attributes=air_temperature,humidity&output=html]
+    </li>
+    <li>
+      Show November 2018 daily ranges and statistics for lat/lons [39.03, -76.87], [40.42, -80.35], [42.33, -84.26]:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/daily?lat=39.03,40.42,42.33&lon=-76.87,-80.35,-84.26&start=2018-11-01&end=2018-11-30&attributes=lat,lon,air_temperature,humidity&output=html]
+    </li>
+    <li>
+      Growing Degree Days:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/daily?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&attributes=lat,lon,gdd&gddbase=10&gddmin=10&gddmax=30&output=html]
+    </li>
+    <li>
+      Cumulative Growing Degree Days:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      $ANCHOR[/daily?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&gddbase=10&gddmin=10&gddmax=30&stats=sum(gdd)&output=html]
+    </li>
+  </ol>
+</div>
+
 <div data-route="/databasesize">
   Returns the database size as a human-readable string (e.g., '12 TB').
 </div>
@@ -34,7 +103,8 @@
 </div>
 
 <div data-route="/elevation">
-  Returns the elevation (meters) for the given latitude/longitude by querying Open-Elevation.
+  Returns the elevation (meters) for the given latitude/longitude by querying
+  <a target="_blank" href="https://open-elevation.com">Open-Elevation</a>.
 </div>
 
 <div data-route="/watershed">
