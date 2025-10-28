@@ -11,4 +11,17 @@ await setup({
     '': apiRoutes,
     'mrv': mrvRoutes,
   },
+  preValidation: (req, _reply, done) => {
+    for (const key of ['start', 'end']) {
+      const v = req.query?.[key];
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        req.query[key] = v + (key === 'end' ? 'T23:59:59Z' : 'T00:00:00Z');
+      } else if (Number.isFinite(+v)) {
+        const d = new Date();
+        d.setDate(d.getDate() + +v);
+        req.query[key] = d.toISOString();
+      }
+    }
+    done();
+  },
 });

@@ -12,13 +12,15 @@ export default async function apiRoutes(app) {
 
   const elevations = {};
 
-  const lat = { type: 'number', required: true, examples: [35] };
-  const lon = { type: 'number', required: true, examples: [-79] };
+  const lat = { type: 'number', required: true, examples: [35],  description: 'Latitude' };
+  const lon = { type: 'number', required: true, examples: [-79], description: 'Longitude' };
   const predicted = { type: 'boolean' };
   const explain   = { type: 'boolean' };
   const beta      = { type: 'boolean' };
   const limit     = { type: 'number' };
   const offset    = { type: 'number' };
+  const start     = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' };
+  const end       = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' };
 
   // Weather -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/hourly',
@@ -26,10 +28,10 @@ export default async function apiRoutes(app) {
     'Hourly weather data',
     routeHourly,
     {
-      lat:        { examples: [35] },
-      lon:        { examples: [-79] },
-      start:      { examples: ['2018-11-01'] },
-      end:        { examples: ['2018-11-30'] },
+      lat: { description: 'Latitude', examples: [-79] },
+      lon: { description: 'Longitude', examples: [-79] },
+      start,
+      end,
       predicted,
       limit,
       offset,
@@ -48,8 +50,8 @@ export default async function apiRoutes(app) {
     {
       lat:        { examples: [35] },
       lon:        { examples: [-79] },
-      start:      { examples: ['2018-11-01'] },
-      end:        { examples: ['2018-11-30'] },
+      start,
+      end,
       predicted,
       limit,
       offset,

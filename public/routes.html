@@ -1,30 +1,328 @@
 <div data-route="/hourly">
-  <p>Returns hourly NLDAS2 data.</p>
-  <p><strong>Examples:</strong></p>
+  <p><strong>Returns hourly gridded weather data from NLDAS-2 and MRMS datasets.</strong></p>
+  <ul>
+    <li>
+      <strong>NLDAS-2</strong>: 0.125° × 0.125° resolution, available from 2015-01-01 to within the last 3 days (for quality-control latency).
+    </li>
+    <li>
+      <strong>MRMS</strong>: 1 km × 1 km resolution, available from 2015-06-05 to within the last 2 hours.
+    </li>
+  </ul>
+  <table id="Columns">
+    <thead>
+      <tr>
+        <th>Parameter</th>
+        <th>Level, Layer</th>
+        <th>Database Column</th>
+        <th>Shorthand</th>
+        <th>Unit</th>
+        <th>Data Source</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Air temperature</td>
+        <td>2m above ground</td>
+        <td>air_temperature</td>
+        <td>TMP</td>
+        <td>[C]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Specific humidity</td>
+        <td>2m above ground</td>
+        <td>humidity</td>
+        <td>SPFH</td>
+        <td>[kg kg-1]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Relative humidity</td>
+        <td>2m above ground</td>
+        <td>relative_humidity</td>
+        <td></td>
+        <td>fraction</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Atmospheric pressure</td>
+        <td>Surface</td>
+        <td>pressure</td>
+        <td>PRES</td>
+        <td>[Pa]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Zonal wind speed</td>
+        <td>10m above ground</td>
+        <td>zonal_wind_speed</td>
+        <td>UGRD</td>
+        <td>[m s-1]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Meridional wind speed</td>
+        <td>10m above ground</td>
+        <td>meridional_wind_speed</td>
+        <td>VGRD</td>
+        <td>[m s-1]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Wind speed</td>
+        <td>10m above ground</td>
+        <td>wind_speed</td>
+        <td></td>
+        <td>[m s-1]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Downward short-wave radiation flux</td>
+        <td>Surface</td>
+        <td>shortwave_radiation</td>
+        <td>DSWRF</td>
+        <td>[W m-2]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Downward long-wave radiation flux</td>
+        <td>Surface</td>
+        <td>longwave_radiation</td>
+        <td>DLWRF</td>
+        <td>[W m-2]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Rain fraction of total cloud water</td>
+        <td>Surface</td>
+        <td>convective_precipitation</td>
+        <td>FRAIN</td>
+        <td>proportion</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Convective Available Potential Energy</td>
+        <td>180m above ground</td>
+        <td>potential_energy</td>
+        <td>CAPE</td>
+        <td>[J kg-1]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td>Potential Evaporation</td>
+        <td>Surface</td>
+        <td>potential_evaporation</td>
+        <td>PEVAP</td>
+        <td>[kg m-2]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+      <tr>
+        <td rowSpan="2">Rainfall</td>
+        <td rowSpan="2">Surface</td>
+        <td rowSpan="2">precipitation</td>
+        <td rowSpan="2">APCP</td>
+        <td rowSpan="2">[mm]</td>
+        <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+      </tr>
+  
+      <tr>
+        <td><a target="_blank" rel="noreferrer" href="https://www.nssl.noaa.gov/projects/mrms/">MRMS</a></td>
+      </tr>
+
+      <tr>
+        <td>Growing degree days</td>
+        <td></td>
+        <td>gdd</td>
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
+      </tbody>              
+  </table>
+
+  <h3>Parameters</h3>
+  <ul>
+    <li>
+      <code>lat</code> and <code>lon</code> <strong>(required if <code>location</code> is missing)</strong>
+      <p>Latitude and Longitude are in decimal degrees (WGS84).  Latitude range: −90..90.  Longitude range: −180..180.</p>
+      $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
+      <p>You can include multiple latitudes and longitudes as long as there's an equal number of each:</p>
+      $ANCHOR[/hourly?lat=39,40&lon=-76,-77&start=2018-11-01&end=2018-11-30&output=html]
+      <hr>
+    </li>
+
+    <li>
+      <code>location</code> <strong>(required if <code>lat</code> and <code>lon</code> are missing)</strong>
+      <p>May be an address, Zip code, city, county, state, etc.  If not an address, results for the centroid of the location's bounding box will be used.</p>
+      <p>Any punctuation, capitalization, and abbreviations are allowed.</p>
+      <p><strong>Examples</strong> (note that each pair of examples returns identical results)</p>
+      <ul>
+        <li>
+          <p>Empire State Building:</p>
+          $ANCHOR[/hourly?location=350 5th Ave, New York, NY 10118&start=2018-11-01&end=2018-11-30&output=html]
+          $ANCHOR[/hourly?location=Empire State Building&start=2018-11-01&end=2018-11-30&output=html]
+        </li>
+        <li>
+          <p>Athens Georgia:</p>
+          $ANCHOR[/hourly?location=Athens GA&start=2018-11-01&end=2018-11-30&output=html]
+          $ANCHOR[/hourly?location=athens georgia&start=2018-11-01&end=2018-11-30&output=html]
+        </li>
+        <li>
+          <p>Kansas:</p>
+          $ANCHOR[/hourly?location=Kansas&start=2018-11-01&end=2018-11-30&output=html]
+          $ANCHOR[/hourly?location=KS&start=2018-11-01&end=2018-11-30&output=html]
+        </li>
+      </ul>
+      <hr>
+    </li>
+
+    <li>
+      <code>start</code> and <code>end</code> <strong>(required)</strong>
+      <p>May be dates in YYYY-MM-DD format, or they can represent the number of days from the current date.</p>
+      <p><strong>Examples</strong></p>
+      <ul>
+        <li>
+          <p>Nov 2018:</p>
+          $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
+        </li>
+        <li>
+          <p>Previous 15 days:</p>
+          $ANCHOR[/hourly?lat=39&lon=-76&start=-15&end=0&output=html]
+        </li>
+        <li>
+          <p>Note that the latest NLDAS-2 data is several days behind due to quality control, so the previous link is missing some days.</p>
+          <p>You can get predicted values for the missing days using <code>options=predicted</code>:</p>
+          $ANCHOR[/hourly?lat=39&lon=-76&start=-15&end=0&options=predicted&output=html]
+          <p>This also allows you do get predicted data for the future:</p>
+          $ANCHOR[/hourly?lat=39&lon=-76&start=30&end=60&options=predicted&output=html]
+        </li>
+      </ul>
+      <hr>
+    </li>
+    
+    <li>
+      <code>options</code> (optional)
+      <p>A comma-separated list including one or more of the following:</p>
+      <ul>
+        <li>
+          <code>rect</code>
+          <ul>
+            <li>
+              <p>Given two lat/lons, they will be treated as the corners of a rectangle [NE:SW or NW:SE].</p>
+              $ANCHOR[/hourly?lat=39,39.5&lon=-76,-76.5&start=2018-11-01&end=2018-11-30&options=rect&output=html]
+            </li>
+            <li>
+              <p>Given a location, its northeast and southwest will be treated as the corners of a rectangle.</p>
+              $ANCHOR[/hourly?location=clarke county georgia&start=2018-11-01&end=2018-11-30&options=rect&output=html]
+            </li>
+          </ul>
+          <p>Data within the rectangle will be retrieved based on resolution.</p>
+        </li>
+        <li>
+          <code>graph</code><br>
+          <p><strong>(!!!NOT CURRENTLY WORKING)</strong></p>
+          <p>Show graphing options when <code>output=html</code>.</p>
+          $ANCHOR[/hourly?location=clarke county georgia&start=2018-11-01&end=2018-11-30&options=rect,graph&output=html]
+        </li>
+        <li>
+          <code>gmt</code><br>
+          <p>Output in Coordinated Universal Time instead of local time.</p>
+          <ul>
+            <li>
+              <p>Local time:</p>
+              $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
+            </li>
+            <li>
+              <p>GMT time:</p>
+              $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&options=gmt&output=html]
+            </li>
+          </ul>
+          <p>Note that this option will generally be faster than the default of local time, but you'll need to do your own conversions.</p>
+        </li>
+        <li>
+          <code>utc</code><br>
+          <p>Synonym for gmt.</p>
+        </li>
+        <li>
+          <code>predicted</code><br>
+          <p>Use real hourly data when available; otherwise, use 5-year average data.</p>
+          <ul>
+            <li>
+              <p>Predicted:</p>
+              $ANCHOR[/hourly?lat=39&lon=-76&start=-15&end=15&options=predicted&output=html]
+            </li>
+            <li>
+              <p>Not predicted:</p>
+              $ANCHOR[/hourly?lat=39&lon=-76&start=-15&end=15&output=html]
+            </li>
+          </ul>
+        </li>
+        <li>
+          <code>mrms</code><br>
+          <p>Output hourly MRMS precipitation instead of NLDAS.</p>
+          <p>Ignored when using the <code>stats</code> parameter, or when <code>options=rect</code>.</p>
+          <ul>
+            <li>
+              <p>NLDAS-2 precipitation:</p>
+              $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-15&end=2018-11-15&output=html]
+            </li>
+            <li>
+              <p>MRMS precipitation:</p>
+              $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-15&end=2018-11-15&options=mrms&output=html]
+            </li>
+          </ul>
+        </li>
+      </ul>
+      <hr>
+    </li>
+  
+    <li>
+      <code>attributes</code>
+      <p>Comma-separated list of attributes to include.  Defaults to:</p>
+      <p style="margin-left: 2rem">date, lat, lon, air_temperature, humidity, relative_humidity, pressure, zonal_wind_speed, meridional_wind_speed, wind_speed, longwave_radiation, convective_precipitation, potential_energy, potential_evaporation, shortwave_radiation, precipitation</p>
+      <h4>Notes</h4>
+      <ul>
+        <li><strong>date</strong> is output even if missing from the attributes list.</li>
+        <li><strong>lat</strong> and <strong>lon</strong> are output for <code>options=rect</code></li>
+        <li>
+          You can use GRIB variable names instead of database columns,
+          for example <strong>TMP</strong> for <strong>air_temperature</strong> and <strong>APCP</strong> for rainfall.
+          (The output will always be database columns, however.)
+        </li>
+      </ul>
+      
+      <h4>Examples</h4>
+      <ul>
+        <li>
+          <p>Temperature and Rain</p>
+          $ANCHOR[/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&attributes=air_temperature,precipitation&output=html]
+          <br>
+          $ANCHOR[/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&attributes=TMP,APCP&output=html]
+        </li>
+      </ul>
+    </li>
+  </ul>
+
+  <h3>Examples:</h3>
   <ol>
     <li>
-      Show November 2018 real hourly data for Beltsville MD, all parameters:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show November 2018 real hourly data for Beltsville MD, all parameters:
       $ANCHOR[/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html]
     </li>
     <li>
-      Show November 2018 real hourly data for Beltsville MD's midpoint, ordered by descending air temperature:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show November 2018 real hourly data for Beltsville MD's midpoint, ordered by descending air temperature:
       $ANCHOR[/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&order=air_temperature desc&output=html]
     </li>
     <li>
-      Show November 1 2018 real hourly data for all of Clarke County GA. Allow graphing:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show November 1 2018 real hourly data for all of Clarke County GA. Allow graphing:
       $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2018-11-01&end=2018-11-1&options=rect,graph&output=html]
     </li>
     <li>
-      Show real hourly data Clarke County GA, 2025-10-13 through 2025-11-10:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show real hourly data Clarke County GA, 2025-10-13 through 2025-11-10:
       $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2025-10-13&end=2025-11-10&output=html]
     </li>
     <li>
-      Show hourly data Clarke County GA, 2025-10-13 through 2025-11-10, substituting 5-year averages for missing data:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show hourly data Clarke County GA, 2025-10-13 through 2025-11-10, substituting 5-year averages for missing data:
       $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2025-10-13&end=2025-11-10&options=predicted&output=html]
     </li>
   </ol>
@@ -35,33 +333,27 @@
   <p><strong>Examples:</strong></p>
   <ol>
     <li>
-      Show November 2018 daily ranges and statistics for Beltsville MD, all parameters:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show November 2018 daily ranges and statistics for Beltsville MD, all parameters:
       $ANCHOR[/daily?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html]
     </li>
     <li>
-      Show November 2018 daily ranges and statistics for 2400 College Station Road Athens GA, all parameters:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show November 2018 daily ranges and statistics for 2400 College Station Road Athens GA, all parameters:
       $ANCHOR[/daily?location=2400 College Station Road Athens GA&start=2018-11-01&end=2018-11-30&output=html]
     </li>
     <li>
-      Show November 2018 daily ranges and statistics for 2400 College Station Road Athens GA, temperature and specific humidity:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show November 2018 daily ranges and statistics for 2400 College Station Road Athens GA, temperature and specific humidity:
       $ANCHOR[/daily?location=2400 College Station Road Athens GA&start=2018-11-01&end=2018-11-30&attributes=air_temperature,humidity&output=html]
     </li>
     <li>
-      Show November 2018 daily ranges and statistics for lat/lons [39.03, -76.87], [40.42, -80.35], [42.33, -84.26]:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Show November 2018 daily ranges and statistics for lat/lons [39.03, -76.87], [40.42, -80.35], [42.33, -84.26]:
       $ANCHOR[/daily?lat=39.03,40.42,42.33&lon=-76.87,-80.35,-84.26&start=2018-11-01&end=2018-11-30&attributes=lat,lon,air_temperature,humidity&output=html]
     </li>
     <li>
-      Growing Degree Days:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Growing Degree Days:
       $ANCHOR[/daily?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&attributes=lat,lon,gdd&gddbase=10&gddmin=10&gddmax=30&output=html]
     </li>
     <li>
-      Cumulative Growing Degree Days:<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;
+      Cumulative Growing Degree Days:
       $ANCHOR[/daily?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&gddbase=10&gddmin=10&gddmax=30&stats=sum(gdd)&output=html]
     </li>
   </ol>
