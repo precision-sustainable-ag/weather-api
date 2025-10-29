@@ -3,6 +3,8 @@ import { format } from 'sql-formatter';
 
 const googleAPIKey = process.env.GoogleAPI;
 
+const testing = true;
+
 // eslint-disable-next-line no-unused-vars
 const hits = (ip, url, startTime, results, saveResults = true, email = null) => {
   const time = new Date() - startTime;
@@ -216,7 +218,7 @@ const clean = (s) => {
     .replace(/\b(potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd)\b/ig, '')
     .replace(/["()+\-*/<>,= 0-9.]/ig, '');
 
-  if (t) {
+  if (t.length) {
     console.error('*'.repeat(80));
     console.error(t);
     console.error('*'.repeat(80));
@@ -356,6 +358,16 @@ const init = async (inputs) => {
     stats: stats ? clean(fix(stats.replace(/[^,]+/g, (s) => `${s} as "${s}"`))) : '',
     where: where ? clean(fix(where)).replace(/month/g, 'extract(month from date)') : '',
   };
+
+  if (results.stats === 'ERROR') {
+    inputs.reply.code(400).send({ error: `Don't understand stats=${inputs.stats}`});
+    return false;
+  }
+
+  if (results.where === 'ERROR') {
+    inputs.reply.code(400).send({ error: `Don't understand where=${inputs.where}`});
+    return false;
+  }  
 
   const getTimeZone = async () => {
     if (options.includes('gmt') || options.includes('utc') || !results.lats || !results.lons) {
@@ -517,10 +529,7 @@ const runQuery = async (inputs) => {
   }
 
   const {
-    ip,
-    output,
     explain,
-    email,
     attr,
     group,
     where,
@@ -531,7 +540,6 @@ const runQuery = async (inputs) => {
     maxLat,
     minLon,
     maxLon,
-    location,
     options,
     rect,
     timeOffset,
@@ -547,50 +555,34 @@ const runQuery = async (inputs) => {
     start, end, order,
   } = inputs;
 
-  console.log({
-    ip,
-    output,
-    explain,
-    email,
-    attr,
-    group,
-    where,
-    stats,
-    lats,
-    lons,
-    minLat,
-    maxLat,
-    minLon,
-    maxLon,
-    location,
-    options,
-    rect,
-    timeOffset,
-    error,
-    limit,
-    type,
-    format2,
-    daily,
-    order,
-  });
+  // console.log({
+  //   ip,
+  //   output,
+  //   explain,
+  //   email,
+  //   attr,
+  //   group,
+  //   where,
+  //   stats,
+  //   lats,
+  //   lons,
+  //   minLat,
+  //   maxLat,
+  //   minLon,
+  //   maxLon,
+  //   location,
+  //   options,
+  //   rect,
+  //   timeOffset,
+  //   error,
+  //   limit,
+  //   type,
+  //   format2,
+  //   daily,
+  //   order,
+  // });
 
   if (error) return;
-
-  console.log(JSON.stringify({
-    ip,
-    output,
-    explain,
-    lats,
-    lons,
-    minLat,
-    maxLat,
-    minLon,
-    maxLon,
-    location,
-    options,
-    rect,
-    timeOffset,
-  }));
 
   const outputResults = (rows, sq) => {
     if (explain) {
@@ -805,9 +797,9 @@ const runQuery = async (inputs) => {
     } else {
       let other = '';
       const gy = `
-        (EXTRACT(year FROM (date::timestamp + interval '${timeOffset} seconds' - interval '5 months')))::text || '-' ||
-        (EXTRACT(year FROM (date::timestamp + interval '${timeOffset} seconds' - interval '5 months')) + 1)::text
-        AS growingyear, 
+        (EXTRACT(year FROM (date::timestamp + interval '${timeOffset} seconds' - interval '7 months')))::text || '-' ||
+        (EXTRACT(year FROM (date::timestamp + interval '${timeOffset} seconds' - interval '7 months')) + 1)::text
+        AS growingyear,
       `;
 
       if (/\bdoy\b/.test(stats)) {
@@ -830,7 +822,7 @@ const runQuery = async (inputs) => {
         other += group
           .replace(/\bdoy\b/g, `EXTRACT(doy from date::timestamp + interval '${timeOffset} seconds') AS doy, `)
           .replace(/\bmonth\b/g, `EXTRACT(month from date::timestamp + interval '${timeOffset} seconds') AS month, `)
-          .replace(/\byear\b/g, `EXTRACT(year from date::timestamp + interval '${timeOffset} seconds') As year, `)
+          .replace(/\byear\b/g, `EXTRACT(year from date::timestamp + interval '${timeOffset} seconds') AS year, `)
           .replace(/\bgrowingyear\b/g, gy);
       }
 
@@ -844,7 +836,6 @@ const runQuery = async (inputs) => {
         ) a
         ORDER BY ${order}
       `;
-      console.log(sq);
     }
 
     if (stats) {
@@ -854,6 +845,7 @@ const runQuery = async (inputs) => {
           ${sq}
         ) alias
         ${group ? `GROUP BY ${group}` : ''}
+        ${group ? `ORDER BY ${group}` : ''}
       `;
     }
 
@@ -864,6 +856,8 @@ const runQuery = async (inputs) => {
         OFFSET ${parseInt(offset, 10) || 0}
       `;
     }
+
+    if (testing) console.log(sq);
 
     if (mrms) {
       const now = new Date();
@@ -1078,8 +1072,12 @@ const runQuery = async (inputs) => {
 }; // runQuery
 
 const routeHourly = (
-  req, reply, lat, lon, location, start, end, options, attributes, explain, email, output,
-  group, stats, where, beta, order, predicted, limit, offset,
+  req, reply,
+  email, start, end, lat, lon, location, attributes, options, predicted, explain, output,
+  stats, group,
+  limit, offset,
+  order, where,
+  beta, 
 ) => {
   start = start.replace(/[TZ]/g, ' ');
   end = end.replace(/[TZ]/g, ' ');
@@ -1101,8 +1099,8 @@ const routeHourly = (
     explain,
     email,
     output,
-    group,
     stats,
+    group,
     where,
     beta,
     order,
@@ -1113,8 +1111,13 @@ const routeHourly = (
 }; // routeHourly
 
 const routeDaily = (
-  req, reply, start, end, lat, lon, location, options, attributes, explain, email, output,
-  group, stats, where, beta, order, predicted, gddbase, gddmax, gddmin, limit, offset,
+  req, reply,
+  email, start, end, lat, lon, location, attributes, options, predicted, explain, output,
+  stats, group,
+  limit, offset,
+  order, where,
+  beta,
+  gddbase, gddmax, gddmin,
 ) => {
   start = start.replace(/[TZ]/g, ' ');
   end = end.replace(/[TZ]/g, ' ');
@@ -1125,7 +1128,7 @@ const routeDaily = (
     type: 'nldas_hourly_',
     start,
     end,
-    format2: 'YYYY-MM-DD HH24:MI',
+    format2: 'YYYY-MM-DD',
     daily: true,
     lat,
     lon,

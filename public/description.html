@@ -1,0 +1,141 @@
+<p>This API provides NLDAS-2 forcing data and MRMS precipitation data on an hourly or daily basis.</p>
+<p>It also provides miscellaneous other location-based data, including elevation, watersheds, hardiness zones, MLRA, etc. </p>
+<ul>
+  <li>
+    <strong>NLDAS-2</strong>: 0.125° × 0.125° resolution, available from 2015-01-01 to within the last 3 days (for quality-control latency).
+  </li>
+  <li>
+    <strong>MRMS</strong>: 1 km × 1 km resolution, available from 2015-06-05 to within the last 2 hours.
+  </li>
+</ul>
+<table id="Columns">
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Level, Layer</th>
+      <th>Database Column</th>
+      <th>Shorthand</th>
+      <th>Unit</th>
+      <th>Data Source</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Air temperature</td>
+      <td>2m above ground</td>
+      <td>air_temperature</td>
+      <td>TMP</td>
+      <td>[C]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Specific humidity</td>
+      <td>2m above ground</td>
+      <td>humidity</td>
+      <td>SPFH</td>
+      <td>[kg kg-1]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Relative humidity</td>
+      <td>2m above ground</td>
+      <td>relative_humidity</td>
+      <td></td>
+      <td>fraction</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Atmospheric pressure</td>
+      <td>Surface</td>
+      <td>pressure</td>
+      <td>PRES</td>
+      <td>[Pa]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Zonal wind speed</td>
+      <td>10m above ground</td>
+      <td>zonal_wind_speed</td>
+      <td>UGRD</td>
+      <td>[m s-1]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Meridional wind speed</td>
+      <td>10m above ground</td>
+      <td>meridional_wind_speed</td>
+      <td>VGRD</td>
+      <td>[m s-1]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Wind speed</td>
+      <td>10m above ground</td>
+      <td>wind_speed</td>
+      <td></td>
+      <td>[m s-1]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Downward short-wave radiation flux</td>
+      <td>Surface</td>
+      <td>shortwave_radiation</td>
+      <td>DSWRF</td>
+      <td>[W m-2]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Downward long-wave radiation flux</td>
+      <td>Surface</td>
+      <td>longwave_radiation</td>
+      <td>DLWRF</td>
+      <td>[W m-2]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Rain fraction of total cloud water</td>
+      <td>Surface</td>
+      <td>convective_precipitation</td>
+      <td>FRAIN</td>
+      <td>proportion</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Convective Available Potential Energy</td>
+      <td>180m above ground</td>
+      <td>potential_energy</td>
+      <td>CAPE</td>
+      <td>[J kg-1]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td>Potential Evaporation</td>
+      <td>Surface</td>
+      <td>potential_evaporation</td>
+      <td>PEVAP</td>
+      <td>[kg m-2]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+    <tr>
+      <td rowSpan="2">Rainfall</td>
+      <td rowSpan="2">Surface</td>
+      <td rowSpan="2">precipitation</td>
+      <td rowSpan="2">APCP</td>
+      <td rowSpan="2">[mm]</td>
+      <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
+    </tr>
+
+    <tr>
+      <td><a target="_blank" rel="noreferrer" href="https://www.nssl.noaa.gov/projects/mrms/">MRMS</a></td>
+    </tr>
+
+    <tr>
+      <td>Growing degree days</td>
+      <td></td>
+      <td>gdd</td>
+      <td></td>
+      <td></td>
+      <td></td>
+    </tr>
+    </tbody>              
+</table>

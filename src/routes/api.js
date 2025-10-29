@@ -21,6 +21,7 @@ export default async function apiRoutes(app) {
   const offset    = { type: 'number' };
   const start     = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' };
   const end       = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' };
+  const email     = { type: 'string', format: 'email', required: true, examples: ['johndoe@example.com']};
 
   // Weather -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/hourly',
@@ -28,6 +29,7 @@ export default async function apiRoutes(app) {
     'Hourly weather data',
     routeHourly,
     {
+      email,
       lat: { description: 'Latitude', examples: [-79] },
       lon: { description: 'Longitude', examples: [-79] },
       start,
@@ -48,6 +50,7 @@ export default async function apiRoutes(app) {
     'Daily weather data',
     routeDaily,
     {
+      email,
       lat:        { examples: [35] },
       lon:        { examples: [-79] },
       start,
