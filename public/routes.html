@@ -143,32 +143,52 @@
   <h3>Parameters</h3>
   <ul>
     <li>
-      <code>lat</code> and <code>lon</code> <strong>(required if <code>location</code> is missing)</strong>
-      <p>Latitude and Longitude are in decimal degrees (WGS84).  Latitude range: −90..90.  Longitude range: −180..180.</p>
-      $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
-      <p>You can include multiple latitudes and longitudes as long as there's an equal number of each:</p>
-      $ANCHOR[/hourly?lat=39,40&lon=-76,-77&start=2018-11-01&end=2018-11-30&output=html]
+      <code>lat</code> and <code>lon</code><br>
+      <em>(required if <code>location</code> is missing)</em>
+
+      <p>Latitude and longitude in decimal degrees (<strong>WGS84</strong>).</p>
+
+      <ul>
+        <li>Latitude range: -90 to 90</li>
+        <li>Longitude range: -180 to 180</li>
+      </ul>
+
+      <h4>Examples</h4>
+      <ul>
+        <li>
+          <p><strong>Single point</strong></p>
+          $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
+        </li>
+        <li>
+          <p><strong>Multiple points</strong> (must have equal numbers of latitudes and longitudes)</p>
+          $ANCHOR[/hourly?lat=39,40&lon=-76,-77&start=2018-11-01&end=2018-11-30&output=html]
+        </li>
+      </ul>
       <hr>
     </li>
 
     <li>
-      <code>location</code> <strong>(required if <code>lat</code> and <code>lon</code> are missing)</strong>
-      <p>May be an address, Zip code, city, county, state, etc.  If not an address, results for the centroid of the location's bounding box will be used.</p>
-      <p>Any punctuation, capitalization, and abbreviations are allowed.</p>
-      <p><strong>Examples</strong> (note that each pair of examples returns identical results)</p>
+      <code>location</code><br>
+      <em>(required if <code>lat</code> and <code>lon</code> are missing)</em>
+      <p>
+        A free-form location input such as an <strong>address</strong>, <strong>ZIP code</strong>, <strong>city</strong>, <strong>county</strong>, or <strong>state</strong>.
+        If not an exact address, the API returns results for the centroid of the location's bounding box.
+      </p>
+      <p>Punctuation, capitalization, and common abbreviations are all accepted.</p>
+      <h4>Examples <em style="font-weight: normal;">(each pair below returns the same result)</em></h4>
       <ul>
         <li>
-          <p>Empire State Building:</p>
+          <p><strong>Empire State Building:</strong></p>
           $ANCHOR[/hourly?location=350 5th Ave, New York, NY 10118&start=2018-11-01&end=2018-11-30&output=html]
           $ANCHOR[/hourly?location=Empire State Building&start=2018-11-01&end=2018-11-30&output=html]
         </li>
         <li>
-          <p>Athens Georgia:</p>
+          <p><strong>Athens Georgia:</strong></p>
           $ANCHOR[/hourly?location=Athens GA&start=2018-11-01&end=2018-11-30&output=html]
           $ANCHOR[/hourly?location=athens georgia&start=2018-11-01&end=2018-11-30&output=html]
         </li>
         <li>
-          <p>Kansas:</p>
+          <p><strong>Kansas:</strong></p>
           $ANCHOR[/hourly?location=Kansas&start=2018-11-01&end=2018-11-30&output=html]
           $ANCHOR[/hourly?location=KS&start=2018-11-01&end=2018-11-30&output=html]
         </li>
@@ -177,23 +197,27 @@
     </li>
 
     <li>
-      <code>start</code> and <code>end</code> <strong>(required)</strong>
-      <p>May be dates in YYYY-MM-DD format, or they can represent the number of days from the current date.</p>
-      <p><strong>Examples</strong></p>
+      <code>start</code> and <code>end</code><br>
+      <em>(required)</em>
+      <p>Specify the date range for the query, in <code>YYYY-MM-DD</code> format — or as <strong>relative day offsets</strong> (e.g., -15 = 15 days ago, 0 = today).</p>
+
+      <h4>Examples</h4>
       <ul>
         <li>
-          <p>Nov 2018:</p>
+          <p><strong>Specific month (Nov 2018)</strong></p>
           $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
         </li>
         <li>
-          <p>Previous 15 days:</p>
+          <p><strong>Previous 15 days:</strong></p>
           $ANCHOR[/hourly?lat=39&lon=-76&start=-15&end=0&output=html]
         </li>
         <li>
-          <p>Note that the latest NLDAS-2 data is several days behind due to quality control, so the previous link is missing some days.</p>
-          <p>You can get predicted values for the missing days using <code>options=predicted</code>:</p>
+          <p>
+            ℹ️ Note: NLDAS-2 data is typically delayed by a few days for quality control, so the most recent days may be missing.
+            You can fill those gaps with <strong>predicted</strong> values:
+          </p>
           $ANCHOR[/hourly?lat=39&lon=-76&start=-15&end=0&options=predicted&output=html]
-          <p>This also allows you do get predicted data for the future:</p>
+          <p>You can also use <code>options=predicted</code> to retrieve <strong>forecast data for future dates</strong>:</p>
           $ANCHOR[/hourly?lat=39&lon=-76&start=30&end=60&options=predicted&output=html]
         </li>
       </ul>
@@ -225,7 +249,7 @@
           $ANCHOR[/hourly?location=clarke county georgia&start=2018-11-01&end=2018-11-30&options=rect,graph&output=html]
         </li>
         <li>
-          <code>gmt</code><br>
+          <code>utc</code><br>
           <p>Output in Coordinated Universal Time instead of local time.</p>
           <ul>
             <li>
@@ -233,15 +257,15 @@
               $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
             </li>
             <li>
-              <p>GMT time:</p>
+              <p>UTC time:</p>
               $ANCHOR[/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&options=gmt&output=html]
             </li>
           </ul>
           <p>Note that this option will generally be faster than the default of local time, but you'll need to do your own conversions.</p>
         </li>
         <li>
-          <code>utc</code><br>
-          <p>Synonym for gmt.</p>
+          <code>gmt</code><br>
+          <p>Synonym for utc.</p>
         </li>
         <li>
           <code>predicted</code><br>
@@ -259,8 +283,15 @@
         </li>
         <li>
           <code>mrms</code><br>
-          <p>Output hourly MRMS precipitation instead of NLDAS.</p>
-          <p>Ignored when using the <code>stats</code> parameter, or when <code>options=rect</code>.</p>
+          <p>Output MRMS precipitation data instead of NLDAS-2.</p>
+          <p>This option is ignored when using the <code>stats</code> parameter or when <code>options=rect</code>.</p>
+          <p>
+            ⚠️ <strong>Performance note</strong>: MRMS provides 1 km × 1 km data —
+            about <strong>169 MRMS grid cells for each NLDAS-2 cell</strong>.
+            Queries using MRMS can therefore be much slower and heavier on the database. Use only when the higher resolution of MRMS is required.
+          </p>
+
+          <p><strong>Examples</strong></p>
           <ul>
             <li>
               <p>NLDAS-2 precipitation:</p>
@@ -278,7 +309,7 @@
   
     <li>
       <code>attributes</code>
-      <p>Comma-separated list of attributes to include.  Defaults to:</p>
+      <p>Comma-separated list of attributes to include in the output.  Defaults to:</p>
       <p style="margin-left: 2rem">date, lat, lon, air_temperature, humidity, relative_humidity, pressure, zonal_wind_speed, meridional_wind_speed, wind_speed, longwave_radiation, convective_precipitation, potential_energy, potential_evaporation, shortwave_radiation, precipitation</p>
       <h4>Notes</h4>
       <ul>
@@ -302,30 +333,6 @@
       </ul>
     </li>
   </ul>
-
-  <h3>Examples:</h3>
-  <ol>
-    <li>
-      Show November 2018 real hourly data for Beltsville MD, all parameters:
-      $ANCHOR[/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html]
-    </li>
-    <li>
-      Show November 2018 real hourly data for Beltsville MD's midpoint, ordered by descending air temperature:
-      $ANCHOR[/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&order=air_temperature desc&output=html]
-    </li>
-    <li>
-      Show November 1 2018 real hourly data for all of Clarke County GA. Allow graphing:
-      $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2018-11-01&end=2018-11-1&options=rect,graph&output=html]
-    </li>
-    <li>
-      Show real hourly data Clarke County GA, 2025-10-13 through 2025-11-10:
-      $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2025-10-13&end=2025-11-10&output=html]
-    </li>
-    <li>
-      Show hourly data Clarke County GA, 2025-10-13 through 2025-11-10, substituting 5-year averages for missing data:
-      $ANCHOR[/hourly?location=clarke%20county%20georgia&start=2025-10-13&end=2025-11-10&options=predicted&output=html]
-    </li>
-  </ol>
 </div>
 
 <div data-route="/daily">

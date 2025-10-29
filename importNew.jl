@@ -18,7 +18,7 @@ conn = LibPQ.Connection("
 ")
 
 row = only(execute(conn, "SELECT now() AS current_time;"))
-println(row.current_time)
+println("Running: ", row.current_time)
 
 @inline function tile_id_from(lat, lon)
   lat_bin = floor(Int, (lat + 90.0)  * 8)
@@ -129,8 +129,7 @@ LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_date_lat_lon_idx ON weat
 LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_date_idx         ON weather (date);")
 
 function download(url, output)
-  if !isfile(output)
-    println(output)
+  if !isfile(output) || filesize(output) < 1_000_000
     while true
       try
         run(`
@@ -305,30 +304,48 @@ function readNLDAS(fname1, fname2, year, hour, cdate)
 end
 
 year0 = 2015
-start_date = DateTime(year0,       1,  1,  0, 0, 0)
-end_date   = DateTime(year0 + 10, 10, 24, 23, 0, 0)
+start_date = DateTime(year0, 1, 1, 0, 0, 0)
 
-dates = collect(start_date:Hour(1):end_date)
+while true
+  try
+    local row = first(execute(conn, "SELECT MAX(date) AS dt FROM weather;"))
+    if row === nothing || row.dt === nothing
+      error("Couldn't determine max date")
+    end
 
-# @threads for i in 1:length(dates)
-for i in eachindex(dates)
-  date = dates[i]
-  jd = lpad(dayofyear(date), 3, "0")
-  y = year(date)
-  m2 = lpad(month(date), 2, "0")
-  d2 = lpad(day(date), 2, "0")
-  h2 = lpad(hour(date), 2, "0")
+    global start_date = row.dt + Dates.Hour(1)
+  catch e
+    println("Couldn't determine max date. Error: ", e)
+    exit();
+  end
+  
+  end_date = now()
 
-  fname1 = "NLDAS_FORA0125_H.A$(y)$(m2)$(d2).$(h2)00.020.nc"
-  fname2 = "NLDAS_MOS0125_H.A$(y)$(m2)$(d2).$(h2)00.020.nc"
-  out1 = "/mnt/data/$y$m2$d2$h2.nc"
-  out2 = "/mnt/data/m$y$m2$d2$h2.nc"
+  println("Downloading from $(start_date) to $(end_date)")
 
-  # out1 = "/dev/shm/$y$m2$d2$h2.nc"
-  # out2 = "/dev/shm/m$y$m2$d2$h2.nc"
+  # @threads for i in 1:length(dates)
+  for date in collect(start_date:Dates.Hour(1):end_date)
+    jd = lpad(dayofyear(date), 3, "0")
+    y = year(date)
+    m2 = lpad(month(date), 2, "0")
+    d2 = lpad(day(date), 2, "0")
+    h2 = lpad(hour(date), 2, "0")
 
-  download("https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.2.0/$y/$jd/$fname1", out1)
-  download("https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.2.0/$y/$jd/$fname2", out2)
-  println(out1)
-  readNLDAS(out1, out2, y, hour(date), date)
+    fname1 = "NLDAS_FORA0125_H.A$(y)$(m2)$(d2).$(h2)00.020.nc"
+    fname2 = "NLDAS_MOS0125_H.A$(y)$(m2)$(d2).$(h2)00.020.nc"
+    out1 = "/mnt/data/$(y)$(m2)$(d2)$(h2).nc"
+    out2 = "/mnt/data/m$(y)$(m2)$(d2)$(h2).nc"
+
+    download("https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_FORA0125_H.2.0/$(y)/$(jd)/$(fname1)", out1)
+    download("https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.2.0/$(y)/$(jd)/$(fname2)", out2)
+
+    if !isfile(out1) || !isfile(out2) || filesize(out1) < 1_000_000 || filesize(out2) < 1_000_000
+      println("Pausing 15 minutes before checking for new data")
+      sleep(60 * 15)
+      break
+    end
+
+    println(out1)
+    readNLDAS(out1, out2, y, hour(date), date)
+  end
 end
