@@ -3,7 +3,7 @@ import { format } from 'sql-formatter';
 
 const googleAPIKey = process.env.GoogleAPI;
 
-const testing = true;
+const testing = false;
 
 // eslint-disable-next-line no-unused-vars
 const hits = (ip, url, startTime, results, saveResults = true, email = null) => {
@@ -259,9 +259,7 @@ const waitForQueries = async () => (
  * @returns {undefined}
  */
 const init = async (inputs) => {
-  let {
-    location, options,
-  } = inputs;
+  let { options } = inputs;
 
   const {
     req, reply,
@@ -271,20 +269,10 @@ const init = async (inputs) => {
   } = inputs;
 
   // await waitForQueries();
-  let lats;
-  let lons;
-  if (location) {
-    location = (location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
-    const results = {};
-    await getLocation(location, results, /\brect\b/.test(options));
-    lats = results.lats;
-    lons = results.lons;
-  } else {
-    lats = lat?.toString().split(',').map((n) => +n);
-    lons = lon?.toString().split(',').map((n) => +n);
-  }
+  const lats = lat?.toString().split(',').map((n) => +n);
+  const lons = lon?.toString().split(',').map((n) => +n);
 
-  const rect = /\brect\b/.test(options) && (location > '' || lats.length === 2);
+  const rect = /\brect\b/.test(options) && lats.length === 2;
 
   options = options?.toLowerCase().split(/\s*,\s*/) || [];
 
@@ -350,7 +338,6 @@ const init = async (inputs) => {
     maxLat: rect ? Math.max(...lats) : null,
     minLon: rect ? Math.min(...lons) : null,
     maxLon: rect ? Math.max(...lons) : null,
-    location,
     options,
     rect,
     attr,
@@ -424,10 +411,6 @@ const init = async (inputs) => {
     }
   }; // getTimeZone
 
-  // if (location) {
-  //   await getLocation();
-  // }
-
   await getTimeZone();
 
   // debug(results);
@@ -456,7 +439,6 @@ const range = (start, end) => {
  * (New locations are added to the database.)
  * If `location` is a valid ZIP code, it will be automatically converted to "zip <code>".
  * If `rect` is `true`, also calculates the bounding box (minLat, maxLat, minLon, maxLon) for the location.
- * If `func` is provided, it will be called with the resulting latitude and longitude arrays.
  *
  */
 const getLocation = async (location, results, rect) => {
@@ -472,7 +454,7 @@ const getLocation = async (location, results, rect) => {
   if (lresults.rows.length) {
     results.lats = [lresults.rows[0].lat];
     results.lons = [lresults.rows[0].lon];
-    if (results.rect) {
+    if (rect) {
       results.minLat = Math.min(lresults.rows[0].lat1, lresults.rows[0].lat2);
       results.maxLat = Math.max(lresults.rows[0].lat1, lresults.rows[0].lat2);
       results.minLon = Math.min(lresults.rows[0].lon1, lresults.rows[0].lon2);
@@ -570,7 +552,6 @@ const runQuery = async (inputs) => {
   //   maxLat,
   //   minLon,
   //   maxLon,
-  //   location,
   //   options,
   //   rect,
   //   timeOffset,
@@ -1073,7 +1054,7 @@ const runQuery = async (inputs) => {
 
 const routeHourly = (
   req, reply,
-  email, start, end, lat, lon, location, attributes, options, predicted, explain, output,
+  email, start, end, lat, lon, attributes, options, predicted, explain, output,
   stats, group,
   limit, offset,
   order, where,
@@ -1092,7 +1073,6 @@ const routeHourly = (
     daily: false,
     lat,
     lon,
-    location,
     options,
     url: 'hourly',
     attributes,
@@ -1112,7 +1092,7 @@ const routeHourly = (
 
 const routeDaily = (
   req, reply,
-  email, start, end, lat, lon, location, attributes, options, predicted, explain, output,
+  email, start, end, lat, lon, attributes, options, predicted, explain, output,
   stats, group,
   limit, offset,
   order, where,
@@ -1132,7 +1112,6 @@ const routeDaily = (
     daily: true,
     lat,
     lon,
-    location,
     options,
     url: 'daily',
     attributes,
@@ -1153,4 +1132,46 @@ const routeDaily = (
   });
 }; // routeDaily
 
-export { getLocation, routeHourly, routeDaily };
+const routeAverages = (
+  req, reply,
+  email, start, end, lat, lon, attributes, options, predicted, explain, output,
+  stats, group,
+  limit, offset,
+  order, where,
+  beta,
+  gddbase, gddmax, gddmin,
+) => {
+  start = start.replace(/[TZ]/g, ' ');
+  end = end.replace(/[TZ]/g, ' ');
+
+  return runQuery({
+    req,
+    reply,
+    type: 'ha_',
+    start: `${start}`,
+    end: `${end}`,
+    format2: 'MM-DD HH24:MI',
+    daily: false,
+    lat,
+    lon,
+    options,
+    url: 'averages',
+    attributes,
+    explain,
+    email,
+    output,
+    group,
+    stats,
+    where,
+    beta,
+    order,
+    predicted,
+    gddbase,
+    gddmax,
+    gddmin,
+    limit,
+    offset,
+  });
+}; // routeAverages
+
+export { getLocation, routeHourly, routeDaily, routeAverages };

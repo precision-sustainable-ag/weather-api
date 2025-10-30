@@ -5,7 +5,7 @@ import routeCounty from './county.js';
 import routeMLRA from './mlra.js';
 import { nvm2, nvm2Query, nvm2Update } from './nvm2.js';
 import yearly from './yearly.js';
-import { routeHourly, routeDaily } from './query.js';
+import { routeHourly, routeDaily, routeAverages } from './query.js';
 
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
@@ -55,6 +55,27 @@ export default async function apiRoutes(app) {
       lon:        { examples: [-79] },
       start,
       end,
+      predicted,
+      limit,
+      offset,
+      explain,
+      beta,
+    },
+    {
+      response: {},
+    },
+  );
+
+  await simpleRoute('/averages',
+    'Weather',
+    '5-year hourly weather averages',
+    routeAverages,
+    {
+      email,
+      lat: { description: 'Latitude', examples: [-79] },
+      lon: { description: 'Longitude', examples: [-79] },
+      start: { type: 'string', format: 'date-time', examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' },
+      end  : { type: 'string', format: 'date-time', examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' },
       predicted,
       limit,
       offset,
@@ -135,10 +156,11 @@ export default async function apiRoutes(app) {
     { lat, lon, year: { examples: [2020] } },
     {
       numbers: [
-        'year', 'lat', 'lon',
+        'lat', 'lon',
         'min_air_temperature', 'max_air_temperature',
         'min_precipitation', 'max_precipitation', 'avg_precipitation',
       ],
+      strings: ['year'],
     },
   );
 
@@ -146,16 +168,24 @@ export default async function apiRoutes(app) {
   await simpleRoute('/elevation',
     'Other',
     'Elevation',
-    async (lat, lon) => {
+    async (lat, lon, reply) => {
       lat = lat.toFixed(6);
       lon = lon.toFixed(6);
       const latLon = `${lat} ${lon}`;
 
       if (!elevations[latLon]) {
         const url = `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lon}`;
-        elevations[latLon] = (await (
-          await fetch(url)
-        ).json()).results[0];
+        try {
+          const results = await fetch(url);
+          if (results.status > 400) {
+            reply.code(results.status)
+            return results;
+          }
+
+          elevations[latLon] = await results.json().results[0];
+        } catch (ee) {
+          reply.code(500).send({ error: ee.message });
+        }
       }
 
       return elevations[latLon];
@@ -267,7 +297,7 @@ export default async function apiRoutes(app) {
 
   // Database -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/status',
-    'Database',
+    'Database Utilities',
     'Health check',
     `SELECT 'Connected to database' AS status`,
     undefined,
@@ -318,7 +348,7 @@ export default async function apiRoutes(app) {
 
   for (const [route, query] of Object.entries(dbRoutes)) {
     await simpleRoute(`/${route.toLowerCase()}`,
-      'Database',
+      'Database Utilities',
       route.replace(/[A-Z]/g, (c) => ` ${c}`).trim(),
       query,
     );

@@ -99,6 +99,7 @@ const watershed = async (lat, lon, attributes, polygon, state, huc, location) =>
         LEFT JOIN huc.huc4  ON left(huc12.huc12, 4)  = huc4.huc4
         LEFT JOIN huc.huc2  ON left(huc12.huc12, 2)  = huc2.huc2
         WHERE huc12 like '${huc}%'
+        ORDER BY huc12
       `,
     );
   } else {

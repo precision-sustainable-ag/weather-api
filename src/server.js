@@ -1,7 +1,30 @@
 import { setup } from 'simple-route';
 
+import { getLocation } from './routes/query.js';
 import apiRoutes from './routes/api.js';
 import mrvRoutes from './routes/mrv.js';
+
+const TRUSTED_HOSTS = [
+  'localhost',
+  '127.0.0.1',
+  '::1',
+  'vegspec.org', 'develop.vegspec.org',
+  'covercrop-selector.org', 'develop.covercrop-selector.org',
+  'covercrop-seedcalc.org', 'develop.covercrop-seedcalc.org',
+  'covercrop-ncalc.org', 'develop.covercrop-ncalc.org',
+  'weather.covercrop-data.org', 'developweather.covercrop-data.org',
+];
+
+const isTrusted = (req) => {
+  const src = req.headers.origin || req.headers.referer || req.headers;
+  if (src) {
+    try {
+      const host = new URL(src).hostname;
+      if (TRUSTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true;
+    } catch { /* ignore */ }
+  }
+  return ['127.0.0.1', '::1'].includes(req.ip);
+};
 
 await setup({
   title: 'Weather API',
@@ -11,17 +34,101 @@ await setup({
     '': apiRoutes,
     'mrv': mrvRoutes,
   },
-  preValidation: (req, _reply, done) => {
-    for (const key of ['start', 'end']) {
-      const v = req.query?.[key];
-      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
-        req.query[key] = v + (key === 'end' ? 'T23:59:59Z' : 'T00:00:00Z');
-      } else if (Number.isFinite(+v)) {
-        const d = new Date();
-        d.setDate(d.getDate() + +v);
-        req.query[key] = d.toISOString();
+  preValidation: async (req, _reply) => {
+    if (!req.query || !req?.routeOptions?.schema?.querystring) return;
+
+    const required = req.routeOptions.schema.querystring.required;
+    const properties = req.routeOptions.schema.querystring.properties || {};
+
+    if (req.query.output && !properties.output) {
+      delete req.query.output;
+    }
+
+    if (req.query.location) {
+      const location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
+      const results = {};
+      const rect = /\brect\b/.test(req.query?.options);
+      await getLocation(location, results, rect);
+      if (rect) {
+        req.query.lat = `${results.minLat},${results.maxLat}`;
+        req.query.lon = `${results.minLon},${results.maxLon}`;
+      } else {
+        req.query.lat = results.lats[0];
+        req.query.lon = results.lons[0];
+      }
+      delete req.query.location;
+    }
+
+    if (required?.includes('email')) {
+      if (!req.query.email && isTrusted(req)) {
+        req.query.email = 'jd@ex.com';
+      }
+    } else {
+      delete req.query.email;
+    }
+
+    const averages = /^\/averages/.test(req.url);
+    if (averages) {
+      if (!req.query.start) {
+        req.query.start = '2099-01-01';
+      }
+      if (!req.query.end) {
+        req.query.end = '2099-12-31';
       }
     }
-    done();
+
+    if (req.query.attr) {
+      req.query.attributes = req.query.attr;
+      delete req.query.attr;
+    }
+
+    for (const key of ['start', 'end']) {
+      if (!req.query?.[key]) {
+        continue;
+      }
+
+      let v = req.query[key];
+      let dt;
+
+      if (Number.isFinite(+v)) {
+        dt = new Date();
+        dt.setDate(dt.getDate() + +v);
+        
+        if (averages) {
+          dt.setUTCFullYear(2099);
+        }
+      } else {
+        v = v.replace(' ', 'T');
+        const time = v.split('T')?.[1];
+
+        if (!time) {
+          if (key === 'start') {
+            v += 'T00:00:00Z';
+          } else {
+            v += 'T23:59:59Z';
+          }
+        } else {
+          v += 'Z';
+        }
+  
+        if (averages) {
+          const day = v.split('-')[2];
+          if (!day) {
+            v = `2099-${v}`;
+          }
+          v = v.replace(/-(\d)-/g, (_, c) => `-0${c}-`);
+          v = v.replace(/-(\d)T/g, (_, c) => `-0${c}T`);
+          dt = new Date(v);
+          dt.setUTCFullYear(2099);
+        } else {
+          v = v.replace(/-(\d)-/g, (_, c) => `-0${c}-`);
+          v = v.replace(/-(\d)T/g, (_, c) => `-0${c}T`);
+          dt = new Date(v);
+        }
+      }
+
+      req.query[key] = dt.toISOString();
+    }
+    // done();
   },
 });

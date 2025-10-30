@@ -14,7 +14,9 @@
     <li>
       <code>start</code> and <code>end</code><br>
       <em style="color:#c00; font-weight:600;">(required)</em>
-      <p>Specify the date range for the query, in <code>YYYY-MM-DD</code> format — or as <strong>relative day offsets</strong> (e.g., -15 = 15 days ago, 0 = today).</p>
+      <p>
+        Specify the date range for the query in <code>YYYY-MM-DD</code> or <code>YYYY-MM-DD HH:MM</code> format, or as a <strong>relative day offset</strong> (e.g., -15 = 15 days ago, 0 = today).
+      </p>
 
       <h4>Examples</h4>
       <ul>
@@ -378,7 +380,7 @@
 
 <div data-route="/daily">
   <p>Returns daily NLDAS-2 data aggregated from hourly records.</p>
-  <p>Supports the same parameters as the <code>/hourly</code> route except for <code>options=mrms</code>.</p>
+  <p>Supports the same parameters as <code>/hourly</code>, <strong>except</strong> <code>options=mrms</code> (not supported).</p>
 
   <h4>Columns based on the sum of hourly data</h4>
   <code style="display: block; margin-left: 1rem;">
@@ -455,6 +457,14 @@
   </ul>
 </div>
 
+<div data-route="/averages">
+  <p>Returns <strong>5-year average NLDAS-2 data</strong> aggregated from hourly records.</p>
+  <p>Supports the same parameters as <code>/hourly</code>, <strong>except</strong> <code>options=mrms</code> (not supported).</p>
+  <p>For <code>start</code> and <code>end</code> dates, <strong>the year may be omitted</strong> (use <code>MM-DD</code> or <code>MM-DD HH:MM</code>).</p>
+  <p>If <code>start</code> and <code>end</code> dates are not provided, they default to '01-01' and '12-31'.</p>
+  <p>See <code>/hourly</code> for example queries, substituting <code>averages</code> for <code>hourly</code>.</p>
+</div>
+
 <div data-route="/databasesize">
   Returns the database size as a human-readable string (e.g., '12 TB').
 </div>
@@ -486,13 +496,45 @@
 </div>
 
 <div data-route="/frost">
-  Finds the nearest frost record to the given lat/lon within 0.7° —
-  only where firstfreeze, firstfrost, lastfreeze, and lastfrost are present.
+  <p>
+    Outputs the weather station, the dates of first and last freeze, and the dates of first and last frost.
+  </p>
+  <p>
+    Frost data is based on 30-year climate normals, downloaded from
+    <a
+      target="_blank"
+      href="https://www.ncei.noaa.gov/products/land-based-station/us-climate-normals">
+      https://www.ncei.noaa.gov/products/land-based-station/us-climate-normals
+    </a>
+  </p>
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>Frost data for a location:</strong></p>
+      $ANCHOR[/frost?location=Athens Georgia&output=html]
+    </li>
+    <li>
+      <p><strong>Frost data for a lat/lon:</strong></p>
+      $ANCHOR[/frost?lat=39.032056&lon=-76.873972&output=html]
+    </li>
+  </ul>
 </div>
 
 <div data-route="/elevation">
   Returns the elevation (meters) for the given latitude/longitude by querying
   <a target="_blank" href="https://open-elevation.com">Open-Elevation</a>.
+
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>Elevation data for a location:</strong></p>
+      $ANCHOR[/elevation?location=Athens Georgia]
+    </li>
+    <li>
+      <p><strong>Elevation data for a lat/lon:</strong></p>
+      $ANCHOR[/elevation?lat=39.032056&lon=-76.873972]
+    </li>
+  </ul>
 </div>
 
 <div data-route="/watershed">
@@ -502,7 +544,7 @@
   <ul>
     <li>a point (<code>lat,lon</code>)</li>
     <li>an address (<code>location</code>, which is geocoded to lat/lon)</li>
-    <li>a state filter (<code>state</code>)</li>
+    <li>a state filter (<code>state</code> - 2-letter abbreviation)</li>
     <li>a HUC prefix (<code>huc</code>)</li>
   </ul>
   <p>If no filter is provided, returns the HUC12 containing the point.</p>
@@ -518,6 +560,26 @@
     When <code>attributes</code> is omitted, a default set of identifiers and metadata is returned;
     setting <code>polygon=true</code> includes geometry fields in that default.
   </p>
+
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>Watershed data for a lat/lon:</strong></p>
+      $ANCHOR[/watershed?lat=39.032056&lon=-76.873972]
+    </li>
+    <li>
+      <p><strong>Watershed data for a location:</strong></p>
+      $ANCHOR[/watershed?location=Athens Georgia]
+    </li>
+    <li>
+      <p><strong>Watershed data for a state:</strong></p>
+      $ANCHOR[/watershed?state=RI]
+    </li>
+    <li>
+      <p><strong>Watershed data for HUC prefix:</strong></p>
+      $ANCHOR[/watershed?huc=0307010310]
+    </li>
+  </ul>
 </div>
 
 <div data-route="/county">
@@ -527,9 +589,45 @@
     using polygon in attributes expands to polygonarray (GeoJSON coordinates) and polygon (WKT).
   </p>
   <p>
-    If <code>attributes</code> is omitted, returns county, state, state_code, countyfips, statefips;
+    If <code>attributes</code> is omitted, returns <code>county, state, state_code, countyfips, statefips</code>;
     setting <code>polygon=true</code> adds the geometry fields.
   </p>
+
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>County data for a location</strong></p>
+      $ANCHOR[/county?location=Athens GA]
+    </li>
+    <li>
+      <p><strong>County data for a lat/lon</strong></p>
+      $ANCHOR[/county?lat=35&lon=-79]
+    </li>
+    <li>
+      <p><strong>County data including polygon</strong></p>
+      $ANCHOR[/county?lat=35&lon=-79&polygon=true]
+    </li>
+  </ul>
+</div>
+
+<div data-route="/hardinesszone">
+  <p>Returns hardiness zone metadata for the point at (<code>lat,lon</code>).</p>
+  <p>Setting <code>polygon=true</code> adds the geometry fields.</p>
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>Hardiness zone data for a location</strong></p>
+      $ANCHOR[/hardinesszone?location=Athens GA]
+    </li>
+    <li>
+      <p><strong>Hardiness zone data for a lat/lon</strong></p>
+      $ANCHOR[/hardinesszone?lat=35&lon=-79]
+    </li>
+    <li>
+      <p><strong>Hardiness zone data including polygon</strong></p>
+      $ANCHOR[/hardinesszone?lat=35&lon=-79&polygon=true]
+    </li>
+  </ul>
 </div>
 
 <div data-route="/mlra">
@@ -545,6 +643,21 @@
     with attributes defined by the attributes parameter (comma-separated list, where polygon expands to both GeoJSON polygonarray and WKT polygon).
     Defaults to returning name, mlrarsym, lrrsym, and lrrname.
   </p>
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>MLRA data for a location</strong></p>
+      $ANCHOR[/mlra?location=Athens GA]
+    </li>
+    <li>
+      <p><strong>MLRA data for a lat/lon</strong></p>
+      $ANCHOR[/mlra?lat=35&lon=-79]
+    </li>
+    <li>
+      <p><strong>MLRA data including polygon</strong></p>
+      $ANCHOR[/mlra?lat=35&lon=-79&polygon=true]
+    </li>
+  </ul>
 </div>
 
 <div data-route="/rosetta">
@@ -570,4 +683,44 @@
   <p style="color: red !important">
     TODO:  Add new yearly data once new server is set up.
   </p>
+</div>
+
+<div data-route="/status">
+  <p>Returns database connection status.</p>
+  $ANCHOR[/status]
+</div>
+
+<div data-route="/databasesize">
+  <p>Returns the database size as a human-readable string (e.g., '12 TB').</p>
+  $ANCHOR[/databasesize]
+</div>
+
+<div data-route="/tables">
+  <p>Returns tables in the weather schema with a positive estimated row count.</p>
+  $ANCHOR[/tables]
+</div>
+
+<div data-route="/counttablesrows">
+  <p>Returns the number of tables and approximate number of rows in the database.</p>
+  $ANCHOR[/counttablesrows]
+</div>
+
+<div data-route="/indexes">
+  <p>Lists all indexes on non-system tables, ordered by index name.</p>
+  $ANCHOR[/indexes]
+</div>
+
+<div data-route="/countindexes">
+  <p>Returns the number of indexes.</p>
+  $ANCHOR[/countindexes]
+</div>
+
+<div data-route="/addresses">
+  <p>For all locations searched by address rather than coordinates, returns a list of matching addresses along with their latitude/longitude and bounding boxes.</p>
+  $ANCHOR[/addresses]
+</div>
+
+<div data-route="/hits">
+  <p>Retrieves the most recent 1000 hits to the database.</p>
+  $ANCHOR[/hits]
 </div>
