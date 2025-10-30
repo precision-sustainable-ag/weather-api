@@ -22,6 +22,11 @@ export default async function apiRoutes(app) {
   const start     = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' };
   const end       = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' };
   const email     = { type: 'string', format: 'email', required: true, examples: ['johndoe@example.com']};
+  
+  const polygonarray = {
+    type: 'array',
+    items: {},
+  };
 
   // Weather -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/hourly',
@@ -40,9 +45,7 @@ export default async function apiRoutes(app) {
       explain,
       beta,
     },
-    {
-      response: {},
-    },
+    { 200: {} },
   );
 
   await simpleRoute('/daily',
@@ -61,9 +64,7 @@ export default async function apiRoutes(app) {
       explain,
       beta,
     },
-    {
-      response: {},
-    },
+    { 200: {} },
   );
 
   await simpleRoute('/averages',
@@ -82,9 +83,7 @@ export default async function apiRoutes(app) {
       explain,
       beta,
     },
-    {
-      response: {},
-    },
+    { 200: {} },
   );
 
   await simpleRoute('/yearlyprecipitation',
@@ -212,9 +211,9 @@ export default async function apiRoutes(app) {
         'tnmid', 'metasourceid', 'sourcedatadesc', 'sourceoriginator', 'sourcefeatureid', 'referencegnis_ids',
         'states', 'hutype', 'humod', 'tohuc', 'globalid', 'polygon',
       ],
-      arrays: ['polygonarray'],
       numbers: ['areaacres', 'areasqkm', 'noncontributingareaacres', 'noncontributingareasqkm', 'shape_length', 'shape_area'],
       dates: [ 'loaddate' ],
+      other: { polygonarray },      
     },
   );
 
@@ -227,8 +226,8 @@ export default async function apiRoutes(app) {
       polygon: { type: 'boolean' },
     },
     {
-      strings: ['county', 'state', 'state_code', 'countyfips', 'statefips', 'polygonarray', 'polygon'],
-      arrays: ['polygonarray'],
+      strings: ['county', 'state', 'state_code', 'countyfips', 'statefips', 'polygon'],
+      other: { polygonarray },      
     },
   );
   
@@ -238,6 +237,7 @@ export default async function apiRoutes(app) {
     `
       SELECT
         id, gridcode, zone, trange, zonetitle,
+        ST_AsText(geometry) as polygon,
         CASE WHEN $3::boolean
           THEN ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates'
           ELSE NULL::jsonb
@@ -246,7 +246,12 @@ export default async function apiRoutes(app) {
       WHERE ST_Intersects(ST_SetSRID(ST_MakePoint($2, $1), 4326), geometry)
     `,
     { lat, lon, polygon: { type: 'boolean' } },
-    { object: true },
+    {
+      object: true,
+      numbers: ['id', 'gridcode'],
+      strings: ['zone', 'trange', 'zonetitle', 'polygon'],
+      other: { polygonarray },
+    },
   );
 
   await simpleRoute('/mlra',
@@ -260,7 +265,7 @@ export default async function apiRoutes(app) {
     },
     {
       strings: ['name', 'mlrarsym', 'lrrsym', 'lrrname', 'counties', 'states', 'state_codes', 'countyfips', 'statefips', 'polygon'],
-      arrays: ['polygonarray'],
+      other: { polygonarray },      
     },
   );
 
