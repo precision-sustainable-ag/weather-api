@@ -15,7 +15,7 @@
     "eslint-plugin-import": "^2.32.0",
     "pg": "^8.16.3",
     "sharp": "^0.34.4",
-    "simple-route": "file:../../simple-route",
+    "simple-route": "github:precision-sustainable-ag/simple-route",
     "sql-formatter": "^15.6.10"
   },
   "devDependencies": {
