@@ -1,14 +1,15 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# Show versions to be sure what we're running
+RUN node -v && npm -v
+# Use the lockfile exactly
+RUN npm ci --omit=dev --no-audit --no-fund
 
 FROM node:20-alpine
-# security: run as the precreated node user
-USER node
 WORKDIR /app
-COPY --chown=node:node --from=deps /app/node_modules ./node_modules
-COPY --chown=node:node . .
 ENV NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 EXPOSE 3000
 CMD ["node", "server.js"]
