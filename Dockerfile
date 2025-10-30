@@ -1,15 +1,13 @@
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json ./
-# Show versions to be sure what we're running
-RUN node -v && npm -v
-# Use the lockfile exactly
-RUN npm ci --omit=dev --no-audit --no-fund
-
-FROM node:20-alpine
-WORKDIR /app
-ENV NODE_ENV=production
-COPY --from=deps /app/node_modules ./node_modules
+FROM node:22-alpine as builder
+WORKDIR /
 COPY . .
-EXPOSE 3000
-CMD ["node", "server.js"]
+RUN npm install
+
+WORKDIR /public/client
+RUN npm install
+RUN npm run build
+
+WORKDIR /
+
+EXPOSE 80
+ENTRYPOINT npm start
