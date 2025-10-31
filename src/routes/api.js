@@ -21,7 +21,7 @@ export default async function apiRoutes(app) {
   const offset    = { type: 'number' };
   const start     = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' };
   const end       = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' };
-  const email     = { type: 'string', format: 'email', required: true, examples: ['johndoe@example.com']};
+  const email     = { type: 'string', format: 'email', required: true, examples: ['johndoe@example.com'] };
   
   const polygonarray = {
     type: 'array',
@@ -85,7 +85,7 @@ export default async function apiRoutes(app) {
     },
     { 200: {} },
   );
-
+  
   await simpleRoute('/yearlyprecipitation',
     'Weather',
     'Yearly Precipitation',
@@ -93,7 +93,7 @@ export default async function apiRoutes(app) {
       SELECT
         lat, lon, rain,
         ST_Distance(geog, ST_SetSRID(ST_MakePoint($2, $1), 4326)) AS distance
-      FROM weather.precipitation
+      FROM precipitation
       ORDER BY geog <-> ST_SetSRID(ST_MakePoint($2, $1), 4326)
       LIMIT 1
     `,
@@ -101,40 +101,40 @@ export default async function apiRoutes(app) {
     { object: true },
   );
 
-  await simpleRoute('/mvm',
-    'Weather',
-    'MRMS vs. MRMS',
-    async (lat, lon, num) => {
-      const { rows } = await pool.query(`
-        SELECT
-          a.sum - b.sum AS delta,
-          a.lat AS alat, a.lon AS alon, a.sum AS asum,
-          b.lat AS blat, b.lon AS blon, b.sum AS bsum
-        FROM weather.mrms_${lat}_${-lon}_2019_annual a
-        LEFT JOIN weather.mrms_${lat}_${-lon}_2019_annual b
-        ON (a.lat BETWEEN b.lat + 0.01 AND b.lat + 0.011 AND
-            a.lon = b.lon
-          ) OR (
-            a.lat = b.lat AND
-            a.lon BETWEEN b.lon + 0.01 AND b.lon + 0.011
-          )
-        WHERE
-          b.lat IS NOT NULL AND
-          ABS(a.sum - b.sum) > $1
-        ORDER BY 1 DESC
-      `, [num]);
+  // await simpleRoute('/mvm',
+  //   'Weather',
+  //   'MRMS vs. MRMS',
+  //   async (lat, lon, num) => {
+  //     const { rows } = await pool.query(`
+  //       SELECT
+  //         a.sum - b.sum AS delta,
+  //         a.lat AS alat, a.lon AS alon, a.sum AS asum,
+  //         b.lat AS blat, b.lon AS blon, b.sum AS bsum
+  //       FROM weather.mrms_${lat}_${-lon}_2019_annual a
+  //       LEFT JOIN weather.mrms_${lat}_${-lon}_2019_annual b
+  //       ON (a.lat BETWEEN b.lat + 0.01 AND b.lat + 0.011 AND
+  //           a.lon = b.lon
+  //         ) OR (
+  //           a.lat = b.lat AND
+  //           a.lon BETWEEN b.lon + 0.01 AND b.lon + 0.011
+  //         )
+  //       WHERE
+  //         b.lat IS NOT NULL AND
+  //         ABS(a.sum - b.sum) > $1
+  //       ORDER BY 1 DESC
+  //     `, [num]);
       
-      return rows;
-    },
-    { lat, lon, num: { type: 'number', examples: [50] } },
-    { numbers: ['delta', 'alat', 'alon', 'asum', 'blat', 'blon', 'bsum'] },
-  );
+  //     return rows;
+  //   },
+  //   { lat, lon, num: { type: 'number', examples: [50] } },
+  //   { numbers: ['delta', 'alat', 'alon', 'asum', 'blat', 'blon', 'bsum'] },
+  // );
 
   await simpleRoute('/frost',
     'Weather',
     'Frost data',
     `
-      SELECT * FROM frost.frost
+      SELECT * FROM frost
       WHERE 
         firstfreeze IS NOT NULL AND
         firstfrost IS NOT NULL AND
@@ -148,20 +148,20 @@ export default async function apiRoutes(app) {
     { object: true },
   );
 
-  await simpleRoute('/yearly',
-    'Weather',
-    'Yearly weather aggregates (NLDAS grid)',
-    yearly,
-    { lat, lon, year: { examples: [2020] } },
-    {
-      numbers: [
-        'lat', 'lon',
-        'min_air_temperature', 'max_air_temperature',
-        'min_precipitation', 'max_precipitation', 'avg_precipitation',
-      ],
-      strings: ['year'],
-    },
-  );
+  // await simpleRoute('/yearly',
+  //   'Weather',
+  //   'Yearly weather aggregates (NLDAS grid)',
+  //   yearly,
+  //   { lat, lon, year: { examples: [2020] } },
+  //   {
+  //     numbers: [
+  //       'lat', 'lon',
+  //       'min_air_temperature', 'max_air_temperature',
+  //       'min_precipitation', 'max_precipitation', 'avg_precipitation',
+  //     ],
+  //     strings: ['year'],
+  //   },
+  // );
 
   // Other -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/elevation',
@@ -177,11 +177,11 @@ export default async function apiRoutes(app) {
         try {
           const results = await fetch(url);
           if (results.status > 400) {
-            reply.code(results.status)
+            reply.code(results.status);
             return results;
           }
 
-          elevations[latLon] = await results.json().results[0];
+          elevations[latLon] = (await results.json()).results[0];
         } catch (ee) {
           reply.code(500).send({ error: ee.message });
         }
@@ -230,14 +230,17 @@ export default async function apiRoutes(app) {
       other: { polygonarray },      
     },
   );
-  
+
   await simpleRoute('/hardinesszone',
     'Other',
     'Hardiness Zone',
     `
       SELECT
         id, gridcode, zone, trange, zonetitle,
-        ST_AsText(geometry) as polygon,
+        CASE WHEN $3::boolean
+          THEN ST_AsText(geometry)
+          ELSE NULL
+        END AS polygon,
         CASE WHEN $3::boolean
           THEN ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates'
           ELSE NULL::jsonb
@@ -310,13 +313,16 @@ export default async function apiRoutes(app) {
   );
 
   const dbRoutes = {
-    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('postgres')) AS size`,
+    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('weatherdb')) AS size`,
     Tables:
       `
         SELECT table_name AS table, reltuples AS rows
         FROM (
           SELECT * FROM information_schema.tables
-          WHERE table_schema='weather'
+          WHERE
+            table_catalog='weatherdb'
+            AND table_name NOT LIKE 'pg%'
+            AND table_name NOT LIKE 'sql%'
         ) a
         LEFT JOIN pg_class b
         ON a.table_name = b.relname
@@ -330,19 +336,19 @@ export default async function apiRoutes(app) {
           SUM(reltuples) AS rows
         FROM (
           SELECT * FROM information_schema.tables
-          WHERE table_schema='weather'
+          WHERE table_catalog='weatherdb'
         ) a
         LEFT JOIN pg_class b
         ON a.table_name = b.relname
         WHERE reltuples > 0
       `,
     Indexes: `SELECT * FROM pg_indexes WHERE tablename NOT LIKE 'pg%' ORDER BY indexname`,
-    CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'weather'`,
-    Addresses: 'SELECT * FROM weather.addresses ORDER BY address',
+    CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'public'`,
+    Addresses: 'SELECT * FROM addresses ORDER BY address',
     Hits:
       `
         SELECT date, ip, query, ms, email
-        FROM weather.hits
+        FROM hits
         WHERE
           query NOT LIKE '%explain%' AND query NOT LIKE '%nvm%' AND
           (date > current_date - 1 OR (ip <> '::ffff:172.18.186.142' AND query NOT LIKE '%25172.18.186%25'))
@@ -357,13 +363,13 @@ export default async function apiRoutes(app) {
       route.replace(/[A-Z]/g, (c) => ` ${c}`).trim(),
       query,
     );
-  };
-  
+  }
+
   // NVM -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/nvm2Data',
     'NLDAS vs. MRMS',
     'NVM data',
-    'SELECT DISTINCT lat, lon, year FROM weather.nvm2',
+    'SELECT DISTINCT lat, lon, year FROM nvm2',
   );
 
   await simpleRoute('/nvm2',
@@ -389,4 +395,4 @@ export default async function apiRoutes(app) {
     'NVM update',
     nvm2Update,
   );
-};
+}

@@ -30,12 +30,12 @@ const watershed = async (lat, lon, attributes, polygon, state, huc, location) =>
     return query(
       `
         SELECT ${attributes}
-        FROM huc.huc12
-        LEFT JOIN huc.huc10 ON left(huc12.huc12, 10) = huc10.huc10
-        LEFT JOIN huc.huc6  ON left(huc12.huc12, 6)  = huc6.huc6
-        LEFT JOIN huc.huc8  ON left(huc12.huc12, 8)  = huc8.huc8
-        LEFT JOIN huc.huc4  ON left(huc12.huc12, 4)  = huc4.huc4
-        LEFT JOIN huc.huc2  ON left(huc12.huc12, 2)  = huc2.huc2
+        FROM huc12
+        LEFT JOIN huc10 ON left(huc12.huc12, 10) = huc10.huc10
+        LEFT JOIN huc6  ON left(huc12.huc12, 6)  = huc6.huc6
+        LEFT JOIN huc8  ON left(huc12.huc12, 8)  = huc8.huc8
+        LEFT JOIN huc4  ON left(huc12.huc12, 4)  = huc4.huc4
+        LEFT JOIN huc2  ON left(huc12.huc12, 2)  = huc2.huc2
         WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lon} ${lat})'))
       `,
     );
@@ -77,12 +77,12 @@ const watershed = async (lat, lon, attributes, polygon, state, huc, location) =>
     return query(
       `
         SELECT ${attributes}
-        FROM huc.huc12
-        LEFT JOIN huc.huc10 ON left(huc12.huc12, 10) = huc10.huc10
-        LEFT JOIN huc.huc6  ON left(huc12.huc12, 6)  = huc6.huc6
-        LEFT JOIN huc.huc8  ON left(huc12.huc12, 8)  = huc8.huc8
-        LEFT JOIN huc.huc4  ON left(huc12.huc12, 4)  = huc4.huc4
-        LEFT JOIN huc.huc2  ON left(huc12.huc12, 2)  = huc2.huc2
+        FROM huc12
+        LEFT JOIN huc10 ON left(huc12.huc12, 10) = huc10.huc10
+        LEFT JOIN huc6  ON left(huc12.huc12, 6)  = huc6.huc6
+        LEFT JOIN huc8  ON left(huc12.huc12, 8)  = huc8.huc8
+        LEFT JOIN huc4  ON left(huc12.huc12, 4)  = huc4.huc4
+        LEFT JOIN huc2  ON left(huc12.huc12, 2)  = huc2.huc2
         WHERE states like '%${state.toUpperCase()}%'
       `,
     );
@@ -92,12 +92,12 @@ const watershed = async (lat, lon, attributes, polygon, state, huc, location) =>
     return query(
       `
         SELECT ${attributes}
-        FROM huc.huc12
-        LEFT JOIN huc.huc10 ON left(huc12.huc12, 10) = huc10.huc10
-        LEFT JOIN huc.huc6  ON left(huc12.huc12, 6)  = huc6.huc6
-        LEFT JOIN huc.huc8  ON left(huc12.huc12, 8)  = huc8.huc8
-        LEFT JOIN huc.huc4  ON left(huc12.huc12, 4)  = huc4.huc4
-        LEFT JOIN huc.huc2  ON left(huc12.huc12, 2)  = huc2.huc2
+        FROM huc12
+        LEFT JOIN huc10 ON left(huc12.huc12, 10) = huc10.huc10
+        LEFT JOIN huc6  ON left(huc12.huc12, 6)  = huc6.huc6
+        LEFT JOIN huc8  ON left(huc12.huc12, 8)  = huc8.huc8
+        LEFT JOIN huc4  ON left(huc12.huc12, 4)  = huc4.huc4
+        LEFT JOIN huc2  ON left(huc12.huc12, 2)  = huc2.huc2
         WHERE huc12 like '${huc}%'
         ORDER BY huc12
       `,

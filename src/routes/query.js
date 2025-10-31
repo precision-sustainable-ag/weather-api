@@ -11,7 +11,7 @@ const hits = (ip, url, startTime, results, saveResults = true, email = null) => 
   const json = saveResults ? `${JSON.stringify(results)}` : null;
 
   pool.query(`
-    INSERT INTO weather.hits
+    INSERT INTO hits
     (date, ip, query, ms, results, email)
     VALUES (NOW(), $1, $2, $3, $4, $5)
   `, [ip, url, time, json, email]);
@@ -347,12 +347,12 @@ const init = async (inputs) => {
   };
 
   if (results.stats === 'ERROR') {
-    inputs.reply.code(400).send({ error: `Don't understand stats=${inputs.stats}`});
+    inputs.reply.code(400).send({ error: `Don't understand stats=${inputs.stats}` });
     return false;
   }
 
   if (results.where === 'ERROR') {
-    inputs.reply.code(400).send({ error: `Don't understand where=${inputs.where}`});
+    inputs.reply.code(400).send({ error: `Don't understand where=${inputs.where}` });
     return false;
   }  
 
@@ -364,7 +364,7 @@ const init = async (inputs) => {
 
     try {
       const results2 = await pool.query(`
-        SELECT * FROM weather.timezone
+        SELECT * FROM timezone
         WHERE lat=${NLDASlat(results.lats[0])} AND lon=${NLDASlon(results.lons[0])}
       `);
 
@@ -388,7 +388,7 @@ const init = async (inputs) => {
       }
 
       pool.query(`
-        INSERT INTO weather.timezone
+        INSERT INTO timezone
         (lat, lon, dstOffset, rawOffset, timeZoneId, timeZoneName)
         VALUES (${NLDASlat(lats[0])}, ${NLDASlon(lons[0])}, ${data.dstOffset}, ${data.rawOffset}, '${data.timeZoneId}', '${data.timeZoneName}')
       `);
@@ -447,7 +447,7 @@ const getLocation = async (location, results, rect) => {
   }
 
   const lresults = await pool.query(
-    'SELECT * FROM weather.addresses WHERE address=$1',
+    'SELECT * FROM addresses WHERE address=$1',
     [location],
   );
 
@@ -478,7 +478,7 @@ const getLocation = async (location, results, rect) => {
         results.lons = [lon];
 
         pool.query(`
-          INSERT INTO weather.addresses
+          INSERT INTO addresses
           (address, lat, lon, lat1, lon1, lat2, lon2)
           VALUES ('${location}', ${lat}, ${lon}, ${lat1}, ${lon1}, ${lat2}, ${lon2})
         `);
@@ -529,7 +529,7 @@ const runQuery = async (inputs) => {
   } = initialized;
 
   const {
-    req, limit, offset, type, format2, daily, beta, predicted,
+    req, limit, offset, type, format2, daily, predicted,
     gddbase, gddmax, gddmin,
   } = inputs;
 
@@ -583,7 +583,7 @@ const runQuery = async (inputs) => {
 
   const cached = (
     await pool.query(`
-      SELECT results FROM weather.hits
+      SELECT results FROM hits
       WHERE query=$1 AND results IS NOT NULL
       LIMIT 1
     `, [req.url])
@@ -597,8 +597,6 @@ const runQuery = async (inputs) => {
   let dailyColumns;
 
   const query = async (timeOffset) => {
-    let rtables = {};
-
     const latlons = [];
 
     console.log({ start, timeOffset });
@@ -617,11 +615,9 @@ const runQuery = async (inputs) => {
 
       for (let y = minLat; y <= maxLat; y += byy) {
         for (let x = minLon; x <= maxLon; x += byx) {
-          rtables[`weather.${type}${Math.trunc(NLDASlat(y))}_${-Math.trunc(NLDASlon(x))}`] = true;
           latlons.push(`'${+NLDASlat(y)}${+NLDASlon(x)}'`);
         }
       }
-      rtables = Object.keys(rtables);
     }
 
     let sq;
@@ -629,7 +625,7 @@ const runQuery = async (inputs) => {
     // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=graph&attributes=tmp&where=tmp%3C6
     const cond = where ? ` (${where})` : 'true';
 
-    const dateCond = `date BETWEEN '${start}' AND '${end}'`;
+    const dateCond = `date BETWEEN '${start.slice(0, -1)}'::timestamp AND '${end.slice(0, -1)}'::timestamp`;
 
     let mrmsResults = [];
     if (mrms) {
@@ -667,63 +663,45 @@ const runQuery = async (inputs) => {
       mrmsResults = (await pool.query(mrmsQuery)).rows;
     }
 
-    const tables = rect ? rtables
-      .map((table) => unindent(`
-        SELECT
-          date, lat AS rlat, lon AS rlon,
-          ${attr.length ? fix(attr.join(','), true) : cols}
-        FROM (
-          ${years.map((year) => (type === 'ha_' ? `SELECT * FROM ${table}` : `SELECT * FROM ${table}_${year}`)).join(' UNION ALL ')}
-        ) a
-        WHERE
-          lat::text || lon IN (${latlons})
-          AND date BETWEEN '${start}' AND '${end}'
-          AND ${cond}
-      `))
-      .join(' UNION ALL\n')
+    const tables = rect
+      ? (
+        unindent(`
+          SELECT
+            date, lat AS rlat, lon AS rlon,
+            ${attr.length ? fix(attr.join(','), true) : cols}
+          FROM ${type === 'ha_' ? 'ha_' : 'weather'}
+          WHERE
+            lat::text || lon IN (${latlons})
+            AND ${dateCond}
+            AND ${cond}
+        `)
+      )
       : (lats.map((lat, i) => {
         let mainTable = type === 'nldas_hourly_'
-          ? years
-            .filter((year) => year !== 'new')
-            .map(
-              (year) => {
-                let table;
-                if (beta) {
-                  table = 'weather.nldas_hourly';
-                } else {
-                  table = `weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}`;
-                }
-                return unindent(`
-                  SELECT
-                    date,
-                    ${cols}
-                  FROM ${table}
-                  WHERE
-                    lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-                    AND ${dateCond}
-                `);
-              },
-            ).join(' UNION ALL ')
+          ? unindent(`
+              SELECT date, ${cols}
+              FROM weather
+              WHERE
+                lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
+                AND ${dateCond}
+            `)
           : unindent(`
-            SELECT date, ${cols}
-            FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
-            WHERE
-              lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-              AND ${dateCond}
-          `);
+              SELECT date, ${cols}
+              FROM daily
+              WHERE
+                lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
+                AND ${dateCond}
+            `);
 
         const days = (new Date() - new Date(end)) / (1000 * 60 * 60 * 24);
         if (days < 10 && type === 'nldas_hourly_' && (predicted || options.includes('predicted'))) {
           let maxdate = '';
-          const year = new Date().getFullYear();
 
           if (mainTable) {
-            mainTable += ' union all ';
+            mainTable += ' UNION ALL ';
             maxdate = `
               date > (
-                SELECT MAX(date) FROM (
-                  SELECT date FROM weather.${type}${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}_${year}
-                ) a
+                SELECT MAX(date) FROM weather
               )
               AND
             `;
@@ -739,7 +717,7 @@ const runQuery = async (inputs) => {
                   MAKE_TIMESTAMP(${y},
                   EXTRACT(month from date)::integer, EXTRACT(day from date)::integer, EXTRACT(hour from date)::integer, 0, 0) AS date,
                   ${cols}
-                FROM weather.ha_${Math.trunc(NLDASlat(lat))}_${-Math.trunc(NLDASlon(lons[i]))}
+                FROM ha_
               ) a
               WHERE
                 lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
@@ -809,7 +787,8 @@ const runQuery = async (inputs) => {
 
       sq = `
         SELECT
-          ${other} TO_CHAR(date::timestamp + interval '${timeOffset} seconds', '${format2}') AS date,
+          ${other}
+          date,
           ${cols.replace(/\blat\b/, 'rlat AS lat').replace(/\blon\b/, 'rlon AS lon')}
         FROM (
           SELECT DATE AS GMT, *
@@ -1023,24 +1002,12 @@ const runQuery = async (inputs) => {
   }; // getColumns
 
   // const year1 = Math.max(+start.slice(0, 4), 2015);
-  const year1 = Math.max(+start.slice(0, 4), 2005);
   let year2 = Math.min(+end.slice(0, 4), new Date().getFullYear());
 
   if (/12-31/.test(end) && timeOffset !== 0 && year2 < new Date().getFullYear()) {
     // account for local time
     // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-12-31&output=html
     year2 += 1;
-  }
-
-  if (beta) {
-    years = [0];
-  } else {
-    years = range(year1, Math.min(year2, new Date().getFullYear()));
-
-    if (year2 === new Date().getFullYear()) {
-      // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2023-11-01&output=html
-      years.push('new');
-    }
   }
 
   mrms = options.includes('mrms') && !explain && !daily && years.length && year2 > 2014 && /hourly/.test(req.url) && !stats && !rect;
@@ -1058,7 +1025,6 @@ const routeHourly = (
   stats, group,
   limit, offset,
   order, where,
-  beta, 
 ) => {
   start = start.replace(/[TZ]/g, ' ');
   end = end.replace(/[TZ]/g, ' ');
@@ -1082,7 +1048,6 @@ const routeHourly = (
     stats,
     group,
     where,
-    beta,
     order,
     predicted,
     limit,
@@ -1096,7 +1061,6 @@ const routeDaily = (
   stats, group,
   limit, offset,
   order, where,
-  beta,
   gddbase, gddmax, gddmin,
 ) => {
   start = start.replace(/[TZ]/g, ' ');
@@ -1121,7 +1085,6 @@ const routeDaily = (
     group,
     stats,
     where,
-    beta,
     order,
     predicted,
     gddbase,
@@ -1138,7 +1101,6 @@ const routeAverages = (
   stats, group,
   limit, offset,
   order, where,
-  beta,
   gddbase, gddmax, gddmin,
 ) => {
   start = start.replace(/[TZ]/g, ' ');
@@ -1163,7 +1125,6 @@ const routeAverages = (
     group,
     stats,
     where,
-    beta,
     order,
     predicted,
     gddbase,

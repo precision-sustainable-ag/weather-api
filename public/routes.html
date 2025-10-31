@@ -474,7 +474,19 @@
 </div>
 
 <div data-route="/yearlyprecipitation">
-  Returns the closest precipitation record to (lat, lon), along with distance to the weather station in meters.
+  <p>Returns the closest precipitation record to (lat, lon), along with distance to the weather station in meters.</p>
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>Precipitation data for a location:</strong></p>
+      $ANCHOR[/yearlyprecipitation?location=Athens Georgia]
+    </li>
+    <li>
+      <p><strong>Precipitation data for a lat/lon:</strong></p>
+      $ANCHOR[/yearlyprecipitation?lat=39.032056&lon=-76.873972]
+    </li>
+  </ul>
+
 </div>
 
 <div data-route="/addresses">
@@ -511,11 +523,11 @@
   <ul>
     <li>
       <p><strong>Frost data for a location:</strong></p>
-      $ANCHOR[/frost?location=Athens Georgia&output=html]
+      $ANCHOR[/frost?location=Athens Georgia]
     </li>
     <li>
       <p><strong>Frost data for a lat/lon:</strong></p>
-      $ANCHOR[/frost?lat=39.032056&lon=-76.873972&output=html]
+      $ANCHOR[/frost?lat=39.032056&lon=-76.873972]
     </li>
   </ul>
 </div>

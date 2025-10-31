@@ -43,4 +43,4 @@ export default async function mrvRoutes(app) {
     undefined,
     { 200: {} },
   );
-};
+}
