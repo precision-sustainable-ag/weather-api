@@ -13,6 +13,7 @@ const TRUSTED_HOSTS = [
   'covercrop-seedcalc.org', 'develop.covercrop-seedcalc.org',
   'covercrop-ncalc.org', 'develop.covercrop-ncalc.org',
   'weather.covercrop-data.org', 'developweather.covercrop-data.org',
+  'covercrop-imagery.org', 'develop.covercrop-imagery.org',
 ];
 
 const isTrusted = (req) => {
