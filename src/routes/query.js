@@ -579,6 +579,8 @@ const runQuery = async (inputs) => {
           row.date = new Date(new Date(`${row.date} UTC`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(0, 16);
         } else if (format2 === 'yyyy-mm-dd') {
           row.date = new Date(new Date(`${row.date} UTC`).getTime() + timeOffset * 1000).toISOString().slice(0, 10);
+        } else if (format2 === 'MM-DD HH24:00') {
+          row.date = new Date(new Date(`${row.date} UTC`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(5, 16);
         }
         return row;
       });
@@ -615,6 +617,7 @@ const runQuery = async (inputs) => {
     end = new Date(`${end} UTC`);
     end.setSeconds(end.getSeconds() - timeOffset);
     end = end.toISOString();
+    // return JSON.stringify({ start, end });
 
     if (rect) {
       // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=graph,rect
@@ -633,11 +636,13 @@ const runQuery = async (inputs) => {
     // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=graph&attributes=tmp&where=tmp%3C6
     const cond = where ? ` (${where})` : 'true';
 
+    // return JSON.stringify({ start, end });
+    // return `${start.slice(5, 16)} to ${end.slice(5, 16)}`;
     const dateCond =
-      type === 'ha_'
+      type === 'averages'
         ? `(
-            TO_CHAR(date, 'MM-DD HH24:00') BETWEEN '${start.slice(5, 10)}' AND '${end.slice(5, 10)}'
-            AND date BETWEEN (TIMESTAMP '${start.replace('Z', '')}' + INTERVAL '-5 years') AND TIMESTAMP '${end.replace('Z', '')}'
+            TO_CHAR(date::timestamp, 'MM-DD"T"HH24:00') BETWEEN '${start.slice(5, 16)}' AND '${end.slice(5, 16)}'
+            AND date BETWEEN (TIMESTAMP '${start}' + INTERVAL '-4 years') AND '${end}'
           )`
         : `date BETWEEN '${start.slice(0, -1)}'::timestamp AND '${end.slice(0, -1)}'::timestamp`;
     
@@ -683,7 +688,7 @@ const runQuery = async (inputs) => {
           SELECT
             date, lat AS rlat, lon AS rlon,
             ${attr.length ? fix(attr.join(','), true) : cols}
-          FROM ${type === 'ha_' ? 'ha_' : 'weather'}
+          FROM ${type === 'averages' ? '???' : 'weather'}
           WHERE
             lat::text || lon IN (${latlons})
             AND ${dateCond}
@@ -734,7 +739,7 @@ const runQuery = async (inputs) => {
                   MAKE_TIMESTAMP(${y},
                   EXTRACT(month from date)::integer, EXTRACT(day from date)::integer, EXTRACT(hour from date)::integer, 0, 0) AS date,
                   ${cols}
-                FROM ha_
+                FROM averages???
               ) a
               WHERE
                 lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
@@ -1143,7 +1148,7 @@ const routeAverages = (
   return runQuery({
     req,
     reply,
-    type: 'ha_',
+    type: 'averages',
     start: `${start}`,
     end: `${end}`,
     format2: 'MM-DD HH24:00',
