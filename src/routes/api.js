@@ -316,7 +316,11 @@ export default async function apiRoutes(app) {
     DatabaseSize: `SELECT pg_size_pretty(pg_database_size('weatherdb')) AS size`,
     Tables:
       `
-        SELECT table_name AS table, reltuples AS rows
+        SELECT
+          row_number() OVER (ORDER BY table_name),
+          table_name AS table,
+          reltuples AS rows,
+          to_char(reltuples, 'FM999G999G999G999G999') AS pretty_rows
         FROM (
           SELECT * FROM information_schema.tables
           WHERE
@@ -327,13 +331,13 @@ export default async function apiRoutes(app) {
         LEFT JOIN pg_class b
         ON a.table_name = b.relname
         WHERE reltuples > 0
-        ORDER BY table_name
       `,
     CountTablesRows:
       `
         SELECT
           COUNT(*) AS tables,
-          SUM(reltuples) AS rows
+          SUM(reltuples) AS rows,
+          to_char(SUM(b.reltuples)::numeric, 'FM999G999G999G999G999') AS pretty_rows
         FROM (
           SELECT * FROM information_schema.tables
           WHERE table_catalog='weatherdb'
@@ -342,9 +346,28 @@ export default async function apiRoutes(app) {
         ON a.table_name = b.relname
         WHERE reltuples > 0
       `,
-    Indexes: `SELECT * FROM pg_indexes WHERE tablename NOT LIKE 'pg%' ORDER BY indexname`,
+    Indexes: 
+      `
+        SELECT
+          row_number() OVER (ORDER BY ix.indexname),
+          ix.schemaname,
+          ix.tablename,
+          ix.indexname,
+          pg_size_pretty(pg_relation_size(i.oid))        AS index_size,
+          pg_size_pretty(pg_total_relation_size(i.oid))  AS index_total_size, -- incl. TOAST/etc
+          s.idx_scan,
+          s.idx_tup_read,
+          s.idx_tup_fetch,
+          ix.indexdef
+        FROM pg_indexes ix
+        JOIN pg_class      AS i ON i.relname = ix.indexname
+        JOIN pg_namespace  AS n ON n.oid = i.relnamespace AND n.nspname = ix.schemaname
+        LEFT JOIN pg_stat_all_indexes AS s
+          ON s.schemaname = ix.schemaname AND s.relname = ix.tablename AND s.indexrelid = i.oid
+        WHERE ix.tablename NOT LIKE 'pg%'
+      `,
     CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'public'`,
-    Addresses: 'SELECT * FROM addresses ORDER BY address',
+    Addresses: 'SELECT row_number() OVER (ORDER BY address), * FROM addresses',
     Hits:
       `
         SELECT date, ip, query, ms, email
@@ -354,6 +377,31 @@ export default async function apiRoutes(app) {
           (date > current_date - 1 OR (ip <> '::ffff:172.18.186.142' AND query NOT LIKE '%25172.18.186%25'))
         ORDER BY date DESC
         LIMIT 1000
+      `,
+    Running_Queries:
+      `
+        SELECT pid, state, (now() - query_start)::text AS runtime, query
+        FROM pg_stat_activity
+        WHERE state <> 'idle' AND query NOT LIKE '%idle%'
+      `,
+    Partitions:
+      `
+        SELECT
+          n.nspname AS schema,
+          c.relname AS parent,
+          COUNT(t.relid) AS leaf_count,
+          SUM(pg_total_relation_size(t.relid)) AS bytes,
+          pg_size_pretty(SUM(pg_total_relation_size(t.relid))) AS total_size
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN LATERAL (
+          SELECT relid
+          FROM pg_partition_tree(c.oid)
+          WHERE isleaf
+        ) t ON true
+        WHERE c.relkind = 'p'
+        GROUP BY 1, 2
+        ORDER BY bytes DESC NULLS LAST
       `,
   };
 

@@ -13,6 +13,7 @@ const TRUSTED_HOSTS = [
   'covercrop-seedcalc.org', 'develop.covercrop-seedcalc.org',
   'covercrop-ncalc.org', 'develop.covercrop-ncalc.org',
   'weather.covercrop-data.org', 'developweather.covercrop-data.org',
+  'covercrop-imagery.org', 'develop.covercrop-imagery.org',
 ];
 
 const isTrusted = (req) => {
@@ -95,7 +96,7 @@ await setup({
         dt.setDate(dt.getDate() + +v);
         
         if (averages) {
-          dt.setUTCFullYear(2099);
+          // dt.setUTCFullYear(2099);
         }
       } else {
         v = v.replace(' ', 'T');
@@ -119,7 +120,7 @@ await setup({
           v = v.replace(/-(\d)-/g, (_, c) => `-0${c}-`);
           v = v.replace(/-(\d)T/g, (_, c) => `-0${c}T`);
           dt = new Date(v);
-          dt.setUTCFullYear(2099);
+          // dt.setUTCFullYear(2099);
         } else {
           v = v.replace(/-(\d)-/g, (_, c) => `-0${c}-`);
           v = v.replace(/-(\d)T/g, (_, c) => `-0${c}T`);

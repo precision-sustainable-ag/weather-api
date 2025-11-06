@@ -22,20 +22,20 @@
       <ul>
         <li>
           <p><strong>Specific month (Nov 2018)</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&output=html]
         </li>
         <li>
           <p><strong>Previous 15 days:</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=-15&end=0&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-15&end=0&output=html]
         </li>
         <li>
           <p>
             ℹ️ Note: NLDAS-2 data is typically delayed by a few days for quality control, so the most recent days may be missing.
             You can fill those gaps with <strong>predicted</strong> values:
           </p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=-15&end=0&options=predicted&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-15&end=0&options=predicted&output=html]
           <p>You can also use <code>options=predicted</code> to retrieve <strong>forecast data for future dates</strong>:</p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=30&end=60&options=predicted&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=30&end=60&options=predicted&output=html]
         </li>
       </ul>
       <hr>
@@ -56,11 +56,11 @@
       <ul>
         <li>
           <p><strong>Single point</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&output=html]
         </li>
         <li>
           <p><strong>Multiple points</strong> (must have equal numbers of latitudes and longitudes)</p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39,40&lon=-76,-77&start=2018-11-01&end=2018-11-30&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35,40&lon=-80,-77&start=2018-11-01&end=2018-11-30&output=html]
         </li>
       </ul>
       <hr>
@@ -122,10 +122,10 @@
       <ul>
         <li>
           <p><strong>Temperature and Rain (full column names)</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&attributes=air_temperature,precipitation&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&attributes=air_temperature,precipitation&output=html]
         <li>
           <p><strong>Temperature and Rain (GRIB short names)</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&attributes=TMP,APCP&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&attributes=TMP,APCP&output=html]
         </li>
       </ul>
       <hr>
@@ -143,7 +143,7 @@
           <ul>
             <li>
               <p><strong>Using lat/lon pairs</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=39,39.2&lon=-76,-76.2&start=2018-11-01&end=2018-11-30&options=rect&output=html]
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35,39.2&lon=-80,-76.2&start=2018-11-01&end=2018-11-30&options=rect&output=html]
             </li>
             <li>
               <p><strong>Using a location</p></strong>
@@ -168,11 +168,11 @@
           <ul>
             <li>
               <p><strong>Local time:</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&output=html]
             </li>
             <li>
               <p><strong>UTC time:</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=2018-11-01&end=2018-11-30&options=utc&output=html]
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&options=utc&output=html]
             </li>
           </ul>
           <p>This option is generally faster than local time but requires users to handle time conversions manually.</p>
@@ -182,7 +182,7 @@
         <li>
           <code>gmt</code><br>
           <p>Alias for <code>utc</code>.</p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=2018-11-01&end=2018-11-30&options=gmt&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&options=gmt&output=html]
           <hr>
         </li>
 
@@ -195,11 +195,11 @@
           <ul>
             <li>
               <p><strong>Predicted data:</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=-15&end=15&options=predicted&output=html]
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-15&end=15&options=predicted&output=html]
             </li>
             <li>
               <p><strong>Observed only:</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=-15&end=15&output=html]
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-15&end=15&output=html]
             </li>
           </ul>
           <hr>
@@ -219,11 +219,11 @@
           <ul>
             <li>
               <p><strong>NLDAS-2 precipitation:</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=2018-11-01&end=2018-11-30&output=html]
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&output=html]
             </li>
             <li>
               <p><strong>MRMS precipitation:</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=2018-11-01&end=2018-11-30&options=mrms&output=html]
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&options=mrms&output=html]
             </li>
           </ul>
         </li>
@@ -245,7 +245,7 @@
         Useful for <strong>troubleshooting</strong>, <strong>performance analysis</strong>, or <strong>query optimization</strong>.<br>
         Only recommended for debugging — results are intended for technical inspection.
       </p>
-      $ANCHOR[/hourly?email=jd@ex.com&lat=39&lon=-76&start=30&end=60&options=predicted&explain=true&output=html]
+      $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=30&end=60&options=predicted&explain=true&output=html]
       <hr>
     </li>
 
@@ -264,15 +264,15 @@
       <ul>
         <li>
           <p><strong>JSON output</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30]
         </li>
         <li>
           <p><strong>HTML output</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&output=html]
         </li>
         <li>
           <p><strong>CSV output</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&output=csv]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&output=csv]
         </li>
       </ul>
       <hr>
@@ -289,11 +289,11 @@
       <ul>
         <li>
           <p><strong>Average air temperature and rainfall</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature),avg(precipitation)&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature),avg(precipitation)&output=html]
         </li>
         <li>
           <p><strong>Maximum temperature and total precipitation</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2019-01-01&stats=max(air_temperature),sum(precipitation)&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2019-01-01&stats=max(air_temperature),sum(precipitation)&output=html]
         </li>
       </ul>
       <hr>
@@ -314,19 +314,19 @@
       <ul>
         <li>
           <p><strong>Average air temperature per day of year</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature)&group=doy&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature)&group=doy&output=html]
         </li>
         <li>
           <p><strong>Average air temperature per month</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature)&group=month&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature)&group=month&output=html]
         </li>
         <li>
           <p><strong>Average air temperature per year</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature)&group=year&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature)&group=year&output=html]
         </li>
         <li>
           <p><strong>Average air temperature per growing year (Aug-Jul)</strong></p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature)&group=growingyear&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2019-01-01&stats=avg(air_temperature)&group=growingyear&output=html]
         </li>
       </ul>
       <hr>
@@ -357,23 +357,23 @@
   <ul>
     <li>
       <p><strong>First 10 records (no filter)</strong></p>
-      $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&limit=10&output=html]
+      $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&limit=10&output=html]
     </li>
     <li>
       <p><strong>Next 10 records (skip the first 10)</strong></p>
-      $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&limit=10&offset=10&output=html]
+      $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&limit=10&offset=10&output=html]
     </li>
     <li>
       <p><strong>Sort by descending air temperature</strong></p>
-      $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&order=air_temperature desc&output=html]
+      $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&order=air_temperature desc&output=html]
     </li>
     <li>
       <p><strong>Filter: precipitation > 10 mm</strong></p>
-      $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2018-12-31&where=precipitation>10&output=html]
+      $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2018-12-31&where=precipitation>10&output=html]
     </li>
     <li>
       <p><strong>Combined: top 10 records where precipitation > 10 mm (sorted high→low)</strong></p>
-      $ANCHOR[/hourly?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2018-12-31&where=precipitation>10&order=precipitation desc&limit=10&output=html]
+      $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2018-12-31&where=precipitation>10&order=precipitation desc&limit=10&output=html]
     </li>
   </ul>
 </div>
@@ -420,11 +420,11 @@
   <ul>
     <li>
       <p><strong>Daily precipitation for a month (single point)</strong></p>
-      $ANCHOR[/daily?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&attributes=lat,lon,precipitation&output=html]
+      $ANCHOR[/daily?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&attributes=lat,lon,precipitation&output=html]
     </li>
     <li>
       <p><strong>Daily min/max/avg air temperature for a year</strong></p>
-      $ANCHOR[/daily?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2018-12-31&attributes=air_temperature&output=html]
+      $ANCHOR[/daily?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2018-12-31&attributes=air_temperature&output=html]
     </li>
     <li>
       <p><strong>Use a place name instead of lat/lon</strong></p>
@@ -432,27 +432,27 @@
     </li>
     <li>
       <p><strong>Last 30 days (relative dates)</strong></p>
-      $ANCHOR[/daily?email=jd@ex.com&lat=39.5&lon=-76.8&start=-30&end=0&attributes=precipitation,air_temperature&output=html]
+      $ANCHOR[/daily?email=jd@ex.com&lat=35.5&lon=-80.8&start=-30&end=0&attributes=precipitation,air_temperature&output=html]
     </li>
     <li>
       <p><strong>Rectangle query (two corners; NE:SW or NW:SE)</strong></p>
-      $ANCHOR[/daily?email=jd@ex.com&lat=39.8,39.2&lon=-76.4,-77.0&start=2018-11-01&end=2018-11-30&options=rect&attributes=precipitation&output=html]
+      $ANCHOR[/daily?email=jd@ex.com&lat=35.8,39.2&lon=-80.4,-77.0&start=2018-11-01&end=2018-11-30&options=rect&attributes=precipitation&output=html]
     </li>
     <li>
       <p><strong>UTC timestamps instead of local time</strong></p>
-      $ANCHOR[/daily?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&options=utc&attributes=precipitation,air_temperature&output=html]
+      $ANCHOR[/daily?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&options=utc&attributes=precipitation,air_temperature&output=html]
     </li>
     <li>
       <p><strong>Filter + sort + paginate (top rainy days)</strong></p>
-      $ANCHOR[/daily?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-01-01&end=2018-12-31&where=precipitation>10&order=precipitation%20desc&limit=10&output=html]
+      $ANCHOR[/daily?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-01-01&end=2018-12-31&where=precipitation>10&order=precipitation%20desc&limit=10&output=html]
     </li>
     <li>
       <p><strong>Daily Growing Degree Days</strong></p>
-      $ANCHOR[/daily?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&attributes=lat,lon,gdd&gddbase=10&gddmin=10&gddmax=30&output=html]
+      $ANCHOR[/daily?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&attributes=lat,lon,gdd&gddbase=10&gddmin=10&gddmax=30&output=html]
     </li>
     <li>
       <p><strong>Cumulative Growing Degree Days</strong></p>
-      $ANCHOR[/daily?email=jd@ex.com&lat=39.5&lon=-76.8&start=2018-11-01&end=2018-11-30&gddbase=10&gddmin=10&gddmax=30&stats=sum(gdd)&output=html]
+      $ANCHOR[/daily?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&gddbase=10&gddmin=10&gddmax=30&stats=sum(gdd)&output=html]
     </li>
   </ul>
 </div>
@@ -483,7 +483,7 @@
     </li>
     <li>
       <p><strong>Precipitation data for a lat/lon:</strong></p>
-      $ANCHOR[/yearlyprecipitation?lat=39.032056&lon=-76.873972]
+      $ANCHOR[/yearlyprecipitation?lat=35.032056&lon=-80.873972]
     </li>
   </ul>
 
@@ -527,7 +527,7 @@
     </li>
     <li>
       <p><strong>Frost data for a lat/lon:</strong></p>
-      $ANCHOR[/frost?lat=39.032056&lon=-76.873972]
+      $ANCHOR[/frost?lat=35.032056&lon=-80.873972]
     </li>
   </ul>
 </div>
@@ -544,7 +544,7 @@
     </li>
     <li>
       <p><strong>Elevation data for a lat/lon:</strong></p>
-      $ANCHOR[/elevation?lat=39.032056&lon=-76.873972]
+      $ANCHOR[/elevation?lat=35.032056&lon=-80.873972]
     </li>
   </ul>
 </div>
@@ -577,7 +577,7 @@
   <ul>
     <li>
       <p><strong>Watershed data for a lat/lon:</strong></p>
-      $ANCHOR[/watershed?lat=39.032056&lon=-76.873972]
+      $ANCHOR[/watershed?lat=35.032056&lon=-80.873972]
     </li>
     <li>
       <p><strong>Watershed data for a location, with polygon:</strong></p>
@@ -709,7 +709,7 @@
 
 <div data-route="/tables">
   <p>Returns tables in the weather schema with a positive estimated row count.</p>
-  $ANCHOR[/tables]
+  $ANCHOR[/tables?output=html]
 </div>
 
 <div data-route="/counttablesrows">
@@ -719,7 +719,7 @@
 
 <div data-route="/indexes">
   <p>Lists all indexes on non-system tables, ordered by index name.</p>
-  $ANCHOR[/indexes]
+  $ANCHOR[/indexes?output=html]
 </div>
 
 <div data-route="/countindexes">
@@ -729,10 +729,20 @@
 
 <div data-route="/addresses">
   <p>For all locations searched by address rather than coordinates, returns a list of matching addresses along with their latitude/longitude and bounding boxes.</p>
-  $ANCHOR[/addresses]
+  $ANCHOR[/addresses?output=html]
 </div>
 
 <div data-route="/hits">
   <p>Retrieves the most recent 1000 hits to the database.</p>
-  $ANCHOR[/hits]
+  $ANCHOR[/hits?output=html]
+</div>
+
+<div data-route="/running_queries">
+  <p>View all currently-running queries.</p>
+  $ANCHOR[/running_queries?output=html]
+</div>
+
+<div data-route="/partitions">
+  <p>View sizes per partition.</p>
+  $ANCHOR[/partition_sizes?output=html]
 </div>

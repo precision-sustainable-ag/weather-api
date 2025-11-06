@@ -3,7 +3,7 @@ import { format } from 'sql-formatter';
 
 const googleAPIKey = process.env.GoogleAPI;
 
-const testing = false;
+const testing = true;
 
 // eslint-disable-next-line no-unused-vars
 const hits = (ip, url, startTime, results, saveResults = true, email = null) => {
@@ -574,6 +574,15 @@ const runQuery = async (inputs) => {
       req.callback(rows);
     } else {
       // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30
+      rows = rows.map((row) => {
+        if (format2 === 'yyyy-mm-dd HH:00') {
+          row.date = new Date(new Date(`${row.date} UTC`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(0, 16);
+        } else if (format2 === 'yyyy-mm-dd') {
+          row.date = new Date(new Date(`${row.date} UTC`).getTime() + timeOffset * 1000).toISOString().slice(0, 10);
+        }
+        return row;
+      });
+
       return rows;
     }
   }; // outputResults
@@ -599,7 +608,6 @@ const runQuery = async (inputs) => {
   const query = async (timeOffset) => {
     const latlons = [];
 
-    console.log({ start, timeOffset });
     start = new Date(`${start} UTC`);
     start.setSeconds(start.getSeconds() - timeOffset);
     start = start.toISOString();
@@ -625,8 +633,14 @@ const runQuery = async (inputs) => {
     // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=graph&attributes=tmp&where=tmp%3C6
     const cond = where ? ` (${where})` : 'true';
 
-    const dateCond = `date BETWEEN '${start.slice(0, -1)}'::timestamp AND '${end.slice(0, -1)}'::timestamp`;
-
+    const dateCond =
+      type === 'ha_'
+        ? `(
+            TO_CHAR(date, 'MM-DD HH24:00') BETWEEN '${start.slice(5, 10)}' AND '${end.slice(5, 10)}'
+            AND date BETWEEN (TIMESTAMP '${start.replace('Z', '')}' + INTERVAL '-5 years') AND TIMESTAMP '${end.replace('Z', '')}'
+          )`
+        : `date BETWEEN '${start.slice(0, -1)}'::timestamp AND '${end.slice(0, -1)}'::timestamp`;
+    
     let mrmsResults = [];
     if (mrms) {
       let mrmsQuery = lats.map((lat, i) => (
@@ -686,11 +700,14 @@ const runQuery = async (inputs) => {
                 AND ${dateCond}
             `)
           : unindent(`
-              SELECT date, ${cols}
-              FROM daily
+              SELECT
+                max(TO_CHAR(date, 'MM-DD HH24:00')) as date,
+                ${cols.split(',').map((col) => `AVG(${col}) AS ${col}`).join(', ')}
+              FROM weather
               WHERE
                 lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
                 AND ${dateCond}
+              GROUP BY TO_CHAR(date, 'MM-DD HH24:00')
             `);
 
         const days = (new Date() - new Date(end)) / (1000 * 60 * 60 * 24);
@@ -900,16 +917,33 @@ const runQuery = async (inputs) => {
       // hits(ip, req.url, startTime, results, !explain && end && new Date() - new Date(end) > 86400000, email); // !!!
       return outputResults(results, sq);
     } else {
-      const results = (await pool.query(explain ? `EXPLAIN ${sq}` : sq)).rows;
-      const nolat = lats.length === 1 && attr.length && !attr.includes('lat');
-      const nolon = lons.length === 1 && attr.length && !attr.includes('lon');
-      if (nolat || nolon) {
-        results.forEach((row) => {
-          // http://localhost/hourly?lat=39.03&lon=-76.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
-          // http://localhost/hourly?lat=39.05,40.03&lon=-75.87,-76.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
-          if (nolat) delete row.lat;
-          if (nolon) delete row.lon;
-        });
+      const client = await pool.connect();
+      let results = [];
+      try {
+        await client.query('BEGIN');
+        await client.query('SET LOCAL max_parallel_workers_per_gather = 8');
+        await client.query('SET LOCAL parallel_setup_cost = 0');
+        await client.query('SET LOCAL parallel_tuple_cost = 0');
+        await client.query('SET enable_bitmapscan = off;');
+        await client.query('SET enable_indexonlyscan = on;');
+        await client.query(`SET min_parallel_index_scan_size = '0';`);
+
+        results = (await client.query(explain ? `EXPLAIN (ANALYZE, BUFFERS) ${sq}` : sq)).rows;
+        const nolat = lats.length === 1 && attr.length && !attr.includes('lat');
+        const nolon = lons.length === 1 && attr.length && !attr.includes('lon');
+        if (nolat || nolon) {
+          results.forEach((row) => {
+            // http://localhost/hourly?lat=39.03&lon=-76.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
+            // http://localhost/hourly?lat=39.05,40.03&lon=-75.87,-76.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation
+            if (nolat) delete row.lat;
+            if (nolon) delete row.lon;
+          });
+        }
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
       }
 
       // hits(ip, req.url, startTime, results, !explain && end && new Date() - new Date(end) > 86400000, email);
@@ -1035,7 +1069,7 @@ const routeHourly = (
     type: 'nldas_hourly_',
     start,
     end,
-    format2: 'YYYY-MM-DD HH24:MI',
+    format2: 'yyyy-mm-dd HH:00',
     daily: false,
     lat,
     lon,
@@ -1072,7 +1106,7 @@ const routeDaily = (
     type: 'nldas_hourly_',
     start,
     end,
-    format2: 'YYYY-MM-DD',
+    format2: 'yyyy-mm-dd',
     daily: true,
     lat,
     lon,
@@ -1112,7 +1146,7 @@ const routeAverages = (
     type: 'ha_',
     start: `${start}`,
     end: `${end}`,
-    format2: 'MM-DD HH24:MI',
+    format2: 'MM-DD HH24:00',
     daily: false,
     lat,
     lon,
