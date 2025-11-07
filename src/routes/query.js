@@ -252,6 +252,8 @@ const waitForQueries = async () => (
   })
 );
 
+let averages;
+
 /**
  * Initializes various parameters based on the given request object.
  *
@@ -357,6 +359,23 @@ const init = async (inputs) => {
   }  
 
   const getTimeZone = async () => {
+    const { rows } = await pool.query(`
+      SELECT MIN(date - interval '1 hour') AS mindate, MAX(date + interval '1 hour') AS maxdate
+      FROM weather
+      WHERE lat=30 AND lon=-115
+    `);
+
+    const mindate = new Date(`${rows[0].mindate} UTC`);
+    results.mindate = mindate;
+
+    const maxdate = new Date(`${rows[0].maxdate} UTC`);
+    results.maxdate = maxdate;
+    const { rows: averages2 } = await pool.query(`
+      SELECT *
+      FROM averages(${NLDASlat(lat)}, ${NLDASlon(lons[0])}, '2020-01-01', '2020-12-31')
+    `);
+    averages = averages2;
+
     if (options.includes('gmt') || options.includes('utc') || !results.lats || !results.lons) {
       results.timeOffset = 0;
       return;
@@ -394,6 +413,9 @@ const init = async (inputs) => {
       `);
 
       results.timeOffset = data.rawOffset;
+      mindate.setSeconds(mindate.getSeconds() - results.timeOffset);
+      maxdate.setSeconds(maxdate.getSeconds() - results.timeOffset);
+
     // eslint-disable-next-line no-unused-vars      
     } catch (error) {
       console.error('500 this');
@@ -526,6 +548,8 @@ const runQuery = async (inputs) => {
     rect,
     timeOffset,
     error,
+    mindate,
+    maxdate,
   } = initialized;
 
   const {
@@ -574,18 +598,53 @@ const runQuery = async (inputs) => {
       req.callback(rows);
     } else {
       // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30
-      rows = rows.map((row) => {
+
+      averages = Object.fromEntries(
+        averages.map((row) => [
+          `${new Date(`${row.date}`).getMonth() + 1}-${new Date(`${row.date}`).getDate()} ${new Date(`${row.date}`).getHours()}:00`,
+          row,
+        ]),
+      );
+      let results = [];
+      for (const date = new Date(start); date <= new Date(end); date.setHours(date.getHours() + 1)) {
+        // console.log(date);
+        try {
+          const row = rows.find((row) => new Date(row.date).getTime() === date.getTime());
+          if (row) {
+            results.push(row);
+          } else {
+            const key = `${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:00`;
+            const a = averages[key];
+            // results.push(averages[`${date.getMonth()}-${date.getDate()} ${date.getHours()}:00`]);
+            if (a) {
+              results.push({
+                date: new Date(date),
+                precipitation: a.precipitation,
+                air_temperature: a.air_temperature,
+              });
+            } else {
+              console.log(key);
+            }
+          }
+        } catch (err) {
+          console.error(err);
+        }
+        // console.log(date);
+      }
+      // console.log(results);
+
+      results = results.map((row) => {
         if (format2 === 'yyyy-mm-dd HH:00') {
-          row.date = new Date(new Date(`${row.date} UTC`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(0, 16);
+          row.date = new Date(new Date(`${row.date}`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(0, 16);
         } else if (format2 === 'yyyy-mm-dd') {
-          row.date = new Date(new Date(`${row.date} UTC`).getTime() + timeOffset * 1000).toISOString().slice(0, 10);
+          row.date = new Date(new Date(`${row.date}`).getTime() + timeOffset * 1000).toISOString().slice(0, 10);
         } else if (format2 === 'MM-DD HH24:00') {
-          row.date = new Date(new Date(`${row.date} UTC`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(5, 16);
+          row.date = new Date(new Date(`${row.date}`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(5, 16);
         }
         return row;
       });
 
-      return rows;
+      return results;
     }
   }; // outputResults
 
@@ -646,6 +705,9 @@ const runQuery = async (inputs) => {
           )`
         : `date BETWEEN '${start.slice(0, -1)}'::timestamp AND '${end.slice(0, -1)}'::timestamp`;
     
+    const date1 = start.slice(0, -1);
+    const date2 = end.slice(0, -1);
+
     let mrmsResults = [];
     if (mrms) {
       let mrmsQuery = lats.map((lat, i) => (
@@ -699,21 +761,30 @@ const runQuery = async (inputs) => {
         let mainTable = type === 'nldas_hourly_'
           ? unindent(`
               SELECT date, ${cols}
-              FROM weather
-              WHERE
-                lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-                AND ${dateCond}
+              FROM nldas(${NLDASlat(lat)}, ${NLDASlon(lons[i])}, '${date1}', '${date2}')
             `)
           : unindent(`
-              SELECT
-                max(TO_CHAR(date, 'MM-DD HH24:00')) as date,
-                ${cols.split(',').map((col) => `AVG(${col}) AS ${col}`).join(', ')}
-              FROM weather
-              WHERE
-                lat=${NLDASlat(lat)} AND lon=${NLDASlon(lons[i])}
-                AND ${dateCond}
-              GROUP BY TO_CHAR(date, 'MM-DD HH24:00')
+              SELECT date, ${cols}
+              FROM averages(${NLDASlat(lat)}, ${NLDASlon(lons[i])}, '${date1}', '${date2}')
             `);
+
+        if (type === 'nldas_hourly_' && new Date(start) < mindate || new Date(end) > maxdate) {
+          // const { rows: averages } = await pool.query(`
+          //   SELECT date, ${cols}
+          //   FROM averages(${NLDASlat(lat)}, ${NLDASlon(lons[i])}, '${maxdate.toISOString()}', '${date2}')
+          // `);
+          // console.log(averages);
+          // if (new Date(end) > maxdate) {
+          //   mainTable = `
+          //     SELECT * FROM (
+          //       ${mainTable}
+          //       UNION ALL
+          //       SELECT date, ${cols}
+          //       FROM averages(${NLDASlat(lat)}, ${NLDASlon(lons[i])}, '${maxdate.toISOString()}', '${date2}')
+          //     ) a
+          //   `;
+          // }
+        }
 
         const days = (new Date() - new Date(end)) / (1000 * 60 * 60 * 24);
         if (days < 10 && type === 'nldas_hourly_' && (predicted || options.includes('predicted'))) {
@@ -1058,7 +1129,7 @@ const runQuery = async (inputs) => {
   return query(timeOffset);
 }; // runQuery
 
-const routeHourly = (
+const routeHourly = async(
   req, reply,
   email, start, end, lat, lon, attributes, options, predicted, explain, output,
   stats, group,

@@ -65,7 +65,17 @@ AS $$
   SELECT
     AVG(lat) AS lat,
     AVG(lon) AS lon,
-    MAX(date) AS date,
+    make_timestamptz(
+      CASE
+        WHEN EXTRACT(DOY FROM MAX(date AT TIME ZONE 'UTC')) >= EXTRACT(DOY FROM p_start AT TIME ZONE 'UTC')
+        THEN EXTRACT(YEAR FROM p_start)::int
+        ELSE EXTRACT(YEAR FROM p_end)::int
+      END,
+      EXTRACT(MONTH FROM MAX(date AT TIME ZONE 'UTC'))::int,
+      EXTRACT(DAY   FROM MAX(date AT TIME ZONE 'UTC'))::int,
+      EXTRACT(HOUR  FROM MAX(date AT TIME ZONE 'UTC'))::int,
+      0, 0, 'UTC'
+    ) AS date,
     AVG(air_temperature) AS air_temperature,
     AVG(humidity) AS humidity,
     AVG(pressure) AS pressure,
@@ -120,10 +130,20 @@ AS $$
   WHERE
     lat = p_lat AND lon = p_lon AND
     (
-      TO_CHAR(date, 'MM-DD"T"HH24:00') BETWEEN TO_CHAR(p_start, 'MM-DD"T"HH24:00') AND TO_CHAR(p_end, 'MM-DD"T"HH24:00')
-      AND date BETWEEN (p_start + INTERVAL '-4 years') AND p_end
+      CASE
+        WHEN EXTRACT(DOY FROM p_start AT TIME ZONE 'UTC') <= EXTRACT(DOY FROM p_end AT TIME ZONE 'UTC') THEN
+          EXTRACT(DOY FROM date AT TIME ZONE 'UTC') BETWEEN EXTRACT(DOY FROM p_start AT TIME ZONE 'UTC') AND EXTRACT(DOY FROM p_end AT TIME ZONE 'UTC')
+        ELSE
+          EXTRACT(DOY FROM date AT TIME ZONE 'UTC') >= EXTRACT(DOY FROM p_start AT TIME ZONE 'UTC') OR EXTRACT(DOY FROM date AT TIME ZONE 'UTC') <= EXTRACT(DOY FROM p_end AT TIME ZONE 'UTC')
+      END
+      AND date BETWEEN (NOW() + INTERVAL '-4 years') AND NOW()
     )
-  GROUP BY TO_CHAR(date, 'MM-DD"T"HH24:00')
+  GROUP BY TO_CHAR(date AT TIME ZONE 'UTC', 'MM-DD"T"HH24:00')
 $$;
 
 select * from averages(35, -80.875, '2020-01-01', '2020-01-02 23:59:59+00') order by date;
+
+select date, precipitation from averages(35, -80.875, '2020-01-01', '2020-01-02 23:59:59+00') order by date;
+select date, precipitation from averages(35, -80.875, '2013-01-01', '2013-01-02 23:59:59+00') order by date;
+select date, precipitation from averages(35, -80.875, '2030-01-01', '2030-01-02 23:59:59+00') order by date;
+select date, precipitation from averages(35, -80.875, '2026-12-31', '2027-01-02 23:59:59+00') order by date;
