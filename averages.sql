@@ -63,82 +63,127 @@ LANGUAGE sql
 STABLE
 AS $$
   SELECT
-    AVG(lat) AS lat,
-    AVG(lon) AS lon,
-    make_timestamptz(
-      CASE
-        WHEN EXTRACT(DOY FROM MAX(date AT TIME ZONE 'UTC')) >= EXTRACT(DOY FROM p_start AT TIME ZONE 'UTC')
-        THEN EXTRACT(YEAR FROM p_start)::int
-        ELSE EXTRACT(YEAR FROM p_end)::int
-      END,
-      EXTRACT(MONTH FROM MAX(date AT TIME ZONE 'UTC'))::int,
-      EXTRACT(DAY   FROM MAX(date AT TIME ZONE 'UTC'))::int,
-      EXTRACT(HOUR  FROM MAX(date AT TIME ZONE 'UTC'))::int,
-      0, 0, 'UTC'
-    ) AS date,
-    AVG(air_temperature) AS air_temperature,
-    AVG(humidity) AS humidity,
-    AVG(pressure) AS pressure,
-    AVG(zonal_wind_speed) AS zonal_wind_speed,
-    AVG(meridional_wind_speed) AS meridional_wind_speed,
-    AVG(longwave_radiation) AS longwave_radiation,
-    AVG(convective_precipitation) AS convective_precipitation,
-    AVG(potential_energy) AS potential_energy,
-    AVG(potential_evaporation) AS potential_evaporation,
-    AVG(precipitation) AS precipitation,
-    AVG(shortwave_radiation) AS shortwave_radiation,
-    AVG(relative_humidity) AS relative_humidity,
-    AVG(wind_speed) AS wind_speed,
-    AVG(nswrs) AS nswrs,
-    AVG(nlwrs) AS nlwrs,
-    AVG(dswrf) AS dswrf,
-    AVG(dlwrf) AS dlwrf,
-    AVG(lhtfl) AS lhtfl,
-    AVG(shtfl) AS shtfl,
-    AVG(gflux) AS gflux,
-    AVG(snohf) AS snohf,
-    AVG(asnow) AS asnow,
-    AVG(arain) AS arain,
-    AVG(evp) AS evp,
-    AVG(ssrun) AS ssrun,
-    AVG(bgrun) AS bgrun,
-    AVG(snom) AS snom,
-    AVG(avsft) AS avsft,
-    AVG(albdo) AS albdo,
-    AVG(weasd) AS weasd,
-    AVG(snowc) AS snowc,
-    AVG(snod) AS snod,
-    AVG(tsoil) AS tsoil,
-    AVG(soilm1) AS soilm1,
-    AVG(soilm2) AS soilm2,
-    AVG(soilm3) AS soilm3,
-    AVG(soilm4) AS soilm4,
-    AVG(soilm5) AS soilm5,
-    AVG(mstav1) AS mstav1,
-    AVG(mstav2) AS mstav2,
-    AVG(soilm6) AS soilm6,
-    AVG(evcw) AS evcw,
-    AVG(trans) AS trans,
-    AVG(evbs) AS evbs,
-    AVG(sbsno) AS sbsno,
-    AVG(cnwat) AS cnwat,
-    AVG(acond) AS acond,
-    AVG(ccond) AS ccond,
-    AVG(lai) AS lai,
-    AVG(veg) AS veg
-  FROM weather
-  WHERE
-    lat = p_lat AND lon = p_lon AND
-    (
-      CASE
-        WHEN EXTRACT(DOY FROM p_start AT TIME ZONE 'UTC') <= EXTRACT(DOY FROM p_end AT TIME ZONE 'UTC') THEN
-          EXTRACT(DOY FROM date AT TIME ZONE 'UTC') BETWEEN EXTRACT(DOY FROM p_start AT TIME ZONE 'UTC') AND EXTRACT(DOY FROM p_end AT TIME ZONE 'UTC')
-        ELSE
-          EXTRACT(DOY FROM date AT TIME ZONE 'UTC') >= EXTRACT(DOY FROM p_start AT TIME ZONE 'UTC') OR EXTRACT(DOY FROM date AT TIME ZONE 'UTC') <= EXTRACT(DOY FROM p_end AT TIME ZONE 'UTC')
-      END
-      AND date BETWEEN (NOW() + INTERVAL '-4 years') AND NOW()
-    )
-  GROUP BY TO_CHAR(date AT TIME ZONE 'UTC', 'MM-DD"T"HH24:00')
+    lat,
+    lon,
+    gs AS date,
+    air_temperature,
+    humidity,
+    pressure,
+    zonal_wind_speed,
+    meridional_wind_speed,
+    longwave_radiation,
+    convective_precipitation,
+    potential_energy,
+    potential_evaporation,
+    precipitation,
+    shortwave_radiation,
+    relative_humidity,
+    wind_speed,
+    nswrs,
+    nlwrs,
+    dswrf,
+    dlwrf,
+    lhtfl,
+    shtfl,
+    gflux,
+    snohf,
+    asnow,
+    arain,
+    evp,
+    ssrun,
+    bgrun,
+    snom,
+    avsft,
+    albdo,
+    weasd,
+    snowc,
+    snod,
+    tsoil,
+    soilm1,
+    soilm2,
+    soilm3,
+    soilm4,
+    soilm5,
+    mstav1,
+    mstav2,
+    soilm6,
+    evcw,
+    trans,
+    evbs,
+    sbsno,
+    cnwat,
+    acond,
+    ccond,
+    lai,
+    veg
+  FROM generate_series(
+    date_trunc('hour', p_start),
+    date_trunc('hour', p_end),
+    interval '1 hour'
+  ) AS gs
+  INNER JOIN (
+    SELECT
+      AVG(lat) AS lat,
+      AVG(lon) AS lon,
+      MAX(date) AS date,
+      AVG(air_temperature) AS air_temperature,
+      AVG(humidity) AS humidity,
+      AVG(pressure) AS pressure,
+      AVG(zonal_wind_speed) AS zonal_wind_speed,
+      AVG(meridional_wind_speed) AS meridional_wind_speed,
+      AVG(longwave_radiation) AS longwave_radiation,
+      AVG(convective_precipitation) AS convective_precipitation,
+      AVG(potential_energy) AS potential_energy,
+      AVG(potential_evaporation) AS potential_evaporation,
+      AVG(precipitation) AS precipitation,
+      AVG(shortwave_radiation) AS shortwave_radiation,
+      AVG(relative_humidity) AS relative_humidity,
+      AVG(wind_speed) AS wind_speed,
+      AVG(nswrs) AS nswrs,
+      AVG(nlwrs) AS nlwrs,
+      AVG(dswrf) AS dswrf,
+      AVG(dlwrf) AS dlwrf,
+      AVG(lhtfl) AS lhtfl,
+      AVG(shtfl) AS shtfl,
+      AVG(gflux) AS gflux,
+      AVG(snohf) AS snohf,
+      AVG(asnow) AS asnow,
+      AVG(arain) AS arain,
+      AVG(evp) AS evp,
+      AVG(ssrun) AS ssrun,
+      AVG(bgrun) AS bgrun,
+      AVG(snom) AS snom,
+      AVG(avsft) AS avsft,
+      AVG(albdo) AS albdo,
+      AVG(weasd) AS weasd,
+      AVG(snowc) AS snowc,
+      AVG(snod) AS snod,
+      AVG(tsoil) AS tsoil,
+      AVG(soilm1) AS soilm1,
+      AVG(soilm2) AS soilm2,
+      AVG(soilm3) AS soilm3,
+      AVG(soilm4) AS soilm4,
+      AVG(soilm5) AS soilm5,
+      AVG(mstav1) AS mstav1,
+      AVG(mstav2) AS mstav2,
+      AVG(soilm6) AS soilm6,
+      AVG(evcw) AS evcw,
+      AVG(trans) AS trans,
+      AVG(evbs) AS evbs,
+      AVG(sbsno) AS sbsno,
+      AVG(cnwat) AS cnwat,
+      AVG(acond) AS acond,
+      AVG(ccond) AS ccond,
+      AVG(lai) AS lai,
+      AVG(veg) AS veg
+    FROM weather
+    WHERE
+      lat = p_lat AND lon = p_lon AND
+      date BETWEEN (NOW() + INTERVAL '-4 years') AND NOW()
+    GROUP BY TO_CHAR(date, 'MM-DD"T"HH24:00')
+  ) w
+  ON TO_CHAR(gs, 'MM-DD"T"HH24:00') = TO_CHAR(w.date, 'MM-DD"T"HH24:00')
+  ORDER BY gs;
 $$;
 
 select * from averages(35, -80.875, '2020-01-01', '2020-01-02 23:59:59+00') order by date;

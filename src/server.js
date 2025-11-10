@@ -41,6 +41,7 @@ await setup({
     const required = req.routeOptions.schema.querystring.required;
     const properties = req.routeOptions.schema.querystring.properties || {};
 
+    delete req.query.predicted; // deprecated
     if (req.query.output && !properties.output) {
       delete req.query.output;
     }
@@ -93,10 +94,11 @@ await setup({
 
       if (Number.isFinite(+v)) {
         dt = new Date();
-        dt.setDate(dt.getDate() + +v);
-        
-        if (averages) {
-          // dt.setUTCFullYear(2099);
+        dt.setUTCDate(dt.getUTCDate() + +v);
+        if (key === 'start') {
+          dt.setUTCHours(0, 0, 0, 0);
+        } else {
+          dt.setUTCHours(23, 59, 59, 999);
         }
       } else {
         v = v.replace(' ', 'T');
@@ -130,6 +132,5 @@ await setup({
 
       req.query[key] = dt.toISOString();
     }
-    // done();
   },
 });

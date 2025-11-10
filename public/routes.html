@@ -681,13 +681,24 @@
 
 <div data-route="/yearly">
   <p>
-    Returns yearly aggregate weather metrics for the NLDAS 0.125° grid cell containing the provided coordinates.
-    Inputs are snapped to the grid (lat rounded up, lon rounded down),
-    and the requested year or year range is <em>currently</em> clamped to 2018–2022.
+    Returns <strong>minimum</strong>, <strong>maximum</strong>, and <strong>average</strong> temperature,
+    along with <strong>minimum</strong>, <strong>maximum</strong>, and <strong>average</strong> total precipitation for a specified range of years.
   </p>
-  <p style="color: red !important">
-    TODO:  Add new yearly data once new server is set up.
+  <p>
+    If the <code>year</code> parameter is omitted, results default to the last 5 years.  
   </p>
+
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>10-year stats for a location</strong></p>
+      $ANCHOR[/yearly?location=Athens GA&year=2015-2024&output=html]
+    </li>
+    <li>
+      <p><strong>Previous 5-year stats for a lat/lon</strong></p>
+      $ANCHOR[/yearly?lat=35&lon=-79&output=html]
+    </li>
+  </ul>
 </div>
 
 <div data-route="/status">

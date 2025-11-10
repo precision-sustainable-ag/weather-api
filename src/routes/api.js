@@ -4,8 +4,8 @@ import watershed from './watershed.js';
 import routeCounty from './county.js';
 import routeMLRA from './mlra.js';
 import { nvm2, nvm2Query, nvm2Update } from './nvm2.js';
-import yearly from './yearly.js';
 import { routeHourly, routeDaily, routeAverages } from './query.js';
+import { routeYearly } from './yearly.js';
 
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
@@ -14,9 +14,7 @@ export default async function apiRoutes(app) {
 
   const lat = { type: 'number', required: true, examples: [35],  description: 'Latitude' };
   const lon = { type: 'number', required: true, examples: [-79], description: 'Longitude' };
-  const predicted = { type: 'boolean' };
   const explain   = { type: 'boolean' };
-  const beta      = { type: 'boolean' };
   const limit     = { type: 'number' };
   const offset    = { type: 'number' };
   const start     = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' };
@@ -39,11 +37,9 @@ export default async function apiRoutes(app) {
       lon: { description: 'Longitude', examples: [-79] },
       start,
       end,
-      predicted,
       limit,
       offset,
       explain,
-      beta,
     },
     { 200: {} },
   );
@@ -58,11 +54,9 @@ export default async function apiRoutes(app) {
       lon:        { examples: [-79] },
       start,
       end,
-      predicted,
       limit,
       offset,
       explain,
-      beta,
     },
     { 200: {} },
   );
@@ -73,15 +67,26 @@ export default async function apiRoutes(app) {
     routeAverages,
     {
       email,
-      lat: { description: 'Latitude', examples: [-79] },
+      lat: { description: 'Latitude', examples: [35] },
       lon: { description: 'Longitude', examples: [-79] },
       start: { type: 'string', format: 'date-time', examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' },
       end  : { type: 'string', format: 'date-time', examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' },
-      predicted,
       limit,
       offset,
       explain,
-      beta,
+    },
+    { 200: {} },
+  );
+
+  await simpleRoute('/yearly',
+    'Weather',
+    'Yearly weather data',
+    routeYearly,
+    {
+      email,
+      lat: { description: 'Latitude', examples: [35] },
+      lon: { description: 'Longitude', examples: [-79] },
+      year: { type: 'string', examples: ['2020', '2018-2020'], description: 'Year or range of years (e.g., 2018-2020)' },
     },
     { 200: {} },
   );
