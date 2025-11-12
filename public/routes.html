@@ -31,11 +31,12 @@
         <li>
           <p>
             ℹ️ Note: NLDAS-2 data is typically delayed by a few days for quality control, so the most recent days may be missing.
-            You can fill those gaps with <strong>predicted</strong> values:
+            Data for missing days is automatically "predicted" based on 5-year averages.
+            You'll see a <code>predicted</code> column when that occurs:
           </p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-15&end=0&options=predicted&output=html]
-          <p>You can also use <code>options=predicted</code> to retrieve <strong>forecast data for future dates</strong>:</p>
-          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=30&end=60&options=predicted&output=html]
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-15&end=0&output=html]
+          <p>This also allows you to retrieve <strong>forecast data for future dates</strong>:</p>
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=30&end=60&output=html]
         </li>
       </ul>
       <hr>
@@ -143,7 +144,7 @@
           <ul>
             <li>
               <p><strong>Using lat/lon pairs</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=35,39.2&lon=-80,-76.2&start=2018-11-01&end=2018-11-30&options=rect&output=html]
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35,35.2&lon=-80,-79.2&start=2018-11-01&end=2018-11-30&options=rect&output=html]
             </li>
             <li>
               <p><strong>Using a location</p></strong>
@@ -180,25 +181,6 @@
         </li>
 
         <li>
-          <code>predicted</code><br>
-          <p>
-            Includes predicted data for recent or future dates when NLDAS-2 observations are unavailable.<br>
-            If omitted, only observed (historical) data is returned.
-          </p>
-          <ul>
-            <li>
-              <p><strong>Predicted data:</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-15&end=15&options=predicted&output=html]
-            </li>
-            <li>
-              <p><strong>Observed only:</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-15&end=15&output=html]
-            </li>
-          </ul>
-          <hr>
-        </li>
-
-        <li>
           <code>mrms</code><br>
           <p>Output MRMS precipitation data instead of NLDAS-2.</p>
           <p>This option is ignored when using the <code>stats</code> parameter or when <code>options=rect</code>.</p>
@@ -225,12 +207,6 @@
     </li>
 
     <li>
-      <code>predicted=true</code><br>
-      <em>(optional, alias for <code>options=predicted</code>)</em>
-      <hr>
-    </li>
-
-    <li>
       <code>explain=true</code><br>
       <em>(optional)</em>
       <p>
@@ -238,7 +214,7 @@
         Useful for <strong>troubleshooting</strong>, <strong>performance analysis</strong>, or <strong>query optimization</strong>.<br>
         Only recommended for debugging — results are intended for technical inspection.
       </p>
-      $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=30&end=60&options=predicted&explain=true&output=html]
+      $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=-30&end=60&explain=true&output=html]
       <hr>
     </li>
 
@@ -748,5 +724,5 @@
 
 <div data-route="/partitions">
   <p>View sizes per partition.</p>
-  $ANCHOR[/partition_sizes?output=html]
+  $ANCHOR[/partitions?output=html]
 </div>

@@ -1,4 +1,4 @@
-import { setup } from 'simple-route';
+import { setup, pool } from 'simple-route';
 
 import { getLocation } from './routes/query.js';
 import apiRoutes from './routes/api.js';
@@ -29,7 +29,7 @@ const isTrusted = (req) => {
 
 await setup({
   title: 'Weather API',
-  version: '1.0.0',
+  version: '2.0.0',
   trusted: ['https://weather.covercrop-data.org/', 'https://developweather.covercrop-data.org/'],
   plugins: {
     '': apiRoutes,
@@ -38,6 +38,7 @@ await setup({
   preValidation: async (req, _reply) => {
     if (!req.query || !req?.routeOptions?.schema?.querystring) return;
 
+    req.startTime = new Date();
     const required = req.routeOptions.schema.querystring.required;
     const properties = req.routeOptions.schema.querystring.properties || {};
 
@@ -61,6 +62,7 @@ await setup({
       delete req.query.location;
     }
 
+    req.email = req.query.email;
     if (required?.includes('email')) {
       if (!req.query.email && isTrusted(req)) {
         req.query.email = 'jd@ex.com';
@@ -132,5 +134,20 @@ await setup({
 
       req.query[key] = dt.toISOString();
     }
+  },
+  onResponse: async (req, _reply) => {
+    if (req.url?.startsWith('/hits')) return;
+
+    const time = new Date() - req.startTime;
+
+    const sql = `
+      INSERT INTO public.hits
+      (date, ip, query, ms, email)
+      VALUES (NOW(), $1, $2, $3, $4)
+      RETURNING *;
+    `;
+
+    await pool.query(sql, [req.ip, req.url, time, req.email]);
+    await pool.query('COMMIT;');
   },
 });
