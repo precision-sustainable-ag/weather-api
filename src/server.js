@@ -23,11 +23,21 @@ const isTrusted = (req) => {
       const host = new URL(src).hostname;
       if (TRUSTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true;
       if (req.query && !req.query.email) {
-        req.email = host;
+        if (/vegspec.org/.test(host))                      req.email = 'vegspec@psa.org';
+        else if (/covercrop-selector.org/.test(host))      req.email = 'selector@psa.org';
+        else if (/covercrop-seedcalc.org/.test(host))      req.email = 'seedcalc@psa.org';
+        else if (/covercrop-ncalc.org/.test(host))         req.email = 'ncalc@psa.org';
+        else if (/weather.covercrop-data.org/.test(host))  req.email = 'weather@psa.org';
+        else if (/covercrop-imagery.org/.test(host))       req.email = 'imagery@psa.org';
       }
     } catch { /* ignore */ }
   }
-  return ['127.0.0.1', '::1'].includes(req.ip);
+  if (['127.0.0.1', '::1'].includes(req.ip)) {
+    req.email = 'localhost';
+    return true;
+  } else {
+    return false;
+  }
 };
 
 const clientIp = (req) => (
@@ -76,7 +86,7 @@ await setup({
     const trusted = isTrusted(req);
     if (required?.includes('email')) {
       if (!req.query.email && trusted) {
-        req.query.email = req.email;
+        req.query.email = 'jd@ex.com';
       }
     } else {
       delete req.query.email;
