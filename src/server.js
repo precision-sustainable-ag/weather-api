@@ -27,6 +27,21 @@ const isTrusted = (req) => {
   return ['127.0.0.1', '::1'].includes(req.ip);
 };
 
+const clientIp = (req) => {
+  const h = req.headers;
+  const xff = h['x-forwarded-for'];                    // "client, proxy1, proxy2"
+  const ipFromXff = xff && xff.split(',')[0].trim();
+  const ip =
+    ipFromXff ||
+    h['cf-connecting-ip'] ||                            // Cloudflare
+    h['true-client-ip']   ||                            // some CDNs
+    h['x-real-ip']        ||                            // Nginx
+    h['x-client-ip']      ||
+    req.socket?.remoteAddress ||
+    req.ip || '';
+  return ip.replace(/^::ffff:/, '');                    // strip IPv4-mapped IPv6
+};
+
 await setup({
   title: 'Weather API',
   version: '2.0.0',
@@ -147,7 +162,8 @@ await setup({
       RETURNING *;
     `;
 
-    await pool.query(sql, [req.ip, req.url, time, req.email]);
+    // await pool.query(sql, [req.ip, req.url, time, req.email]);
+    await pool.query(sql, [clientIp(req), req.url, time, req.email]);
     await pool.query('COMMIT;');
   },
 });
