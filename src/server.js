@@ -8,12 +8,12 @@ const TRUSTED_HOSTS = [
   'localhost',
   '127.0.0.1',
   '::1',
-  'vegspec.org', 'develop.vegspec.org',
-  'covercrop-selector.org', 'develop.covercrop-selector.org',
-  'covercrop-seedcalc.org', 'develop.covercrop-seedcalc.org',
-  'covercrop-ncalc.org', 'develop.covercrop-ncalc.org',
+  'vegspec.org',                'develop.vegspec.org',
+  'covercrop-selector.org',     'develop.covercrop-selector.org',
+  'covercrop-seedcalc.org',     'develop.covercrop-seedcalc.org',
+  'covercrop-ncalc.org',        'develop.covercrop-ncalc.org',
   'weather.covercrop-data.org', 'developweather.covercrop-data.org',
-  'covercrop-imagery.org', 'develop.covercrop-imagery.org',
+  'covercrop-imagery.org',      'develop.covercrop-imagery.org',
 ];
 
 const isTrusted = (req) => {
@@ -22,6 +22,9 @@ const isTrusted = (req) => {
     try {
       const host = new URL(src).hostname;
       if (TRUSTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true;
+      if (req.query && !req.query.email) {
+        req.email = host;
+      }
     } catch { /* ignore */ }
   }
   return ['127.0.0.1', '::1'].includes(req.ip);
