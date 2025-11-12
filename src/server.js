@@ -92,6 +92,7 @@ await setup({
     } else {
       delete req.query.email;
     }
+    req.email = req.email ?? req.query?.email;
 
     const averages = /^\/averages/.test(req.url);
     if (averages) {
