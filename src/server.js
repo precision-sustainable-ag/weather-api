@@ -21,15 +21,16 @@ const isTrusted = (req) => {
   if (src) {
     try {
       const host = new URL(src).hostname;
-      if (TRUSTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true;
       if (req.query && !req.query.email) {
-        if (/vegspec.org/.test(host))                      req.email = 'vegspec@psa.org';
-        else if (/covercrop-selector.org/.test(host))      req.email = 'selector@psa.org';
-        else if (/covercrop-seedcalc.org/.test(host))      req.email = 'seedcalc@psa.org';
-        else if (/covercrop-ncalc.org/.test(host))         req.email = 'ncalc@psa.org';
-        else if (/weather.covercrop-data.org/.test(host))  req.email = 'weather@psa.org';
-        else if (/covercrop-imagery.org/.test(host))       req.email = 'imagery@psa.org';
+        if (/vegspec\.org/.test(host))                      req.email = 'vegspec@psa.org';
+        else if (/covercrop-selector\.org/.test(host))      req.email = 'selector@psa.org';
+        else if (/covercrop-seedcalc\.org/.test(host))      req.email = 'seedcalc@psa.org';
+        else if (/covercrop-ncalc\.org/.test(host))         req.email = 'ncalc@psa.org';
+        else if (/weather\.covercrop-data\.org/.test(host)) req.email = 'weather@psa.org';
+        else if (/covercrop-imagery\.org/.test(host))       req.email = 'imagery@psa.org';
       }
+
+      if (TRUSTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true;
     } catch { /* ignore */ }
   }
   if (['127.0.0.1', '::1'].includes(req.ip)) {
