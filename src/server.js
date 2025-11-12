@@ -73,9 +73,9 @@ await setup({
       delete req.query.location;
     }
 
-    req.email = req.query.email;
+    const trusted = isTrusted(req);
     if (required?.includes('email')) {
-      if (!req.query.email && isTrusted(req)) {
+      if (!req.query.email && trusted) {
         req.query.email = 'jd@ex.com';
       }
     } else {
@@ -158,7 +158,6 @@ await setup({
       RETURNING *;
     `;
 
-    // await pool.query(sql, [req.ip, req.url, time, req.email]);
     await pool.query(sql, [clientIp(req), req.url, time, req.email]);
     await pool.query('COMMIT;');
   },
