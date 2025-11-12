@@ -1,4 +1,4 @@
-import { setup } from 'simple-route';
+import { setup, pool } from 'simple-route';
 
 import { getLocation } from './routes/query.js';
 import apiRoutes from './routes/api.js';
@@ -29,7 +29,7 @@ const isTrusted = (req) => {
 
 await setup({
   title: 'Weather API',
-  version: '1.0.0',
+  version: '2.0.0',
   trusted: ['https://weather.covercrop-data.org/', 'https://developweather.covercrop-data.org/'],
   plugins: {
     '': apiRoutes,
@@ -38,9 +38,11 @@ await setup({
   preValidation: async (req, _reply) => {
     if (!req.query || !req?.routeOptions?.schema?.querystring) return;
 
+    req.startTime = new Date();
     const required = req.routeOptions.schema.querystring.required;
     const properties = req.routeOptions.schema.querystring.properties || {};
 
+    delete req.query.predicted; // deprecated
     if (req.query.output && !properties.output) {
       delete req.query.output;
     }
@@ -60,6 +62,7 @@ await setup({
       delete req.query.location;
     }
 
+    req.email = req.query.email;
     if (required?.includes('email')) {
       if (!req.query.email && isTrusted(req)) {
         req.query.email = 'jd@ex.com';
@@ -93,10 +96,11 @@ await setup({
 
       if (Number.isFinite(+v)) {
         dt = new Date();
-        dt.setDate(dt.getDate() + +v);
-        
-        if (averages) {
-          dt.setUTCFullYear(2099);
+        dt.setUTCDate(dt.getUTCDate() + +v);
+        if (key === 'start') {
+          dt.setUTCHours(0, 0, 0, 0);
+        } else {
+          dt.setUTCHours(23, 59, 59, 999);
         }
       } else {
         v = v.replace(' ', 'T');
@@ -120,7 +124,7 @@ await setup({
           v = v.replace(/-(\d)-/g, (_, c) => `-0${c}-`);
           v = v.replace(/-(\d)T/g, (_, c) => `-0${c}T`);
           dt = new Date(v);
-          dt.setUTCFullYear(2099);
+          // dt.setUTCFullYear(2099);
         } else {
           v = v.replace(/-(\d)-/g, (_, c) => `-0${c}-`);
           v = v.replace(/-(\d)T/g, (_, c) => `-0${c}T`);
@@ -130,6 +134,20 @@ await setup({
 
       req.query[key] = dt.toISOString();
     }
-    // done();
+  },
+  onResponse: async (req, _reply) => {
+    if (req.url?.startsWith('/hits')) return;
+
+    const time = new Date() - req.startTime;
+
+    const sql = `
+      INSERT INTO public.hits
+      (date, ip, query, ms, email)
+      VALUES (NOW(), $1, $2, $3, $4)
+      RETURNING *;
+    `;
+
+    await pool.query(sql, [req.ip, req.url, time, req.email]);
+    await pool.query('COMMIT;');
   },
 });

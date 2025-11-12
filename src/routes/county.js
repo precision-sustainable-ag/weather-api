@@ -24,7 +24,7 @@ const routeCounty = async (lat, lon, attributes, polygon) => {
     SELECT distinct ${attributes}
     FROM counties
     WHERE ST_Contains(geometry::geometry, ST_Transform(ST_SetSRID(ST_GeomFromText('POINT(${lon} ${lat})'), 4326), 4269))
-  `)
+  `);
 
   return rows;
 };

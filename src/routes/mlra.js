@@ -20,7 +20,7 @@ const routeMLRA = async (lat, lon, attributes, polygon, mlra) => {
         FROM counties a
         RIGHT JOIN (
           SELECT *, ST_AsText(geometry) as polygon
-          FROM mlra.mlra
+          FROM mlra2022
           WHERE mlrarsym = '${mlra}'
         ) b
         ON ST_Intersects(ST_SetSRID(b.geometry, 4269), a.geometry)
@@ -31,7 +31,7 @@ const routeMLRA = async (lat, lon, attributes, polygon, mlra) => {
     } else {
       const { rows } = await pool.query(`
         SELECT distinct ${attributes}
-        FROM mlra.mlra
+        FROM mlra2022
         WHERE ST_Contains(geometry, ST_GeomFromText('POINT(${lon} ${lat})'))
       `);
 

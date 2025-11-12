@@ -1,9 +1,108 @@
+# psql -d weather
+# julia -t auto ~/weather/importNew.jl
+
 import Pkg
 for pkg in ["ConfigEnv", "NCDatasets", "LibPQ"]
   Base.find_package(pkg) === nothing && Pkg.add(pkg)
 end
 
 using ConfigEnv, Printf, Dates, NCDatasets, Base.Threads, LibPQ
+
+using LibPQ
+using Printf
+
+function create_table(conn::LibPQ.Connection)
+  LibPQ.execute(conn, "SET client_min_messages = WARNING"); 
+  LibPQ.execute(conn, "CREATE EXTENSION IF NOT EXISTS postgis;")
+  LibPQ.execute(conn, "
+    CREATE TABLE IF NOT EXISTS weather (
+      date timestamp without time zone,
+      lat real,
+      lon real,
+      air_temperature real,
+      humidity real,
+      pressure real,
+      zonal_wind_speed real,
+      meridional_wind_speed real,
+      longwave_radiation real,
+      convective_precipitation real,
+      potential_energy real,
+      potential_evaporation real,
+      precipitation real,
+      shortwave_radiation real,
+      relative_humidity real,
+      wind_speed real,
+      nswrs real,
+      nlwrs real,
+      dswrf real,
+      dlwrf real,
+      lhtfl real,
+      shtfl real,
+      gflux real,
+      snohf real,
+      asnow real,
+      arain real,
+      evp real,
+      ssrun real,
+      bgrun real,
+      snom real,
+      avsft real,
+      albdo real,
+      weasd real,
+      snowc real,
+      snod real,
+      tsoil real,
+      soilm1 real,
+      soilm2 real,
+      soilm3 real,
+      soilm4 real,
+      soilm5 real,
+      mstav1 real,
+      mstav2 real,
+      soilm6 real,
+      evcw real,
+      trans real,
+      evbs real,
+      sbsno real,
+      cnwat real,
+      acond real,
+      ccond real,
+      lai real,
+      veg real,
+      tile_id integer
+    )
+    PARTITION BY RANGE (lat);
+  ")
+end
+
+function create_partitions(conn::LibPQ.Connection)
+  for lat in 25:53
+    lat_parent = @sprintf("weather_lat_%d", lat)
+
+    # parent (latitude) partition under weather
+    sql_parent = @sprintf("""
+      CREATE TABLE IF NOT EXISTS %s PARTITION OF weather
+      FOR VALUES FROM (%d) TO (%d)
+      PARTITION BY RANGE (lon);
+    """, lat_parent, lat, lat + 1)
+    LibPQ.execute(conn, sql_parent)
+
+    # leaf (longitude) partitions under the latitude parent
+    for lon in -125:-68
+      leaf_name = @sprintf("weather_lat_%d_lon_%d", lat, abs(lon))
+      sql_leaf = @sprintf("""
+        CREATE TABLE IF NOT EXISTS %s PARTITION OF %s
+        FOR VALUES FROM (%d) TO (%d);
+      """, leaf_name, lat_parent, lon, lon + 1)
+      LibPQ.execute(conn, sql_leaf)
+    end
+  end
+end
+
+function create_indexes(conn::LibPQ.Connection)
+  LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_lat_lon_date_idx ON weather (lat, lon, date);")
+  LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_date_idx ON weather (date);")
+end
 
 home = homedir()
 
@@ -26,110 +125,12 @@ println("Running: ", row.current_time)
   return (lat_bin << 12) | lon_bin
 end
 
-LibPQ.execute(conn, "SET client_min_messages = WARNING"); 
-LibPQ.execute(conn, "
-  CREATE TABLE IF NOT EXISTS weather (
-    date timestamp without time zone,
-    lat real,
-    lon real,
-    air_temperature real,
-    humidity real,
-    pressure real,
-    zonal_wind_speed real,
-    meridional_wind_speed real,
-    longwave_radiation real,
-    convective_precipitation real,
-    potential_energy real,
-    potential_evaporation real,
-    precipitation real,
-    shortwave_radiation real,
-    relative_humidity real,
-    wind_speed real,
-    nswrs real,
-    nlwrs real,
-    dswrf real,
-    dlwrf real,
-    lhtfl real,
-    shtfl real,
-    gflux real,
-    snohf real,
-    asnow real,
-    arain real,
-    evp real,
-    ssrun real,
-    bgrun real,
-    snom real,
-    avsft real,
-    albdo real,
-    weasd real,
-    snowc real,
-    snod real,
-    tsoil real,
-    soilm1 real,
-    soilm2 real,
-    soilm3 real,
-    soilm4 real,
-    soilm5 real,
-    mstav1 real,
-    mstav2 real,
-    soilm6 real,
-    evcw real,
-    trans real,
-    evbs real,
-    sbsno real,
-    cnwat real,
-    acond real,
-    ccond real,
-    lai real,
-    veg real,
-    tile_id integer
-  )
-  PARTITION BY RANGE (date);
-")
-
-# const BUCKETS = 16
-# for y in 1975:2099, m in 1:12
-#   y2 = (m == 12) ? y + 1 : y       # next year if Dec
-#   m2 = (m == 12) ? 1     : m + 1   # next month (wrap at Dec)
-
-#   tbl = @sprintf("weather_%d_%02d", y, m)
-#   sql = @sprintf("
-#     CREATE TABLE IF NOT EXISTS %s
-#     PARTITION OF weather
-#     FOR VALUES FROM ('%04d-%02d-01') TO ('%04d-%02d-01')
-#     PARTITION BY HASH (tile_id);
-#   ", tbl, y, m, y2, m2)
-
-#   LibPQ.execute(conn, sql)
-
-#   for r in 0:BUCKETS - 1
-#     LibPQ.execute(conn, "
-#       CREATE TABLE IF NOT EXISTS $(tbl)_p$(r)
-#       PARTITION OF $(tbl)
-#       FOR VALUES WITH (MODULUS $(BUCKETS), REMAINDER $(r))
-#     ")
-#   end  
-# end
-
-for y in 1975:2099, m in 1:12
-  y2 = (m == 12) ? y + 1 : y       # next year if Dec
-  m2 = (m == 12) ? 1     : m + 1   # next month (wrap at Dec)
-
-  tbl = @sprintf("weather_%d_%02d", y, m)
-  sql = @sprintf("
-    CREATE TABLE IF NOT EXISTS %s
-    PARTITION OF weather
-    FOR VALUES FROM ('%04d-%02d-01') TO ('%04d-%02d-01')
-  ", tbl, y, m, y2, m2)
-
-  LibPQ.execute(conn, sql)
-end
-
-LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_date_lat_lon_idx ON weather (date, lat, lon);")
-LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_date_idx         ON weather (date);")
+create_table(conn)
+create_partitions(conn)
+create_indexes(conn)
 
 function download(url, output)
-  if !isfile(output) || filesize(output) < 1_000_000
+  if !isfile(output) || filesize(output) < 1000000
     while true
       try
         run(`

@@ -9,7 +9,7 @@ const nvm2 = async (lat, lon, year) => {
       SELECT n.date, n.lat, n.lon, nldas, COALESCE(mrms, 0) AS mrms
       FROM (
         SELECT date, lat, lon, precipitation AS nldas
-        FROM weather.nldas_hourly_${lat}_${-lon}_${year}
+        FROM weather
         WHERE (lat, lon) IN (
           (${lat}.125, ${lon}.875), 
           (${lat}.125, ${lon}.625),
@@ -103,7 +103,7 @@ const nvm2 = async (lat, lon, year) => {
     }
 
     pool.query(`
-      INSERT INTO weather.nvm2 (lat, lon, year, data)
+      INSERT INTO nvm2 (lat, lon, year, data)
       VALUES (${lat}, ${lon}, ${year}, '${s.replace(/ /g, ' ').trim()}')
     `);
 
@@ -111,7 +111,7 @@ const nvm2 = async (lat, lon, year) => {
   }; // runNvmQuery
 
   const { rows } = await pool.query(`
-    SELECT data FROM weather.nvm2
+    SELECT data FROM nvm2
     WHERE lat = $1 and lon = $2 and year = $3
   `, [lat, lon, year]);
 
@@ -125,7 +125,7 @@ const nvm2 = async (lat, lon, year) => {
 const nvm2Query = async (condition) => {
   const sq = `
     SELECT lat, lon
-    FROM weather.nvm2
+    FROM nvm2
     WHERE ${condition.replace(/select|insert|update|drop|delete/ig, '')}
     ORDER BY lat, lon
   `;
@@ -136,7 +136,7 @@ const nvm2Query = async (condition) => {
 
 const nvm2Update = async (red, orange, mismatch, delta, diff, mvm, mrms, lat, lon) => {
   await pool.query(`
-    UPDATE weather.nvm2
+    UPDATE nvm2
     SET
       red      = ${red},
       orange   = ${orange},
@@ -149,6 +149,6 @@ const nvm2Update = async (red, orange, mismatch, delta, diff, mvm, mrms, lat, lo
   `);
 
   return { status: 'Success' };
-} // nvm2Update
+}; // nvm2Update
 
 export { nvm2, nvm2Query, nvm2Update };

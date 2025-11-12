@@ -4,8 +4,8 @@ import watershed from './watershed.js';
 import routeCounty from './county.js';
 import routeMLRA from './mlra.js';
 import { nvm2, nvm2Query, nvm2Update } from './nvm2.js';
-import yearly from './yearly.js';
 import { routeHourly, routeDaily, routeAverages } from './query.js';
+import { routeYearly } from './yearly.js';
 
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
@@ -14,14 +14,12 @@ export default async function apiRoutes(app) {
 
   const lat = { type: 'number', required: true, examples: [35],  description: 'Latitude' };
   const lon = { type: 'number', required: true, examples: [-79], description: 'Longitude' };
-  const predicted = { type: 'boolean' };
   const explain   = { type: 'boolean' };
-  const beta      = { type: 'boolean' };
   const limit     = { type: 'number' };
   const offset    = { type: 'number' };
   const start     = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' };
   const end       = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' };
-  const email     = { type: 'string', format: 'email', required: true, examples: ['johndoe@example.com']};
+  const email     = { type: 'string', format: 'email', required: true, examples: ['johndoe@example.com'] };
   
   const polygonarray = {
     type: 'array',
@@ -39,11 +37,9 @@ export default async function apiRoutes(app) {
       lon: { description: 'Longitude', examples: [-79] },
       start,
       end,
-      predicted,
       limit,
       offset,
       explain,
-      beta,
     },
     { 200: {} },
   );
@@ -58,11 +54,9 @@ export default async function apiRoutes(app) {
       lon:        { examples: [-79] },
       start,
       end,
-      predicted,
       limit,
       offset,
       explain,
-      beta,
     },
     { 200: {} },
   );
@@ -73,19 +67,30 @@ export default async function apiRoutes(app) {
     routeAverages,
     {
       email,
-      lat: { description: 'Latitude', examples: [-79] },
+      lat: { description: 'Latitude', examples: [35] },
       lon: { description: 'Longitude', examples: [-79] },
       start: { type: 'string', format: 'date-time', examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' },
       end  : { type: 'string', format: 'date-time', examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' },
-      predicted,
       limit,
       offset,
       explain,
-      beta,
     },
     { 200: {} },
   );
 
+  await simpleRoute('/yearly',
+    'Weather',
+    'Yearly weather data',
+    routeYearly,
+    {
+      email,
+      lat: { description: 'Latitude', examples: [35] },
+      lon: { description: 'Longitude', examples: [-79] },
+      year: { type: 'string', examples: ['2020', '2018-2020'], description: 'Year or range of years (e.g., 2018-2020)' },
+    },
+    { 200: {} },
+  );
+  
   await simpleRoute('/yearlyprecipitation',
     'Weather',
     'Yearly Precipitation',
@@ -93,7 +98,7 @@ export default async function apiRoutes(app) {
       SELECT
         lat, lon, rain,
         ST_Distance(geog, ST_SetSRID(ST_MakePoint($2, $1), 4326)) AS distance
-      FROM weather.precipitation
+      FROM precipitation
       ORDER BY geog <-> ST_SetSRID(ST_MakePoint($2, $1), 4326)
       LIMIT 1
     `,
@@ -101,40 +106,40 @@ export default async function apiRoutes(app) {
     { object: true },
   );
 
-  await simpleRoute('/mvm',
-    'Weather',
-    'MRMS vs. MRMS',
-    async (lat, lon, num) => {
-      const { rows } = await pool.query(`
-        SELECT
-          a.sum - b.sum AS delta,
-          a.lat AS alat, a.lon AS alon, a.sum AS asum,
-          b.lat AS blat, b.lon AS blon, b.sum AS bsum
-        FROM weather.mrms_${lat}_${-lon}_2019_annual a
-        LEFT JOIN weather.mrms_${lat}_${-lon}_2019_annual b
-        ON (a.lat BETWEEN b.lat + 0.01 AND b.lat + 0.011 AND
-            a.lon = b.lon
-          ) OR (
-            a.lat = b.lat AND
-            a.lon BETWEEN b.lon + 0.01 AND b.lon + 0.011
-          )
-        WHERE
-          b.lat IS NOT NULL AND
-          ABS(a.sum - b.sum) > $1
-        ORDER BY 1 DESC
-      `, [num]);
+  // await simpleRoute('/mvm',
+  //   'Weather',
+  //   'MRMS vs. MRMS',
+  //   async (lat, lon, num) => {
+  //     const { rows } = await pool.query(`
+  //       SELECT
+  //         a.sum - b.sum AS delta,
+  //         a.lat AS alat, a.lon AS alon, a.sum AS asum,
+  //         b.lat AS blat, b.lon AS blon, b.sum AS bsum
+  //       FROM weather.mrms_${lat}_${-lon}_2019_annual a
+  //       LEFT JOIN weather.mrms_${lat}_${-lon}_2019_annual b
+  //       ON (a.lat BETWEEN b.lat + 0.01 AND b.lat + 0.011 AND
+  //           a.lon = b.lon
+  //         ) OR (
+  //           a.lat = b.lat AND
+  //           a.lon BETWEEN b.lon + 0.01 AND b.lon + 0.011
+  //         )
+  //       WHERE
+  //         b.lat IS NOT NULL AND
+  //         ABS(a.sum - b.sum) > $1
+  //       ORDER BY 1 DESC
+  //     `, [num]);
       
-      return rows;
-    },
-    { lat, lon, num: { type: 'number', examples: [50] } },
-    { numbers: ['delta', 'alat', 'alon', 'asum', 'blat', 'blon', 'bsum'] },
-  );
+  //     return rows;
+  //   },
+  //   { lat, lon, num: { type: 'number', examples: [50] } },
+  //   { numbers: ['delta', 'alat', 'alon', 'asum', 'blat', 'blon', 'bsum'] },
+  // );
 
   await simpleRoute('/frost',
     'Weather',
     'Frost data',
     `
-      SELECT * FROM frost.frost
+      SELECT * FROM frost
       WHERE 
         firstfreeze IS NOT NULL AND
         firstfrost IS NOT NULL AND
@@ -148,20 +153,20 @@ export default async function apiRoutes(app) {
     { object: true },
   );
 
-  await simpleRoute('/yearly',
-    'Weather',
-    'Yearly weather aggregates (NLDAS grid)',
-    yearly,
-    { lat, lon, year: { examples: [2020] } },
-    {
-      numbers: [
-        'lat', 'lon',
-        'min_air_temperature', 'max_air_temperature',
-        'min_precipitation', 'max_precipitation', 'avg_precipitation',
-      ],
-      strings: ['year'],
-    },
-  );
+  // await simpleRoute('/yearly',
+  //   'Weather',
+  //   'Yearly weather aggregates (NLDAS grid)',
+  //   yearly,
+  //   { lat, lon, year: { examples: [2020] } },
+  //   {
+  //     numbers: [
+  //       'lat', 'lon',
+  //       'min_air_temperature', 'max_air_temperature',
+  //       'min_precipitation', 'max_precipitation', 'avg_precipitation',
+  //     ],
+  //     strings: ['year'],
+  //   },
+  // );
 
   // Other -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/elevation',
@@ -177,11 +182,11 @@ export default async function apiRoutes(app) {
         try {
           const results = await fetch(url);
           if (results.status > 400) {
-            reply.code(results.status)
+            reply.code(results.status);
             return results;
           }
 
-          elevations[latLon] = await results.json().results[0];
+          elevations[latLon] = (await results.json()).results[0];
         } catch (ee) {
           reply.code(500).send({ error: ee.message });
         }
@@ -230,14 +235,17 @@ export default async function apiRoutes(app) {
       other: { polygonarray },      
     },
   );
-  
+
   await simpleRoute('/hardinesszone',
     'Other',
     'Hardiness Zone',
     `
       SELECT
         id, gridcode, zone, trange, zonetitle,
-        ST_AsText(geometry) as polygon,
+        CASE WHEN $3::boolean
+          THEN ST_AsText(geometry)
+          ELSE NULL
+        END AS polygon,
         CASE WHEN $3::boolean
           THEN ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates'
           ELSE NULL::jsonb
@@ -310,44 +318,95 @@ export default async function apiRoutes(app) {
   );
 
   const dbRoutes = {
-    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('postgres')) AS size`,
+    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('weatherdb')) AS size`,
     Tables:
       `
-        SELECT table_name AS table, reltuples AS rows
+        SELECT
+          row_number() OVER (ORDER BY table_name),
+          table_name AS table,
+          reltuples AS rows,
+          to_char(reltuples, 'FM999G999G999G999G999') AS pretty_rows
         FROM (
           SELECT * FROM information_schema.tables
-          WHERE table_schema='weather'
+          WHERE
+            table_catalog='weatherdb'
+            AND table_name NOT LIKE 'pg%'
+            AND table_name NOT LIKE 'sql%'
         ) a
         LEFT JOIN pg_class b
         ON a.table_name = b.relname
         WHERE reltuples > 0
-        ORDER BY table_name
       `,
     CountTablesRows:
       `
         SELECT
           COUNT(*) AS tables,
-          SUM(reltuples) AS rows
+          SUM(reltuples) AS rows,
+          to_char(SUM(b.reltuples)::numeric, 'FM999G999G999G999G999') AS pretty_rows
         FROM (
           SELECT * FROM information_schema.tables
-          WHERE table_schema='weather'
+          WHERE table_catalog='weatherdb'
         ) a
         LEFT JOIN pg_class b
         ON a.table_name = b.relname
         WHERE reltuples > 0
       `,
-    Indexes: `SELECT * FROM pg_indexes WHERE tablename NOT LIKE 'pg%' ORDER BY indexname`,
-    CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'weather'`,
-    Addresses: 'SELECT * FROM weather.addresses ORDER BY address',
+    Indexes: 
+      `
+        SELECT
+          row_number() OVER (ORDER BY ix.indexname),
+          ix.schemaname,
+          ix.tablename,
+          ix.indexname,
+          pg_size_pretty(pg_relation_size(i.oid))        AS index_size,
+          pg_size_pretty(pg_total_relation_size(i.oid))  AS index_total_size, -- incl. TOAST/etc
+          s.idx_scan,
+          s.idx_tup_read,
+          s.idx_tup_fetch,
+          ix.indexdef
+        FROM pg_indexes ix
+        JOIN pg_class      AS i ON i.relname = ix.indexname
+        JOIN pg_namespace  AS n ON n.oid = i.relnamespace AND n.nspname = ix.schemaname
+        LEFT JOIN pg_stat_all_indexes AS s
+          ON s.schemaname = ix.schemaname AND s.relname = ix.tablename AND s.indexrelid = i.oid
+        WHERE ix.tablename NOT LIKE 'pg%'
+      `,
+    CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'public'`,
+    Addresses: 'SELECT row_number() OVER (ORDER BY address), * FROM addresses',
     Hits:
       `
         SELECT date, ip, query, ms, email
-        FROM weather.hits
+        FROM hits
         WHERE
           query NOT LIKE '%explain%' AND query NOT LIKE '%nvm%' AND
           (date > current_date - 1 OR (ip <> '::ffff:172.18.186.142' AND query NOT LIKE '%25172.18.186%25'))
         ORDER BY date DESC
         LIMIT 1000
+      `,
+    Running_Queries:
+      `
+        SELECT pid, state, (now() - query_start)::text AS runtime, query
+        FROM pg_stat_activity
+        WHERE state <> 'idle' AND query NOT LIKE '%idle%'
+      `,
+    Partitions:
+      `
+        SELECT
+          n.nspname AS schema,
+          c.relname AS parent,
+          COUNT(t.relid) AS leaf_count,
+          SUM(pg_total_relation_size(t.relid)) AS bytes,
+          pg_size_pretty(SUM(pg_total_relation_size(t.relid))) AS total_size
+        FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        LEFT JOIN LATERAL (
+          SELECT relid
+          FROM pg_partition_tree(c.oid)
+          WHERE isleaf
+        ) t ON true
+        WHERE c.relkind = 'p'
+        GROUP BY 1, 2
+        ORDER BY bytes DESC NULLS LAST
       `,
   };
 
@@ -357,13 +416,13 @@ export default async function apiRoutes(app) {
       route.replace(/[A-Z]/g, (c) => ` ${c}`).trim(),
       query,
     );
-  };
-  
+  }
+
   // NVM -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/nvm2Data',
     'NLDAS vs. MRMS',
     'NVM data',
-    'SELECT DISTINCT lat, lon, year FROM weather.nvm2',
+    'SELECT DISTINCT lat, lon, year FROM nvm2',
   );
 
   await simpleRoute('/nvm2',
@@ -389,4 +448,4 @@ export default async function apiRoutes(app) {
     'NVM update',
     nvm2Update,
   );
-};
+}
