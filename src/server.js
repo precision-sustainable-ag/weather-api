@@ -27,6 +27,14 @@ const isTrusted = (req) => {
   return ['127.0.0.1', '::1'].includes(req.ip);
 };
 
+const clientIp = (req) => (
+  (req.ip ||
+   req.headers['cf-connecting-ip'] ||
+   req.headers['true-client-ip']   ||
+   ''
+  ).replace(/^::ffff:/, '')
+);
+
 await setup({
   title: 'Weather API',
   version: '2.0.0',
@@ -147,7 +155,8 @@ await setup({
       RETURNING *;
     `;
 
-    await pool.query(sql, [req.ip, req.url, time, req.email]);
+    // await pool.query(sql, [req.ip, req.url, time, req.email]);
+    await pool.query(sql, [clientIp(req), req.url, time, req.email]);
     await pool.query('COMMIT;');
   },
 });
