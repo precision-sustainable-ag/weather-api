@@ -76,7 +76,7 @@ await setup({
     const trusted = isTrusted(req);
     if (required?.includes('email')) {
       if (!req.query.email && trusted) {
-        req.query.email = 'jd@ex.com';
+        req.query.email = req.email;
       }
     } else {
       delete req.query.email;
