@@ -18,16 +18,18 @@ const TRUSTED_HOSTS = [
 
 const isTrusted = (req) => {
   const src = req.headers.origin || req.headers.referer || req.headers;
+  req.email = req?.query?.email;
   if (src) {
     try {
       const host = new URL(src).hostname;
       if (req.query && !req.query.email) {
-        if (/vegspec\.org/.test(host))                      req.email = 'vegspec';
-        else if (/covercrop-selector\.org/.test(host))      req.email = 'selector';
-        else if (/covercrop-seedcalc\.org/.test(host))      req.email = 'seedcalc';
-        else if (/covercrop-ncalc\.org/.test(host))         req.email = 'ncalc';
-        else if (/weather\.covercrop-data\.org/.test(host)) req.email = 'weather';
-        else if (/covercrop-imagery\.org/.test(host))       req.email = 'imagery';
+        if (/vegspec\.org/.test(host))                      req.email = req.email ?? 'vegspec';
+        else if (/covercrop-selector\.org/.test(host))      req.email = req.email ?? 'selector';
+        else if (/covercrop-seedcalc\.org/.test(host))      req.email = req.email ?? 'seedcalc';
+        else if (/covercrop-ncalc\.org/.test(host))         req.email = req.email ?? 'ncalc';
+        else if (/weather\.covercrop-data\.org/.test(host)) req.email = req.email ?? 'weather';
+        else if (/covercrop-imagery\.org/.test(host))       req.email = req.email ?? 'imagery';
+        else if (/localhost/.test(host))                    req.email = req.email ?? 'localhost';
       }
 
       if (TRUSTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true;
