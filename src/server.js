@@ -37,7 +37,7 @@ const isTrusted = (req) => {
     } catch { /* ignore */ }
   }
   if (['127.0.0.1', '::1'].includes(req.ip)) {
-    req.email = 'localhost';
+    req.email = 'localhost@psa.org';
     return true;
   } else {
     return false;
