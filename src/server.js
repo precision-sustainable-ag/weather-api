@@ -24,6 +24,7 @@ const isTrusted = (req) => {
       const host = new URL(src).hostname;
       if (req.query && !req.query.email) {
         if (/vegspec\.org/.test(host))                      req.email = req.email ?? 'vegspec@psa.org';
+        else if (/mrv/.test(host))                          req.email = req.email ?? 'mrv@psa.org';
         else if (/covercrop-selector\.org/.test(host))      req.email = req.email ?? 'selector@psa.org';
         else if (/covercrop-seedcalc\.org/.test(host))      req.email = req.email ?? 'seedcalc@psa.org';
         else if (/covercrop-ncalc\.org/.test(host))         req.email = req.email ?? 'ncalc@psa.org';
