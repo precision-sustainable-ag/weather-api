@@ -23,13 +23,13 @@ const isTrusted = (req) => {
     try {
       const host = new URL(src).hostname;
       if (req.query && !req.query.email) {
-        if (/vegspec\.org/.test(host))                      req.email = req.email ?? 'vegspec';
-        else if (/covercrop-selector\.org/.test(host))      req.email = req.email ?? 'selector';
-        else if (/covercrop-seedcalc\.org/.test(host))      req.email = req.email ?? 'seedcalc';
-        else if (/covercrop-ncalc\.org/.test(host))         req.email = req.email ?? 'ncalc';
-        else if (/weather\.covercrop-data\.org/.test(host)) req.email = req.email ?? 'weather';
-        else if (/covercrop-imagery\.org/.test(host))       req.email = req.email ?? 'imagery';
-        else if (/localhost/.test(host))                    req.email = req.email ?? 'localhost';
+        if (/vegspec\.org/.test(host))                      req.email = req.email ?? 'vegspec@psa.org';
+        else if (/covercrop-selector\.org/.test(host))      req.email = req.email ?? 'selector@psa.org';
+        else if (/covercrop-seedcalc\.org/.test(host))      req.email = req.email ?? 'seedcalc@psa.org';
+        else if (/covercrop-ncalc\.org/.test(host))         req.email = req.email ?? 'ncalc@psa.org';
+        else if (/weather\.covercrop-data\.org/.test(host)) req.email = req.email ?? 'weather@psa.org';
+        else if (/covercrop-imagery\.org/.test(host))       req.email = req.email ?? 'imagery@psa.org';
+        else if (/localhost/.test(host))                    req.email = req.email ?? 'localhost@psa.org';
       }
 
       if (TRUSTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true;
