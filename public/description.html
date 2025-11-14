@@ -1,13 +1,39 @@
-<p>This API provides NLDAS-2 forcing data and MRMS precipitation data on an hourly or daily basis.</p>
-<p>It also provides miscellaneous other location-based data, including elevation, watersheds, hardiness zones, MLRA, etc. </p>
-<ul>
+<p>This API provides several categories of gridded weather datasets:</p>
+
+<ol>
   <li>
-    <strong>NLDAS-2</strong>: 0.125° × 0.125° resolution, available from 2015-01-01 to within the last 3 days (for quality-control latency).
+    <strong>NLDAS-2 Forcing Data</strong>
+    <ul>
+      <li><strong>Resolution:</strong> 0.125&deg; &times; 0.125&deg; (~14 km &times; 14 km)</li>
+      <li><strong>Coverage:</strong> CONUS, 25&deg;N–53&deg;N, 125&deg;W–67&deg;W</li>
+      <li><strong>Availability:</strong> 2015-01-01 to present (with ~3-day latency)</li>
+      <li><strong>Content:</strong> Hourly atmospheric forcing variables used to drive the land-surface models (temperature, humidity, wind, radiation, precipitation, etc.).</li>
+    </ul>
   </li>
+
   <li>
-    <strong>MRMS</strong>: 1 km × 1 km resolution, available from 2015-06-05 to within the last 2 hours.
+    <strong>NLDAS-2 Mosaic Land-Surface Model (LSM)</strong>
+    <ul>
+      <li><strong>Resolution:</strong> 0.125&deg; &times; 0.125&deg; (identical to the forcing grid)</li>
+      <li><strong>Availability:</strong> 2015-01-01 to present</li>
+      <li><strong>Content:</strong> Mosaic LSM surface and subsurface diagnostics, including energy fluxes, soil moisture/temperature layers, snow fields, canopy variables, etc.</li>
+    </ul>
   </li>
-</ul>
+
+  <li>
+    <strong>MRMS Precipitation</strong>
+    <ul>
+      <li><strong>Resolution:</strong> 1 km &times; 1 km</li>
+      <li><strong>Availability:</strong> 2015-06-05 to present (within ~2 hours)</li>
+      <li><strong>Content:</strong> Radar-based precipitation totals (hourly).</li>
+    </ul>
+  </li>
+</ol>
+
+<p>The API also provides miscellaneous other location-based data, including elevation, watersheds, hardiness zones, MLRA, etc. </p>
+<hr>
+
+<h3>NLDAS-2 Forcing Parameters and MRMS</h3>
 <table id="Columns">
   <thead>
     <tr>
@@ -25,7 +51,7 @@
       <td>2m above ground</td>
       <td>air_temperature</td>
       <td>TMP</td>
-      <td>[C]</td>
+      <td>&deg;C</td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -33,7 +59,7 @@
       <td>2m above ground</td>
       <td>humidity</td>
       <td>SPFH</td>
-      <td>[kg kg-1]</td>
+      <td>kg kg<sup>-1</sup></td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -49,7 +75,7 @@
       <td>Surface</td>
       <td>pressure</td>
       <td>PRES</td>
-      <td>[Pa]</td>
+      <td>Pa</td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -57,7 +83,7 @@
       <td>10m above ground</td>
       <td>zonal_wind_speed</td>
       <td>UGRD</td>
-      <td>[m s-1]</td>
+      <td>m s<sup>-1</sup></td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -65,7 +91,7 @@
       <td>10m above ground</td>
       <td>meridional_wind_speed</td>
       <td>VGRD</td>
-      <td>[m s-1]</td>
+      <td>m s<sup>-1</sup></td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -73,7 +99,7 @@
       <td>10m above ground</td>
       <td>wind_speed</td>
       <td></td>
-      <td>[m s-1]</td>
+      <td>m s<sup>-1</sup></td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -81,7 +107,7 @@
       <td>Surface</td>
       <td>shortwave_radiation</td>
       <td>DSWRF</td>
-      <td>[W m-2]</td>
+      <td>W m<sup>-2</sup></td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -89,7 +115,7 @@
       <td>Surface</td>
       <td>longwave_radiation</td>
       <td>DLWRF</td>
-      <td>[W m-2]</td>
+      <td>W m<sup>-2</sup></td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -105,7 +131,7 @@
       <td>180m above ground</td>
       <td>potential_energy</td>
       <td>CAPE</td>
-      <td>[J kg-1]</td>
+      <td>J kg<sup>-1</sup></td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -113,7 +139,7 @@
       <td>Surface</td>
       <td>potential_evaporation</td>
       <td>PEVAP</td>
-      <td>[kg m-2]</td>
+      <td>kg m<sup>-2</sup></td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
     <tr>
@@ -121,7 +147,7 @@
       <td rowSpan="2">Surface</td>
       <td rowSpan="2">precipitation</td>
       <td rowSpan="2">APCP</td>
-      <td rowSpan="2">[mm]</td>
+      <td rowSpan="2">mm</td>
       <td><a target="_blank" rel="noreferrer" href="https://ldas.gsfc.nasa.gov/nldas/v2/forcing">NLDAS-2</a></td>
     </tr>
 
@@ -131,11 +157,216 @@
 
     <tr>
       <td>Growing degree days</td>
-      <td></td>
+      <td>&mdash;</td>
       <td>gdd</td>
       <td></td>
       <td></td>
-      <td></td>
+      <td>Derived</td>
     </tr>
-    </tbody>              
+  </tbody>              
 </table>
+
+<hr>
+<h3>NLDAS-2 Mosaic Land-Surface Model (LSM) Parameters</h3>
+<p>
+  These variables describe
+  <strong>surface energy balance, vegetation, soil layers, canopy water, snowpack, and hydrology</strong>,
+  and are available through the <a href="/redoc#Attributes"><code>attributes</code> parameter</a>.
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Units</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>nswrs</td>
+      <td>W/m²</td>
+      <td>Net shortwave radiation flux at the surface (downward minus reflected).</td>
+    </tr>
+    <tr>
+      <td>nlwrs</td>
+      <td>W/m²</td>
+      <td>Net longwave radiation flux at the surface (downward minus upward).</td>
+    </tr>
+    <tr>
+      <td>dswrf</td>
+      <td>W/m²</td>
+      <td>Downward shortwave radiation flux at the surface (incoming solar).</td>
+    </tr>
+    <tr>
+      <td>dlwrf</td>
+      <td>W/m²</td>
+      <td>Downward longwave radiation flux at the surface (incoming thermal IR).</td>
+    </tr>
+    <tr>
+      <td>lhtfl</td>
+      <td>W/m²</td>
+      <td>Latent heat net flux (energy associated with evapotranspiration).</td>
+    </tr>
+    <tr>
+      <td>shtfl</td>
+      <td>W/m²</td>
+      <td>Sensible heat net flux (heating of the air from the surface).</td>
+    </tr>
+    <tr>
+      <td>gflux</td>
+      <td>W/m²</td>
+      <td>Ground heat flux (heat into or out of the soil).</td>
+    </tr>
+    <tr>
+      <td>snohf</td>
+      <td>W/m²</td>
+      <td>Snow phase-change heat flux (energy for snowmelt and refreezing).</td>
+    </tr>
+    <tr>
+      <td>asnow</td>
+      <td>kg/m² per hour (≈ mm/hour)</td>
+      <td>Total solid precipitation (snowfall) accumulated over the period.</td>
+    </tr>
+    <tr>
+      <td>arain</td>
+      <td>kg/m² per hour (≈ mm/hour)</td>
+      <td>Total liquid precipitation (rainfall) accumulated over the period.</td>
+    </tr>
+    <tr>
+      <td>evp</td>
+      <td>kg/m² per hour (≈ mm/hour)</td>
+      <td>Total evaporation / evapotranspiration from the surface.</td>
+    </tr>
+    <tr>
+      <td>ssrun</td>
+      <td>kg/m² per hour (≈ mm/hour)</td>
+      <td>Storm surface runoff (overland flow) from the grid cell.</td>
+    </tr>
+    <tr>
+      <td>bgrun</td>
+      <td>kg/m² per hour (≈ mm/hour)</td>
+      <td>Baseflow / groundwater runoff (subsurface drainage).</td>
+    </tr>
+    <tr>
+      <td>snom</td>
+      <td>kg/m² per hour (≈ mm/hour)</td>
+      <td>Snowmelt rate (water-equivalent snowmelt).</td>
+    </tr>
+    <tr>
+      <td>avsft</td>
+      <td>K</td>
+      <td>Average surface skin temperature.</td>
+    </tr>
+    <tr>
+      <td>albdo</td>
+      <td>% (0–100)</td>
+      <td>Broadband surface albedo (fraction of shortwave radiation reflected).</td>
+    </tr>
+    <tr>
+      <td>weasd</td>
+      <td>kg/m² (≈ mm SWE)</td>
+      <td>Water equivalent of accumulated snow depth (snow water equivalent).</td>
+    </tr>
+    <tr>
+      <td>snowc</td>
+      <td>% (0–100)</td>
+      <td>Snow cover fraction of the grid cell.</td>
+    </tr>
+    <tr>
+      <td>snod</td>
+      <td>m</td>
+      <td>Snow depth.</td>
+    </tr>
+    <tr>
+      <td>tsoil</td>
+      <td>K</td>
+      <td>Soil temperature (layer-dependent depth).</td>
+    </tr>
+    <tr>
+      <td>soilm1</td>
+      <td>kg/m²</td>
+      <td>Soil moisture content in layer 1 (top layer).</td>
+    </tr>
+    <tr>
+      <td>soilm2</td>
+      <td>kg/m²</td>
+      <td>Soil moisture content in layer 2.</td>
+    </tr>
+    <tr>
+      <td>soilm3</td>
+      <td>kg/m²</td>
+      <td>Soil moisture content in layer 3.</td>
+    </tr>
+    <tr>
+      <td>soilm4</td>
+      <td>kg/m²</td>
+      <td>Soil moisture content in layer 4.</td>
+    </tr>
+    <tr>
+      <td>soilm5</td>
+      <td>kg/m²</td>
+      <td>Soil moisture content in layer 5.</td>
+    </tr>
+    <tr>
+      <td>soilm6</td>
+      <td>kg/m²</td>
+      <td>Soil moisture content in layer 6 (deepest layer).</td>
+    </tr>
+    <tr>
+      <td>mstav1</td>
+      <td>% (0–100)</td>
+      <td>Moisture availability (relative soil wetness) for upper soil.</td>
+    </tr>
+    <tr>
+      <td>mstav2</td>
+      <td>% (0–100)</td>
+      <td>Moisture availability (relative soil wetness) for deeper/column soil.</td>
+    </tr>
+    <tr>
+      <td>evcw</td>
+      <td>W/m²</td>
+      <td>Canopy water evaporation heat flux.</td>
+    </tr>
+    <tr>
+      <td>trans</td>
+      <td>W/m²</td>
+      <td>Transpiration heat flux (through vegetation).</td>
+    </tr>
+    <tr>
+      <td>evbs</td>
+      <td>W/m²</td>
+      <td>Direct evaporation from bare soil (latent heat flux).</td>
+    </tr>
+    <tr>
+      <td>sbsno</td>
+      <td>W/m²</td>
+      <td>Sublimation from snow (latent heat flux from snow surface).</td>
+    </tr>
+    <tr>
+      <td>cnwat</td>
+      <td>kg/m²</td>
+      <td>Plant canopy surface water storage (intercepted water).</td>
+    </tr>
+    <tr>
+      <td>acond</td>
+      <td>m/s</td>
+      <td>Aerodynamic conductance between surface/canopy and atmosphere.</td>
+    </tr>
+    <tr>
+      <td>ccond</td>
+      <td>m/s</td>
+      <td>Canopy (stomatal) conductance aggregated over vegetation.</td>
+    </tr>
+    <tr>
+      <td>lai</td>
+      <td>dimensionless (m²/m²)</td>
+      <td>Leaf Area Index (leaf area per unit ground area).</td>
+    </tr>
+    <tr>
+      <td>veg</td>
+      <td>% (0–100)</td>
+      <td>Vegetation cover fraction of the grid cell.</td>
+    </tr>
+  </tbody>
+</table>
+<hr>

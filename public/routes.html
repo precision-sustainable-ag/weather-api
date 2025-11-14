@@ -96,7 +96,7 @@
       <hr>
     </li>
 
-    <li>
+    <li id="Attributes">
       <code>attributes</code>
       <em>(optional)</em>
       <p>Comma-separated list of attributes to include in the output.</p>
@@ -105,6 +105,13 @@
       <code style="margin-left: 2rem; display: block;">
         date, lat, lon, air_temperature, humidity, relative_humidity, pressure, zonal_wind_speed, meridional_wind_speed, wind_speed,
         longwave_radiation, convective_precipitation, potential_energy, potential_evaporation, shortwave_radiation, precipitation
+      </code>
+
+      <h4>Mosaic land-surface model (LSM) parameters are also available:</h4>
+      <code style="margin-left: 2rem; display: block;">
+        nswrs, nlwrs, dswrf, dlwrf, lhtfl, shtfl, gflux, snohf, asnow, arain, evp, ssrun, bgrun, snom, avsft, albdo, weasd, snowc,
+        snod, tsoil, soilm1, soilm2, soilm3, soilm4, soilm5, soilm6, mstav1, mstav2, evcw, trans, evbs, sbsno, cnwat, acond, ccond,
+        lai, veg
       </code>
 
       <h4>Notes</h4>
@@ -117,16 +124,29 @@
           <br>
           The output column names will still use the database field names.        
         </li>
+        <li>
+          <code>mosaic</code> is shorthand for all Mosaic attributes.<br>
+          <code>nldas</code> is shorthand for all NLDAS-2 attributes.<br>
+        </li>
       </ul>
       
       <h4>Examples</h4>
       <ul>
         <li>
-          <p><strong>Temperature and Rain (full column names)</strong></p>
+          <p><strong>Air temperature and Rain (full column names)</strong></p>
           $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&attributes=air_temperature,precipitation&output=html]
+        </li>
         <li>
-          <p><strong>Temperature and Rain (GRIB short names)</strong></p>
+          <p><strong>Air temperature and Rain (GRIB short names)</strong></p>
           $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&attributes=TMP,APCP&output=html]
+        </li>
+        <li>
+          <p><strong>Mosaic attributes only</strong></p>
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&attributes=mosaic&output=html]
+        </li>
+        <li>
+          <p><strong>Air temperature and Mosaic attributes only</strong></p>
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&attributes=air_temperature,mosaic&output=html]
         </li>
       </ul>
       <hr>
@@ -138,31 +158,6 @@
       <p>A comma-separated list of modifiers</p>
       <h4>Available values</h4>
       <ul>
-        <li>
-          <code>rect</code>
-          <p>Treats two latitude/longitude pairs as opposite corners of a rectangle (NE:SW or NW:SE).</p>
-          <ul>
-            <li>
-              <p><strong>Using lat/lon pairs</strong></p>
-              $ANCHOR[/hourly?email=jd@ex.com&lat=35,35.2&lon=-80,-79.2&start=2018-11-01&end=2018-11-30&options=rect&output=html]
-            </li>
-            <li>
-              <p><strong>Using a location</p></strong>
-              $ANCHOR[/hourly?email=jd@ex.com&location=clarke county georgia&start=2018-11-01&end=2018-11-30&options=rect&output=html]
-            </li>
-          </ul>
-          <p>Data within the defined rectangle is returned at the available grid resolution.</p>
-          <hr>
-        </li>
-
-        <li>
-          <code>graph</code>
-          <p>⚠️ <em>Not currently functional.</em></p>
-          <p>Intended to display basic graphing options when <code>output=html</code>.</p>
-          $ANCHOR[/hourly?email=jd@ex.com&location=clarke county georgia&start=2018-11-01&end=2018-11-30&options=rect,graph&output=html]
-          <hr>
-        </li>
-
         <li>
           <code>utc|gmt</code><br>
           <p>Outputs results in <strong>Coordinated Universal Time (UTC)</strong> instead of local time.</p>
@@ -201,6 +196,32 @@
               $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&options=mrms&output=html]
             </li>
           </ul>
+          <hr>
+        </li>
+
+        <li>
+          <code>rect</code>
+          <p>Treats two latitude/longitude pairs as opposite corners of a rectangle (NE:SW or NW:SE).</p>
+          <ul>
+            <li>
+              <p><strong>Using lat/lon pairs</strong></p>
+              $ANCHOR[/hourly?email=jd@ex.com&lat=35,35.2&lon=-80,-79.2&start=2018-11-01&end=2018-11-30&options=rect&output=html]
+            </li>
+            <li>
+              <p><strong>Using a location</p></strong>
+              $ANCHOR[/hourly?email=jd@ex.com&location=clarke county georgia&start=2018-11-01&end=2018-11-30&options=rect&output=html]
+            </li>
+          </ul>
+          <p>Data within the defined rectangle is returned at the available grid resolution.</p>
+          <hr>
+        </li>
+
+        <li>
+          <code>graph</code>
+          <p>⚠️ <em>Not currently functional.</em></p>
+          <p>Intended to display basic graphing options when <code>output=html</code>.</p>
+          $ANCHOR[/hourly?email=jd@ex.com&location=clarke county georgia&start=2018-11-01&end=2018-11-30&options=rect,graph&output=html]
+          <hr>
         </li>
       </ul>
       <hr>
