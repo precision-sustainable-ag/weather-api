@@ -37,43 +37,46 @@ const parms = [
   'potential_evaporation',
   'shortwave_radiation',
   'precipitation',
-  // 'nswrs',
-  // 'nlwrs',
-  // 'dswrf',
-  // 'dlwrf',
-  // 'lhtfl',
-  // 'shtfl',
-  // 'gflux',
-  // 'snohf',
-  // 'asnow',
-  // 'arain',
-  // 'evp',
-  // 'ssrun',
-  // 'bgrun',
-  // 'snom',
-  // 'avsft',
-  // 'albdo',
-  // 'weasd',
-  // 'snowc',
-  // 'snod',
-  // 'tsoil',
-  // 'soilm1',
-  // 'soilm2',
-  // 'soilm3',
-  // 'soilm4',
-  // 'soilm5',
-  // 'mstav1',
-  // 'mstav2',
-  // 'soilm6',
-  // 'evcw',
-  // 'trans',
-  // 'evbs',
-  // 'sbsno',
-  // 'cnwat',
-  // 'acond',
-  // 'ccond',
-  // 'lai',
-  // 'veg',
+];
+
+const mosaic = [
+  'nswrs',
+  'nlwrs',
+  'dswrf',
+  'dlwrf',
+  'lhtfl',
+  'shtfl',
+  'gflux',
+  'snohf',
+  'asnow',
+  'arain',
+  'evp',
+  'ssrun',
+  'bgrun',
+  'snom',
+  'avsft',
+  'albdo',
+  'weasd',
+  'snowc',
+  'snod',
+  'tsoil',
+  'soilm1',
+  'soilm2',
+  'soilm3',
+  'soilm4',
+  'soilm5',
+  'mstav1',
+  'mstav2',
+  'soilm6',
+  'evcw',
+  'trans',
+  'evbs',
+  'sbsno',
+  'cnwat',
+  'acond',
+  'ccond',
+  'lai',
+  'veg',
 ];
 
 /** ____________________________________________________________________________________________________________________________________
@@ -251,10 +254,12 @@ const init = async (inputs) => {
 
   const {
     req, reply,
-    lat, lon, attributes,
+    lat, lon,
     explain, email, output,
     group, stats, where, url,
   } = inputs;
+
+  const attributes = inputs.attributes?.replace('mosaic', mosaic).replace('nldas', parms);
 
   // await waitForQueries();
   const lats = lat?.toString().split(',').map((n) => +n);
@@ -301,11 +306,9 @@ const init = async (inputs) => {
 
   const invalidAttribute = attr.find((col) => (
     ![
-      'nswrs', 'nlwrs', 'dswrf', 'dlwrf', 'lhtfl', 'shtfl', 'gflux', 'snohf', 'asnow', 'arain', 'evp', 'ssrun', 'bgrun',
-      'snom', 'avsft', 'albdo', 'weasd', 'snowc', 'snod', 'tsoil', 'soilm1', 'soilm2', 'soilm3', 'soilm4', 'soilm5',
-      'mstav1', 'mstav2', 'soilm6', 'evcw', 'trans', 'evbs', 'sbsno', 'cnwat', 'acond', 'ccond', 'lai', 'veg',
-      'gdd',
       ...parms,
+      ...mosaic,
+      'gdd',
     ].includes(col)
   ));
 
