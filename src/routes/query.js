@@ -194,7 +194,8 @@ const NLDASlon = (n) => (Math.floor(n * 8) / 8).toFixed(3);
  * @param {number} n - The number to round.
  * @returns {string} A string representation of the rounded number.
  */
-const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
+// const MRMSround = (n) => (Math.round((n - 0.005) * 100) / 100 + 0.005).toFixed(3);
+const MRMSround = (n) => 5 + 10 * Math.round(100 * n - 0.5);
 
 /**
  * Cleans a string by removing specific characters and forbidden keywords.
@@ -607,18 +608,26 @@ const runQuery = async (inputs) => {
 
     let mrmsResults = [];
     if (mrms) { // !!! mrmsmissing
+      // Math.floor logic causes PostgreSQL to use the correct index
       let mrmsQuery = lats
         .map((lat, i) => (`
-          SELECT * FROM mrms
+          SELECT
+            date::timestamptz AS date,
+            precipitation
+          FROM mrms
           WHERE
-            ROUND(lat::numeric, 3) = ${MRMSround(lat)} AND ROUND(lon::numeric, 3) = ${MRMSround(lons[i])}
-            AND date BETWEEN '${start}' AND '${end}'
+            lat >= ${Math.floor(lat)} AND lat < ${Math.floor(lat) + 1}
+            AND lon >= ${Math.floor(lons[i])} AND lon < ${Math.floor(lons[i]) + 1}
+            AND round(lat * 1000) = ${MRMSround(lat)}
+            AND round(lon * 1000) = ${MRMSround(lons[i])}
+            AND date BETWEEN '${date1}'::timestamptz AND '${date2}'::timestamptz
         `))
         .join('\nUNION ALL\n');
       
       mrmsQuery += `
         ORDER BY date
       `;
+      // console.log(mrmsQuery); throw '';
 
       if (limit) {
         mrmsQuery += `
@@ -754,6 +763,7 @@ const runQuery = async (inputs) => {
       maxdate.setHours(maxdate.getHours() - 2);
 
       const results = (await pool.query(sq)).rows;
+
       results.forEach((row1) => {
         if (moredata) {
           if (new Date(row1.date) > maxdate) {
@@ -762,13 +772,11 @@ const runQuery = async (inputs) => {
         }
 
         const f = mrmsResults.find((row2) => (
-          row1.date === row2.date && row1.lat === row2.lat && row1.lon === row2.lon
+          new Date(row1.date).getTime() === new Date(row2.date).getTime()
         ));
 
         if (f) {
-          if (f.mrms !== -999) {
-            row1.precipitation = f.mrms;
-          }
+          row1.precipitation = f.precipitation;
         } else {
           row1.precipitation = 0;
         }

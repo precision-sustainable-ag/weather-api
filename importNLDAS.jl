@@ -11,99 +11,6 @@ using ConfigEnv, Printf, Dates, NCDatasets, Base.Threads, LibPQ
 using LibPQ
 using Printf
 
-function create_table(conn::LibPQ.Connection)
-  LibPQ.execute(conn, "SET client_min_messages = WARNING"); 
-  LibPQ.execute(conn, "CREATE EXTENSION IF NOT EXISTS postgis;")
-  LibPQ.execute(conn, "
-    CREATE TABLE IF NOT EXISTS weather (
-      date timestamp without time zone,
-      lat real,
-      lon real,
-      air_temperature real,
-      humidity real,
-      pressure real,
-      zonal_wind_speed real,
-      meridional_wind_speed real,
-      longwave_radiation real,
-      convective_precipitation real,
-      potential_energy real,
-      potential_evaporation real,
-      precipitation real,
-      shortwave_radiation real,
-      relative_humidity real,
-      wind_speed real,
-      nswrs real,
-      nlwrs real,
-      dswrf real,
-      dlwrf real,
-      lhtfl real,
-      shtfl real,
-      gflux real,
-      snohf real,
-      asnow real,
-      arain real,
-      evp real,
-      ssrun real,
-      bgrun real,
-      snom real,
-      avsft real,
-      albdo real,
-      weasd real,
-      snowc real,
-      snod real,
-      tsoil real,
-      soilm1 real,
-      soilm2 real,
-      soilm3 real,
-      soilm4 real,
-      soilm5 real,
-      mstav1 real,
-      mstav2 real,
-      soilm6 real,
-      evcw real,
-      trans real,
-      evbs real,
-      sbsno real,
-      cnwat real,
-      acond real,
-      ccond real,
-      lai real,
-      veg real,
-      tile_id integer
-    )
-    PARTITION BY RANGE (lat);
-  ")
-end
-
-function create_partitions(conn::LibPQ.Connection)
-  for lat in 25:53
-    lat_parent = @sprintf("weather_lat_%d", lat)
-
-    # parent (latitude) partition under weather
-    sql_parent = @sprintf("""
-      CREATE TABLE IF NOT EXISTS %s PARTITION OF weather
-      FOR VALUES FROM (%d) TO (%d)
-      PARTITION BY RANGE (lon);
-    """, lat_parent, lat, lat + 1)
-    LibPQ.execute(conn, sql_parent)
-
-    # leaf (longitude) partitions under the latitude parent
-    for lon in -125:-68
-      leaf_name = @sprintf("weather_lat_%d_lon_%d", lat, abs(lon))
-      sql_leaf = @sprintf("""
-        CREATE TABLE IF NOT EXISTS %s PARTITION OF %s
-        FOR VALUES FROM (%d) TO (%d);
-      """, leaf_name, lat_parent, lon, lon + 1)
-      LibPQ.execute(conn, sql_leaf)
-    end
-  end
-end
-
-function create_indexes(conn::LibPQ.Connection)
-  LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_lat_lon_date_idx ON weather (lat, lon, date);")
-  LibPQ.execute(conn, "CREATE INDEX IF NOT EXISTS weather_date_idx ON weather (date);")
-end
-
 home = homedir()
 
 dotenv("$(home)/weather/.env")
@@ -125,10 +32,6 @@ println("Running: ", row.current_time)
   return (lat_bin << 12) | lon_bin
 end
 
-create_table(conn)
-create_partitions(conn)
-create_indexes(conn)
-
 function download(url, output)
   if !isfile(output) || filesize(output) < 1000000
     while true
@@ -138,7 +41,6 @@ function download(url, output)
             --cookie $home/.urs_cookies \
             --cookie-jar $home/.urs_cookies \
             --silent \
-            --retry 5 --retry-delay 2 --retry-connrefused \
             --output $output $url
         `)
         return
@@ -255,7 +157,7 @@ function readNLDAS(fname1, fname2, year, hour, cdate)
           yyyy = Dates.format(ds["time"][1:1][1], "yyyy")
           mm   = Dates.format(ds["time"][1:1][1], "mm")
           sql = "
-            COPY weather_$(yyyy)_$(mm) (
+            COPY weather (
               date, lat, lon,
               air_temperature, humidity, pressure, zonal_wind_speed, meridional_wind_speed,
               longwave_radiation, convective_precipitation, potential_energy, potential_evaporation,
@@ -309,7 +211,7 @@ start_date = DateTime(year0, 1, 1, 0, 0, 0)
 
 while true
   try
-    local row = first(execute(conn, "SELECT MAX(date) AS dt FROM weather;"))
+    local row = first(execute(conn, "SELECT MAX(date) AS dt FROM weather WHERE lat=30 AND lon=-115.875;"))
     if row === nothing || row.dt === nothing
       error("Couldn't determine max date")
     end
@@ -341,8 +243,8 @@ while true
     download("https://hydro1.gesdisc.eosdis.nasa.gov/data/NLDAS/NLDAS_MOS0125_H.2.0/$(y)/$(jd)/$(fname2)", out2)
 
     if !isfile(out1) || !isfile(out2) || filesize(out1) < 1_000_000 || filesize(out2) < 1_000_000
-      println("Pausing 15 minutes before checking for new data")
-      sleep(60 * 15)
+      println("Pausing 60 minutes before checking for new data")
+      sleep(60 * 60)
       break
     end
 

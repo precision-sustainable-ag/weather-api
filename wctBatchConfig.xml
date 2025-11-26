@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<wctExportBatchOptions version="3">
+  <!-- Keep logs quiet unless something goes wrong -->
+  <logging>SEVERE</logging>
+
+  <!-- Disable cache for real-time/rolling filenames -->
+  <useCache>FALSE</useCache>
+
+  <!-- =======================
+       Grid decoding & filters
+       ======================= -->
+  <grid>
+    <gridOptions>
+      <smoothFactor>0</smoothFactor>
+
+      <!-- MRMS 1-hour gauge-corrected QPE (change via substitution if needed) -->
+      <variable name="GaugeCorrQPE01H_altitude_above_msl"/>
+      <!-- Time/range selectors (0 = first index) -->
+      <time    lookupType="index" lookup="0"/>
+      <runtime lookupType="index" lookup="0"/>
+      <height  lookupType="index" lookup="0"/>
+    </gridOptions>
+
+    <gridFilter>
+      <!-- Geographic extent in degrees (WGS84). Order west→east. -->
+      <!-- <minLat>20</minLat>
+      <maxLat>55</maxLat>
+      <minLon>-125</minLon>
+      <maxLon>-67</maxLon> -->
+
+      <!-- Filter out zeros/tiny noise; keep everything else -->
+      <minValue>0.0001</minValue>
+      <maxValue>NONE</maxValue>
+    </gridFilter>
+  </grid>
+
+  <!-- (Radar section left as-is; not used for GRIB grid export) -->
+</wctExportBatchOptions>
