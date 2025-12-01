@@ -7,8 +7,8 @@ export default [
     files: ['**/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
-      sourceType: 'commonjs',
-      globals: { ...globals.node }
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
     },
     plugins: {
       import: await import('eslint-plugin-import')
@@ -29,6 +29,8 @@ export default [
       'max-len': ['error', { code: 150, ignoreUrls: true, ignoreStrings: true, ignoreTemplateLiterals: true, ignoreComments: true }],
       'quotes': ['error', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
 
+      'indent': ['error', 2, { 'SwitchCase': 1 }],
+      'comma-dangle': ['error', 'always-multiline'],
       // allow await in for...of but not other loops
       'no-await-in-loop': 'off',
       'no-restricted-syntax': [
@@ -37,7 +39,10 @@ export default [
         { selector: 'WhileStatement:has(AwaitExpression)', message: 'Avoid await in while-loops; consider restructuring.' },
         { selector: 'DoWhileStatement:has(AwaitExpression)', message: 'Avoid await in do…while-loops; consider restructuring.' },
         { selector: 'ForInStatement:has(AwaitExpression)', message: 'Avoid await in for…in; iterate keys and batch instead.' }
-      ]
+      ],
+      semi: ['error', 'always'],
+      'no-extra-semi': 'error',
+      'object-curly-spacing': ['error', 'always']
     }
   },
 ];
