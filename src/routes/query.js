@@ -614,7 +614,11 @@ const runQuery = async (inputs) => {
           SELECT
             date::timestamptz AS date,
             precipitation
-          FROM mrms
+          FROM (
+            SELECT * FROM mrms
+            UNION ALL
+            SELECT * FROM mrms_part
+          )
           WHERE
             lat >= ${Math.floor(lat)} AND lat < ${Math.floor(lat) + 1}
             AND lon >= ${Math.floor(lons[i])} AND lon < ${Math.floor(lons[i]) + 1}

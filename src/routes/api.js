@@ -318,7 +318,7 @@ export default async function apiRoutes(app) {
   );
 
   const dbRoutes = {
-    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('weatherdb')) AS size`,
+    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('weatherdb')) AS pretty_size, pg_database_size('weatherdb') AS size`,
     Tables:
       `
         SELECT
