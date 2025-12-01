@@ -11,7 +11,7 @@ resources:
 variables:
 
   # Container registry service connection established during pipeline creation
-  dockerRegistryServiceConnection: '7e89dc7f-e437-4f36-be18-2020a5471f36'
+  dockerRegistryServiceConnection: '7534a2b0-7b25-4d39-b198-59fab102e999'
   imageRepository: 'weatherapi'
   containerRegistry: 'containerregistry4pd7i.azurecr.io'
   dockerfilePath: '**/Dockerfile'
