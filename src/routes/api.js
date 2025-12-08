@@ -1,4 +1,3 @@
-
 import { pool, makeSimpleRoute } from 'simple-route';
 
 import watershed from './watershed.js';
@@ -20,7 +19,7 @@ export default async function apiRoutes(app) {
   const offset    = { type: 'number' };
   const start     = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' };
   const end       = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' };
-  const email     = { type: 'string', format: 'email', required: true, examples: ['johndoe@example.com'] };
+  const email     = { type: 'string', format: 'email', required: true, examples: ['jd@ex.com'] };
   
   const polygonarray = {
     type: 'array',
@@ -313,7 +312,14 @@ export default async function apiRoutes(app) {
   await simpleRoute('/status',
     'Database Utilities',
     'Health check',
-    `SELECT 'Connected to database' AS status`,
+    `
+      SELECT
+        'Connected to database' AS status,
+        last_nldas_import,
+        ROUND(EXTRACT(EPOCH FROM (NOW() - last_nldas_import)) / 3600) AS hours_since_last_nldas,
+        last_mrms_import,
+        ROUND(EXTRACT(EPOCH FROM (NOW() - last_mrms_import)) / 3600) AS hours_since_last_mrms
+      FROM status`,
     undefined,
     { object: true },
   );
@@ -374,16 +380,6 @@ export default async function apiRoutes(app) {
       `,
     CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'public'`,
     Addresses: 'SELECT row_number() OVER (ORDER BY address), * FROM addresses',
-    Hits:
-      `
-        SELECT date, ip, query, ms, email
-        FROM hits
-        WHERE
-          query NOT LIKE '%explain%' AND query NOT LIKE '%nvm%' AND
-          (date > current_date - 1 OR (ip <> '::ffff:172.18.186.142' AND query NOT LIKE '%25172.18.186%25'))
-        ORDER BY date DESC
-        LIMIT 1000
-      `,
     Running_Queries:
       `
         SELECT pid, state, (now() - query_start)::text AS runtime, query
@@ -418,6 +414,40 @@ export default async function apiRoutes(app) {
       query,
     );
   }
+
+  await simpleRoute('/hits',
+    'Database Utilities',
+    'API Hits',
+    `
+      SELECT
+        date, ip, ms,
+        regexp_replace(
+          query,
+          '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+',
+          '[redacted]',
+          'gi'
+        ) AS query
+      FROM hits
+      WHERE
+        query NOT LIKE '%explain%' AND query NOT LIKE '%nvm%' AND
+        (date > now() - LEAST($2, 30) * interval '1 day')
+        AND ip <> '127.0.0.1'
+      ORDER BY
+        CASE
+          WHEN $1 = 'ms' THEN ms
+          ELSE NULL
+        END DESC,
+        CASE
+          WHEN $1 IS NULL OR $1 <> 'ms'
+            THEN date
+          ELSE NULL
+        END DESC
+    `,
+    {
+      order: { type: 'string', enum: ['date', 'ms'], examples: ['date'] },
+      days: { type: 'number', default: 14, examples: [7], description: 'Number of days to look back from today' },
+    },
+  );
 
   // NVM -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/nvm2Data',

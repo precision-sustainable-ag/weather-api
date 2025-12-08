@@ -639,9 +639,9 @@ const runQuery = async (inputs) => {
         `;
       }
 
-      console.log(mrmsQuery);
+      // console.log(mrmsQuery);
       mrmsResults = (await pool.query(mrmsQuery)).rows;
-      console.log(mrmsResults);
+      // console.log(mrmsResults);
     }
 
     const tables =

@@ -16,9 +16,28 @@ const TRUSTED_HOSTS = [
   'covercrop-imagery.org',      'develop.covercrop-imagery.org',
 ];
 
-const isTrusted = (req) => {
+const validEmails = {
+  'jd@ex.com': true,
+};
+
+const isTrusted = async (req) => {
   const src = req.headers.origin || req.headers.referer || req.headers;
-  req.email = req?.query?.email;
+  req.email = req?.query?.email?.toLowerCase();
+  
+  if (req.email && !validEmails[req.email]) {
+    console.log(`Checking email: ${req.email}`);
+    const { rows } = await pool.query('SELECT * FROM invalid_emails');
+    if (rows.some(({ email }) => (
+      new RegExp(email, 'i').test(req.email)
+    ))) {
+      console.log(`Rejected invalid email: ${req.email}`);
+      req.query.email = null;
+      return false;
+    } else {
+      validEmails[req.email] = true;
+    }
+  }
+
   if (src) {
     try {
       const host = new URL(src).hostname;
@@ -87,7 +106,8 @@ await setup({
       delete req.query.location;
     }
 
-    const trusted = isTrusted(req);
+    const trusted = await isTrusted(req);
+
     if (required?.includes('email')) {
       if (!req.query.email && trusted) {
         req.query.email = 'jd@ex.com';
