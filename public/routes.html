@@ -736,8 +736,39 @@
 </div>
 
 <div data-route="/hits">
-  <p>Retrieves the most recent 1000 hits to the database.</p>
-  $ANCHOR[/hits?output=html]
+  <p>
+    Retrieves recent API calls, including:
+  </p>
+  <ul>
+    <li><code>date</code> &ndash; timestamp of the request</li>
+    <li><code>ip</code> &ndash; client IP address</li>
+    <li><code>ms</code> &ndash; execution time in milliseconds</li>
+    <li><code>query</code> &ndash; request</li>
+  </ul>
+  <p>
+    By default, returns calls from the most recent <strong>14 days</strong>.
+    You can control the lookback window with the <code>days</code> query parameter (allowed range <code>1&ndash;30</code> days;
+    values above 30 are clamped to 30).
+  </p>  
+  <p>
+    Results are sorted by <strong>descending date</strong> by default,
+    but can be sorted by <strong>descending execution time</strong> using the <code>order</code> query parameter.
+  </p>
+  <h4>Examples</h4>
+  <ul>
+    <li>
+      <p><strong>Recent API calls (last 14 days, sorted by date)</strong></p>
+      $ANCHOR[/hits?output=html]
+    </li>
+    <li>
+      <p><strong>Recent API calls (last 7 days, sorted by date)</strong></p>
+      $ANCHOR[/hits?days=7&output=html]
+    </li>
+    <li>
+      <p><strong>Recent API calls (last 30 days, sorted by time to run)</strong></p>
+      $ANCHOR[/hits?days=30&order=ms&output=html]
+    </li>
+  </ul>
 </div>
 
 <div data-route="/running_queries">
