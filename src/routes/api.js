@@ -7,6 +7,8 @@ import { nvm2, nvm2Query, nvm2Update } from './nvm2.js';
 import { routeHourly, routeDaily, routeAverages } from './query.js';
 import { routeYearly } from './yearly.js';
 
+const database = process.env.DB_DATABASE;
+
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
 
@@ -325,7 +327,7 @@ export default async function apiRoutes(app) {
   );
 
   const dbRoutes = {
-    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('weatherdb')) AS pretty_size, pg_database_size('weatherdb') AS size`,
+    DatabaseSize: `SELECT pg_size_pretty(pg_database_size('${database}')) AS pretty_size, pg_database_size('${database}') AS size`,
     Tables:
       `
         SELECT
@@ -336,7 +338,7 @@ export default async function apiRoutes(app) {
         FROM (
           SELECT * FROM information_schema.tables
           WHERE
-            table_catalog='weatherdb'
+            table_catalog='${database}'
             AND table_name NOT LIKE 'pg%'
             AND table_name NOT LIKE 'sql%'
         ) a
@@ -352,7 +354,7 @@ export default async function apiRoutes(app) {
           to_char(SUM(b.reltuples)::numeric, 'FM999G999G999G999G999') AS pretty_rows
         FROM (
           SELECT * FROM information_schema.tables
-          WHERE table_catalog='weatherdb'
+          WHERE table_catalog='${database}'
         ) a
         LEFT JOIN pg_class b
         ON a.table_name = b.relname
