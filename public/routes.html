@@ -159,7 +159,7 @@
           <p>Outputs results in <strong>Coordinated Universal Time (UTC)</strong> instead of local time.</p>
           <ul>
             <li>
-              <p><strong>Local time:</strong></p>
+              <p><strong>Local time (default):</strong></p>
               $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&output=html]
             </li>
             <li>
@@ -167,7 +167,11 @@
               $ANCHOR[/hourly?email=jd@ex.com&lat=35&lon=-80&start=2018-11-01&end=2018-11-30&options=utc&output=html]
             </li>
           </ul>
-          <p>This option is generally faster than local time but requires users to handle time conversions manually.</p>
+          <p>
+            When returning local time, the API may need to query Google’s timezone service the <em>first</em> time it sees a new location;
+            after that, results are served from cache.
+            Using UTC skips timezone lookups altogether, but it requires clients to handle any time-zone conversions themselves.
+          </p>
           <hr>
         </li>
 
@@ -214,8 +218,7 @@
 
         <li>
           <code>graph</code>
-          <p>⚠️ <em>Not currently functional.</em></p>
-          <p>Intended to display basic graphing options when <code>output=html</code>.</p>
+          <p>Provides basic graphing options when <code>output=html</code>.</p>
           $ANCHOR[/hourly?email=jd@ex.com&location=clarke county georgia&start=2018-11-01&end=2018-11-30&options=rect,graph&output=html]
           <hr>
         </li>
@@ -242,7 +245,7 @@
         Specifies the format of the response:
         <ul>
           <li><code>json</code> &ndash; Standard structured data (default)</li>
-          <li><code>html</code> &ndash; Browser-friendly table view</li>
+          <li><code>html</code> &ndash; Browser-friendly table view.  (Click a column header to sort.)</li>
           <li><code>csv</code> &ndash; Comma-separated values, suitable for spreadsheets</li>
         </ul>
       </p>
@@ -392,6 +395,8 @@
   <p>
     In addition to the standard <code>/hourly</code> parameters,
     this route can output <strong>Growing Degree Days (GDD)</strong> — available as the column <code>gdd</code>.
+    GDD is based on the calculations at
+    <a target="_blank" href="https://ndawn.ndsu.nodak.edu/help-corn-growing-degree-days.html">https://ndawn.ndsu.nodak.edu/help-corn-growing-degree-days.html</a>
   </p>
   <p>
     The calculation uses the following parameters:
