@@ -383,7 +383,7 @@ const init = async (inputs) => {
       const data = await (await fetch(
         `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(results.lats[0])},${NLDASlon(results.lons[0])}&timestamp=0&key=${googleAPIKey}`,
       )).json();
-
+      console.log(data);
       if (data.status === 'ZERO_RESULTS') { // Google API can't determine timezone for some locations over water, such as (28, -76)
         results.timeOffset = 0;
         return;
