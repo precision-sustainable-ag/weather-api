@@ -31,12 +31,18 @@ export default async function apiRoutes(app) {
   await simpleRoute('/ip',
     'Other', 
     'Get IP address',
-    async (reply) => {
+    async (reply, req) => {
       const res = await fetch('https://api.ipify.org?format=json');
       const data = await res.json();
+
+      console.log(req);
       reply
         .header('cache-control', 'no-store')
-        .send(data);
+        .send({
+          ...data,
+          api: process.env.GoogleAPI,
+          host: req.headers.host,
+        });
     },
     {},
     { object: true },
