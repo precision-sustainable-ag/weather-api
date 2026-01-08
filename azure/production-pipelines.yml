@@ -34,8 +34,6 @@ stages:
       vmImage: $(vmImageName)
     steps:
     - script: |
-        echo "Weather|$(DB_USER)|$(DB_PASS)" >> /home/vsts/work/1/s/.env
-        echo "GoogleAPI||$(GOOGLE_API_KEY)" >> /home/vsts/work/1/s/.env
         echo "DB_DATABASE=$(DB_DATABASE)" >> /home/vsts/work/1/s/.env
         echo "DB_HOST=$(DB_HOST)" >> /home/vsts/work/1/s/.env
         echo "DB_PORT=$(DB_PORT)" >> /home/vsts/work/1/s/.env
