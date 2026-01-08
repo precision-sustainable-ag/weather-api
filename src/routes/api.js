@@ -28,25 +28,25 @@ export default async function apiRoutes(app) {
     items: {},
   };
 
-  await simpleRoute('/ip',
-    'Other', 
-    'Get IP address',
-    async (reply, req) => {
-      const res = await fetch('https://api.ipify.org?format=json');
-      const data = await res.json();
+  // await simpleRoute('/ip',
+  //   'Other', 
+  //   'Get IP address',
+  //   async (reply, req) => {
+  //     const res = await fetch('https://api.ipify.org?format=json');
+  //     const data = await res.json();
 
-      console.log(req);
-      reply
-        .header('cache-control', 'no-store')
-        .send({
-          ...data,
-          api: process.env.GoogleAPI,
-          host: req.headers.host,
-        });
-    },
-    {},
-    { object: true },
-  );
+  //     console.log(req);
+  //     reply
+  //       .header('cache-control', 'no-store')
+  //       .send({
+  //         ...data,
+  //         api: process.env.GoogleAPI,
+  //         host: req.headers.host,
+  //       });
+  //   },
+  //   {},
+  //   { object: true },
+  // );
 
   // Weather -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/hourly',
