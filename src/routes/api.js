@@ -28,6 +28,20 @@ export default async function apiRoutes(app) {
     items: {},
   };
 
+  await simpleRoute('/ip',
+    'Other', 
+    'Get IP address',
+    async (reply) => {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      reply
+        .header('cache-control', 'no-store')
+        .send(data);
+    },
+    {},
+    { object: true },
+  );
+
   // Weather -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/hourly',
     'Weather',
