@@ -8,6 +8,7 @@ import { routeHourly, routeDaily, routeAverages } from './query.js';
 import { routeYearly } from './yearly.js';
 
 const database = process.env.DB_DATABASE;
+const itUrl = process.env.IT_URL || '';
 
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
@@ -500,5 +501,86 @@ export default async function apiRoutes(app) {
     'NLDAS vs. MRMS',
     'NVM update',
     nvm2Update,
+  );
+
+  // IT -----------------------------------------------------------------------------------------------------------------------
+  await simpleRoute('/ITAll',
+    'IT',
+    'IT All',
+    'SELECT * from it',
+  );
+
+  await simpleRoute('/ITLoad',
+    'IT',
+    'IT Load',
+    `
+      SELECT * from it
+      WHERE
+        lat   = $1 AND
+        lon   = $2 AND
+        date1 = $3 AND
+        date2 = $4
+      LIMIT 1
+    `,
+    {
+      lat: { ...lat, examples: [30.86181] },
+      lon: { ...lon, examples: [-84.23141] },
+      date1: { type: 'string', format: 'date', examples: ['2019-01-01'] },
+      date2: { type: 'string', format: 'date', examples: ['2019-12-31'] },
+    },
+  );
+  
+  await simpleRoute('/ITSave',
+    'IT',
+    'IT Save',
+    (lat, lon, date1, date2, json) => {
+      return pool.query(`
+        INSERT INTO weather.it (lat, lon, date1, date2, json)
+        VALUES ($1, $2, $3, $4, $5::jsonb)
+      `, [lat, lon, date1, date2, JSON.stringify(json)]);
+    },
+    {
+      lat: { ...lat, examples: [30.86181] },
+      lon: { ...lon, examples: [-84.23141] },
+      date1: { type: 'string', format: 'date', examples: ['2019-01-01'] },
+      date2: { type: 'string', format: 'date', examples: ['2019-12-31'] },
+      json: { type: 'object', additionalProperties: true, examples: [{ key: 'value' }] },
+      // json: { type: 'string', examples: ['{"key":"value"}'] },
+    },
+  );
+
+  await simpleRoute('/ID',
+    'IT',
+    'IT ID',
+    async (lat, lon, date1, date2) => {
+      const { rows } = pool.query(`
+        SELECT * FROM weather.it
+        WHERE lat=$1 and lon=$2 AND date1=$3 AND date2=$4
+      `, [lat, lon, date1, date2]);
+ 
+      if (rows.length > 0) {
+        return rows;
+      } else {
+        const start = new Date(date1) / 1000;
+        const end = new Date(date2) / 1000;
+        const url = `${itUrl}&location=${lat},${lon}&start=${start}&end=${end}&unitcode=si-std`;
+        console.log(url);
+
+        const data = await (await fetch(url)).json();
+        pool.query(`
+          INSERT INTO weather.it
+          (lat, lon, date1, date2, json)
+          values ($1, $2, $3, $4, $5::jsonb)
+        `, [lat, lon, date1, date2, JSON.stringify(data)]);
+
+        return data;
+      }
+    },
+    {
+      lat, lon,
+      date1: { type: 'string', format: 'date', examples: ['2019-01-01'] },
+      date2: { type: 'string', format: 'date', examples: ['2019-12-31'] },
+      type: { type: 'string', enum: ['soil', 'weather'], examples: ['soil'] },
+    },
   );
 }
