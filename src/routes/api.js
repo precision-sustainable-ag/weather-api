@@ -8,7 +8,7 @@ import { routeHourly, routeDaily, routeAverages } from './query.js';
 import { routeYearly } from './yearly.js';
 
 const database = process.env.DB_DATABASE;
-const itUrl = process.env.IT_URL || '';
+// const itUrl = process.env.IT_URL || '';
 
 export default async function apiRoutes(app) {
   const simpleRoute = makeSimpleRoute(app, pool, { public: true });
@@ -503,6 +503,7 @@ export default async function apiRoutes(app) {
     nvm2Update,
   );
 
+  /*
   // IT -----------------------------------------------------------------------------------------------------------------------
   await simpleRoute('/ITAll',
     'IT',
@@ -583,4 +584,5 @@ export default async function apiRoutes(app) {
       type: { type: 'string', enum: ['soil', 'weather'], examples: ['soil'] },
     },
   );
+  */
 }
