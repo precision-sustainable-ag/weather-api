@@ -31,14 +31,20 @@ The API is documented at https://weather.covercrop-data.org/
 3. Clone this repository into that folder `git clone https://github.com/precision-sustainable-ag/weather-api`
 4. From the Terminal/Command Prompt, move into the cloned directory `cd weather-api`
 5. From the same command window, run `npm install` to install project dependencies. A full list of the dependencies can be found in package.json. If you are running on a windows machine, delete package-lock.json prior to running the below command. 
-6. Create a file called .env in src/shared. The file will contain the below keys. This document is in the git ignore, so it (and your API keys) won't be pushed to the repository. Ask @rickhitchcock for the values of the keys
+6. Create a file called .env. The file will contain the below keys. This document is in the git ignore, so it (and your API keys) won't be pushed to the repository. Ask @rickhitchcock for the values of the keys
 ```
-Weather|postgres|<weather server key>
-GoogleAPI||<google api key>
+DB_HOST=
+DB_DATABASE=
+DB_USERNAME=
+DB_PASSWORD=
+DB_PORT=
+DB_SSL=
+GoogleAPI=
+IT_URL=
 ```
 7. After the dependencies have been installed and the .env file has been created, run `npm start` to run the code locally.
 8. Open http://localhost.
 
 **Date Created:** 08/15/2022
 
-**Date Last Modified:** 06/08/2023
+**Date Last Modified:** 01/26/2026
