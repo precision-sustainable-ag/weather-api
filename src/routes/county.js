@@ -1,12 +1,18 @@
 import { pool } from 'simple-route';
 
 const routeCounty = async (lat, lon, attributes, polygon) => {
-  attributes = !attributes ? undefined: attributes.split(',')
-    .map((s) => (
-      s
-        .trim()
-        .replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray, ST_AsText(geometry) as polygon')
-    ));
+  attributes = !attributes
+    ? undefined
+    : attributes
+        .split(',')
+        .map((s) =>
+          s
+            .trim()
+            .replace(
+              /polygon/i,
+              "(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray, ST_AsText(geometry) as polygon",
+            ),
+        );
 
   if (!attributes) {
     if (polygon) {

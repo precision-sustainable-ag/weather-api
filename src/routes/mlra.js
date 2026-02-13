@@ -1,10 +1,18 @@
 import { pool } from 'simple-route';
 
 const routeMLRA = async (lat, lon, attributes, polygon, mlra) => {
-  attributes = !attributes ? undefined : attributes?.split(',')
-    .map((s) => (
-      s.trim().replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
-    ));
+  attributes = !attributes
+    ? undefined
+    : attributes
+        ?.split(',')
+        .map((s) =>
+          s
+            .trim()
+            .replace(
+              /polygon/i,
+              "(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,ST_AsText(geometry) as polygon",
+            ),
+        );
 
   const latLon = async () => {
     if (mlra) {

@@ -18,13 +18,18 @@ const watershed = async (lat, lon, attributes, polygon, state, huc, location) =>
     });
   }; // query
 
-  attributes = !attributes ? undefined: attributes?.split(',')
-    .map((s) => (
-      s.trim()
-        .replace(/^name$/, 'huc12.name')
-        .replace(/huc(\d+)name/, (_, s2) => `huc${s2}.name as huc${s2}name`)
-        .replace(/polygon/i, '(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->\'coordinates\') as polygonarray,ST_AsText(geometry) as polygon')
-    ));
+  attributes = !attributes
+    ? undefined
+    : attributes?.split(',').map((s) =>
+        s
+          .trim()
+          .replace(/^name$/, 'huc12.name')
+          .replace(/huc(\d+)name/, (_, s2) => `huc${s2}.name as huc${s2}name`)
+          .replace(
+            /polygon/i,
+            "(ST_AsGeoJSON(ST_Multi(geometry))::jsonb->'coordinates') as polygonarray,ST_AsText(geometry) as polygon",
+          ),
+      );
 
   const latLon = () => {
     return query(

@@ -3,7 +3,7 @@ import { format } from 'sql-formatter';
 
 const googleAPIKey = process.env.GoogleAPI;
 
-const testing = true;
+const testing = false;
 
 // const { rows } = pool.query('SELECT DISTINCT lat, lon FROM weather'); // !!! new server
 
@@ -141,13 +141,9 @@ const wrapText = (text, maxLength = process.stdout.columns) => {
 const pretty = (sq) => {
   let result;
   try {
-    result = format(
-      sq,
-      {
-        language: 'postgresql',
-      },
-    )
-      .replace(/,\s*\n\s*/g, ', ');
+    result = format(sq, {
+      language: 'postgresql',
+    }).replace(/,\s*\n\s*/g, ', ');
 
     result = wrapText(result);
   } catch (error) {
@@ -165,8 +161,9 @@ const pretty = (sq) => {
  * @param {boolean} [alias=false] - Determines if column aliases should be included.
  * @returns {string} The fixed column name with optional aliases.
  */
-const fix = (col, alias) => (
-  col.replace(/\btmp\b/i, `air_temperature${alias ? ' as TMP' : ''}`)
+const fix = (col, alias) =>
+  col
+    .replace(/\btmp\b/i, `air_temperature${alias ? ' as TMP' : ''}`)
     .replace(/\bspfh\b/i, `humidity${alias ? ' as SPFH' : ''}`)
     .replace(/\bpres\b/i, `pressure${alias ? ' as PRES' : ''}`)
     .replace(/\bugrd\b/i, `zonal_wind_speed${alias ? ' as UGRD' : ''}`)
@@ -176,8 +173,7 @@ const fix = (col, alias) => (
     .replace(/\bcape\b/i, `potential_energy${alias ? ' as CAPE' : ''}`)
     .replace(/\bpevap\b/i, `potential_evaporation${alias ? ' as PEVAP' : ''}`)
     .replace(/\bapcp\b/i, `precipitation${alias ? ' as APCP' : ''}`)
-    .replace(/\bdswrf\b/i, `shortwave_radiation${alias ? ' as DSWRF' : ''}`)
-); // fix
+    .replace(/\bdswrf\b/i, `shortwave_radiation${alias ? ' as DSWRF' : ''}`); // fix
 
 /** ____________________________________________________________________________________________________________________________________
  * Round latitude and longitude values to the nearest NLDAS-2 grid coordinates used in the database.
@@ -204,11 +200,23 @@ const MRMSround = (n) => 5 + 10 * Math.round(100 * n - 0.5);
  */
 const clean = (s) => {
   const t = decodeURI(s)
-    .replace(/\b(doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or)\b/ig, '')
-    .replace(/\b(not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd)\b/ig, '')
-    .replace(/\b(meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap)\b/ig, '')
-    .replace(/\b(potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd)\b/ig, '')
-    .replace(/["()+\-*/<>,= 0-9.]/ig, '');
+    .replace(
+      /\b(doy|day|month|year|growingyear|sum|min|max|avg|count|stddev_pop|stddev_samp|variance|var_pop|var_samp|date|as|abs|and|or)\b/gi,
+      '',
+    )
+    .replace(
+      /\b(not|between|tmp|air_temperature|spfh|humidity|relative_humidity|pres|pressure|ugrd|zonal_wind_speed|wind_speed|vgrd)\b/gi,
+      '',
+    )
+    .replace(
+      /\b(meridional_wind_speed|dlwrf|longwave_radiation|frain|convective_precipitation|cape|potential_energy|pevap)\b/gi,
+      '',
+    )
+    .replace(
+      /\b(potential_evaporation|apcp|precipitation|mrms|dswrf|shortwave_radiation|gdd)\b/gi,
+      '',
+    )
+    .replace(/["()+\-*/<>,= 0-9.]/gi, '');
 
   if (t.length) {
     console.error('*'.repeat(80));
@@ -219,8 +227,8 @@ const clean = (s) => {
   return s;
 }; // clean
 
-// eslint-disable-next-line no-unused-vars
-const waitForQueries = async () => (
+// biome-ignore lint/correctness/noUnusedVariables: may be used in the future
+const waitForQueries = async () =>
   new Promise((resolve, reject) => {
     const intervalId = setInterval(async () => {
       try {
@@ -241,8 +249,7 @@ const waitForQueries = async () => (
         reject(error);
       }
     }, 200);
-  })
-);
+  });
 
 /**
  * Initializes various parameters based on the given request object.
@@ -253,18 +260,19 @@ const waitForQueries = async () => (
 const init = async (inputs) => {
   let { options } = inputs;
 
-  const {
-    req, reply,
-    lat, lon,
-    explain, email, output,
-    group, stats, where, url,
-  } = inputs;
+  const { req, reply, lat, lon, explain, email, output, group, stats, where, url } = inputs;
 
   const attributes = inputs.attributes?.replace('mosaic', mosaic).replace('nldas', parms);
 
   // await waitForQueries();
-  const lats = lat?.toString().split(',').map((n) => +n);
-  const lons = lon?.toString().split(',').map((n) => +n);
+  const lats = lat
+    ?.toString()
+    .split(',')
+    .map((n) => +n);
+  const lons = lon
+    ?.toString()
+    .split(',')
+    .map((n) => +n);
 
   const rect = /\brect\b/.test(options) && lats.length === 2;
 
@@ -276,52 +284,54 @@ const init = async (inputs) => {
     return false;
   }
 
-  const invalidOption = options.find((col) => !['rect', 'graph', 'gmt', 'utc', 'predicted', 'mrms'].includes(col));
+  const invalidOption = options.find(
+    (col) => !['rect', 'graph', 'gmt', 'utc', 'predicted', 'mrms'].includes(col),
+  );
   if (invalidOption) {
     // http://localhost/hourly?lat=39.05&lon=-75.87,-76.87&start=2018-11-01&end=2018-11-30&output=html&option=hmm
-    reply.code(400).send({ error: `Invalid option: ${invalidOption}.  See https://weather.covercrop-data.org/` });
+    reply.code(400).send({
+      error: `Invalid option: ${invalidOption}.  See https://weather.covercrop-data.org/`,
+    });
     return false;
   }
 
   // http://localhost/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&attributes=date,tmp,apcp,pevap,cape,frain,dlwrf,dswrf,vgrd,ugrd,pres,spfh
   // http://localhost/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&attributes=date,apcp,precipitation
   // http://localhost/hourly?lat=39&lon=-76&start=2018-11-01&end=2018-11-30&attributes=date,,apcp,,precipitation
-  const attr = (attributes || '').toLowerCase()
+  const attr = (attributes || '')
+    .toLowerCase()
     .split(/\s*,\s*/)
-    .map((col) => (
-      {
-        tmp: 'air_temperature',
-        spfh: 'humidity',
-        pres: 'pressure',
-        ugrd: 'zonal_wind_speed',
-        vgrd: 'meridional_wind_speed',
-        dswrf: 'shortwave_radiation',
-        dlwrf: 'longwave_radiation',
-        frain: 'convective_precipitation',
-        cape: 'potential_energy',
-        pevap: 'potential_evaporation',
-        apcp: 'precipitation',
-      }[col] || col
-    ))
+    .map(
+      (col) =>
+        ({
+          tmp: 'air_temperature',
+          spfh: 'humidity',
+          pres: 'pressure',
+          ugrd: 'zonal_wind_speed',
+          vgrd: 'meridional_wind_speed',
+          dswrf: 'shortwave_radiation',
+          dlwrf: 'longwave_radiation',
+          frain: 'convective_precipitation',
+          cape: 'potential_energy',
+          pevap: 'potential_evaporation',
+          apcp: 'precipitation',
+        })[col] || col,
+    )
     .filter((col, i, arr) => col && col !== 'date' && !arr.slice(i + 1).includes(col));
 
-  const invalidAttribute = attr.find((col) => (
-    ![
-      ...parms,
-      ...mosaic,
-      'gdd',
-    ].includes(col)
-  ));
+  const invalidAttribute = attr.find((col) => ![...parms, ...mosaic, 'gdd'].includes(col));
 
   if (invalidAttribute) {
     // http://localhost/hourly?lat=39.05&lon=-75.87&start=2018-11-01&end=2018-11-30&output=html&attributes=precipitation,unknown
-    reply.code(400).send({ error: `Unknown attribute: ${invalidAttribute}.  See https://weather.covercrop-data.org` });
+    reply.code(400).send({
+      error: `Unknown attribute: ${invalidAttribute}.  See https://weather.covercrop-data.org`,
+    });
     return false;
   }
 
   const results = {
     ip: (req.headers?.['x-forwarded-for'] || '').split(',').pop() || req.socket?.remoteAddress,
-    output: explain ? 'json' : output ?? 'json',
+    output: explain ? 'json' : (output ?? 'json'),
     explain,
     email: email || req.headers?.origin || req.headers?.host,
     lats,
@@ -347,7 +357,7 @@ const init = async (inputs) => {
   if (results.where === 'ERROR') {
     inputs.reply.code(400).send({ error: `Don't understand where=${inputs.where}` });
     return false;
-  }  
+  }
 
   const getTimeZone = async () => {
     const { rows } = await pool.query(`
@@ -380,11 +390,14 @@ const init = async (inputs) => {
     }
 
     try {
-      const data = await (await fetch(
-        `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(results.lats[0])},${NLDASlon(results.lons[0])}&timestamp=0&key=${googleAPIKey}`,
-      )).json();
-      console.log(data);
-      if (data.status === 'ZERO_RESULTS') { // Google API can't determine timezone for some locations over water, such as (28, -76)
+      const data = await (
+        await fetch(
+          `https://maps.googleapis.com/maps/api/timezone/json?location=${NLDASlat(results.lats[0])},${NLDASlon(results.lons[0])}&timestamp=0&key=${googleAPIKey}`,
+        )
+      ).json();
+      // console.log(data);
+      if (data.status === 'ZERO_RESULTS') {
+        // Google API can't determine timezone for some locations over water, such as (28, -76)
         results.timeOffset = 0;
         return;
       }
@@ -398,7 +411,9 @@ const init = async (inputs) => {
       results.timeOffset = data.rawOffset;
     } catch (err) {
       console.error('500 this');
-      reply.code(500).send({ error: 'Google API timezone', lat: results.lats[0], lon: results.lons[0], err });
+      reply
+        .code(500)
+        .send({ error: 'Google API timezone', lat: results.lats[0], lon: results.lons[0], err });
       return false;
     }
   }; // getTimeZone
@@ -420,10 +435,7 @@ const getLocation = async (location, results, rect) => {
     location = `zip ${location}`;
   }
 
-  const lresults = await pool.query(
-    'SELECT * FROM addresses WHERE address=$1',
-    [location],
-  );
+  const lresults = await pool.query('SELECT * FROM addresses WHERE address=$1', [location]);
 
   if (lresults.rows.length) {
     results.lats = [lresults.rows[0].lat];
@@ -437,7 +449,11 @@ const getLocation = async (location, results, rect) => {
   } else {
     try {
       console.time(`Looking up ${location}`);
-      const data = await (await(fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`))).json();
+      const data = await (
+        await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${location}&key=${googleAPIKey}`,
+        )
+      ).json();
       console.timeEnd(`Looking up ${location}`);
 
       try {
@@ -505,14 +521,9 @@ const runQuery = async (inputs) => {
     daily,
   } = initialized;
 
-  const {
-    req, limit, offset, type, format2,
-    gddbase, gddmax, gddmin,
-  } = inputs;
+  const { req, limit, offset, type, format2, gddbase, gddmax, gddmin } = inputs;
 
-  let {
-    start, end, order,
-  } = inputs;
+  let { start, end, order } = inputs;
 
   // console.log({
   //   ip,
@@ -547,19 +558,26 @@ const runQuery = async (inputs) => {
       // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30&output=html&explain=true
       const responseText = `query:\n ${pretty(sq.trim())}\n\n${rows.map((row) => JSON.stringify(row, null, 2)).join('\n')}`;
       return responseText;
-    } else if (req.callback) { // !!!
+    } else if (req.callback) {
+      // !!!
       req.callback(rows);
     } else {
       // http://localhost/hourly?lat=39.032056&lon=-76.873972&start=2018-11-01&end=2018-11-30
       rows = rows.map((row) => {
         if (row.date) {
           if (format2 === 'yyyy-mm-dd HH:00') {
-            row.date = new Date(new Date(`${row.date}`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(0, 16);
+            row.date = new Date(new Date(`${row.date}`).getTime() + timeOffset * 1000)
+              .toISOString()
+              .replace('T', ' ')
+              .slice(0, 16);
           } else if (format2 === 'yyyy-mm-dd') {
             // http://localhost/daily?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&output=html
             row.date = new Date(new Date(`${row.date}`).getTime()).toISOString().slice(0, 10);
           } else if (format2 === 'MM-DD HH24:00') {
-            row.date = new Date(new Date(`${row.date}`).getTime() + timeOffset * 1000).toISOString().replace('T', ' ').slice(5, 16);
+            row.date = new Date(new Date(`${row.date}`).getTime() + timeOffset * 1000)
+              .toISOString()
+              .replace('T', ' ')
+              .slice(5, 16);
           }
         }
         return row;
@@ -581,7 +599,8 @@ const runQuery = async (inputs) => {
     end.setSeconds(end.getSeconds() - timeOffset);
     end = end.toISOString();
 
-    const showPredicted = type !== 'averages' && (new Date(start) < mindate || new Date(end) > maxdate);
+    const showPredicted =
+      type !== 'averages' && (new Date(start) < mindate || new Date(end) > maxdate);
 
     if (rect) {
       // http://localhost/hourly?lat=39.55,40.03&lon=-75.87,-75.8&start=2018-11-01&end=2018-11-30&output=html&options=graph,rect
@@ -607,10 +626,12 @@ const runQuery = async (inputs) => {
     const date2 = end.slice(0, -1);
 
     let mrmsResults = [];
-    if (mrms) { // !!! mrmsmissing
+    if (mrms) {
+      // !!! mrmsmissing
       // Math.floor logic causes PostgreSQL to use the correct index
       let mrmsQuery = lats
-        .map((lat, i) => (`
+        .map(
+          (lat, i) => `
           SELECT
             date::timestamptz AS date,
             precipitation
@@ -625,9 +646,10 @@ const runQuery = async (inputs) => {
             AND round(lat * 1000) = ${MRMSround(lat)}
             AND round(lon * 1000) = ${MRMSround(lons[i])}
             AND date BETWEEN '${date1}'::timestamptz AND '${date2}'::timestamptz
-        `))
+        `,
+        )
         .join('\nUNION ALL\n');
-      
+
       mrmsQuery += `
         ORDER BY date
       `;
@@ -644,15 +666,15 @@ const runQuery = async (inputs) => {
       // console.log(mrmsResults);
     }
 
-    const tables =
-      (lats.map((lat, i) => {
+    const tables = lats
+      .map((lat, i) => {
         let mainTable;
-        
+
         if (
-          type === 'hourly' && (
-            (new Date(start) >= mindate || new Date(end) <= maxdate)
-            || (new Date(start) <= mindate && new Date(end) >= maxdate)
-          )
+          type === 'hourly' &&
+          (new Date(start) >= mindate ||
+            new Date(end) <= maxdate ||
+            (new Date(start) <= mindate && new Date(end) >= maxdate))
         ) {
           mainTable = unindent(`
             SELECT date, ${cols} ${showPredicted ? ', FALSE AS predicted' : ''}
@@ -690,11 +712,14 @@ const runQuery = async (inputs) => {
           FROM (${mainTable}) a
           ${cond ? `WHERE ${cond}` : ''}
         `;
-      }).join(' UNION ALL\n'));
+      })
+      .join(' UNION ALL\n');
 
     // console.log(tables);
 
-    order = order || `date ${cols.split(/\s*,\s*/).includes('lat') ? ',lat' : ''} ${cols.split(/\s*,\s*/).includes('lon') ? ',lon' : ''}`;
+    order =
+      order ||
+      `date ${cols.split(/\s*,\s*/).includes('lat') ? ',lat' : ''} ${cols.split(/\s*,\s*/).includes('lon') ? ',lon' : ''}`;
 
     if (daily) {
       sq = `
@@ -718,9 +743,18 @@ const runQuery = async (inputs) => {
 
       if (group) {
         other += group
-          .replace(/\bdoy\b/g, `EXTRACT(doy from date::timestamp + interval '${timeOffset} seconds') AS doy, `)
-          .replace(/\bmonth\b/g, `EXTRACT(month from date::timestamp + interval '${timeOffset} seconds') AS month, `)
-          .replace(/\byear\b/g, `EXTRACT(year from date::timestamp + interval '${timeOffset} seconds') AS year, `)
+          .replace(
+            /\bdoy\b/g,
+            `EXTRACT(doy from date::timestamp + interval '${timeOffset} seconds') AS doy, `,
+          )
+          .replace(
+            /\bmonth\b/g,
+            `EXTRACT(month from date::timestamp + interval '${timeOffset} seconds') AS month, `,
+          )
+          .replace(
+            /\byear\b/g,
+            `EXTRACT(year from date::timestamp + interval '${timeOffset} seconds') AS year, `,
+          )
           .replace(/\bgrowingyear\b/g, gy);
       }
 
@@ -775,9 +809,9 @@ const runQuery = async (inputs) => {
           }
         }
 
-        const f = mrmsResults.find((row2) => (
-          new Date(row1.date).getTime() === new Date(row2.date).getTime()
-        ));
+        const f = mrmsResults.find(
+          (row2) => new Date(row1.date).getTime() === new Date(row2.date).getTime(),
+        );
 
         if (f) {
           row1.precipitation = f.precipitation;
@@ -802,9 +836,12 @@ const runQuery = async (inputs) => {
           const lon = lons[i];
           do {
             date.setHours(date.getHours() + 1);
-            const f = mrmsResults.find((row2) => (
-              new Date(date).toString() === new Date(row2.date).toString() && lat === +row2.lat && lon === +row2.lon
-            ));
+            const f = mrmsResults.find(
+              (row2) =>
+                new Date(date).toString() === new Date(row2.date).toString() &&
+                lat === +row2.lat &&
+                lon === +row2.lon,
+            );
 
             let obj = {};
             ['date', ...cols.split(/\s*,\s*/)].forEach((col) => {
@@ -904,7 +941,8 @@ const runQuery = async (inputs) => {
 
     if (daily) {
       if (attr.length) {
-        dailyColumns = attr.filter((col) => col !== 'gdd') // included automatically if gddbase
+        dailyColumns = attr
+          .filter((col) => col !== 'gdd') // included automatically if gddbase
           .map((col) => {
             if (/^(lat|lon)$/.test(col)) {
               return col;
@@ -918,8 +956,8 @@ const runQuery = async (inputs) => {
           })
           .join(',');
 
-        if (!(/\blon\b/).test(dailyColumns)) dailyColumns = `lon,${dailyColumns}`;
-        if (!(/\blat\b/).test(dailyColumns)) dailyColumns = `lat,${dailyColumns}`;
+        if (!/\blon\b/.test(dailyColumns)) dailyColumns = `lon,${dailyColumns}`;
+        if (!/\blat\b/.test(dailyColumns)) dailyColumns = `lat,${dailyColumns}`;
         dailyColumns = dailyColumns.replace(/,$/, '');
       } else {
         dailyColumns = `
@@ -964,7 +1002,14 @@ const runQuery = async (inputs) => {
     year2 += 1;
   }
 
-  mrms = options.includes('mrms') && !explain && !daily && year2 > 2014 && /hourly/.test(req.url) && !stats && !rect;
+  mrms =
+    options.includes('mrms') &&
+    !explain &&
+    !daily &&
+    year2 > 2014 &&
+    /hourly/.test(req.url) &&
+    !stats &&
+    !rect;
 
   getColumns();
 
@@ -973,13 +1018,24 @@ const runQuery = async (inputs) => {
   return query(timeOffset);
 }; // runQuery
 
-const routeHourly = async(
-  req, reply,
-  email, start, end, lat, lon,
-  attributes, options, explain, output,
-  stats, group,
-  limit, offset,
-  order, where,
+const routeHourly = async (
+  req,
+  reply,
+  email,
+  start,
+  end,
+  lat,
+  lon,
+  attributes,
+  options,
+  explain,
+  output,
+  stats,
+  group,
+  limit,
+  offset,
+  order,
+  where,
 ) => {
   start = start.replace(/[TZ]/g, ' ');
   end = end.replace(/[TZ]/g, ' ');
@@ -1009,12 +1065,26 @@ const routeHourly = async(
 }; // routeHourly
 
 const routeDaily = (
-  req, reply,
-  email, start, end, lat, lon, attributes, options, explain, output,
-  stats, group,
-  limit, offset,
-  order, where,
-  gddbase, gddmax, gddmin,
+  req,
+  reply,
+  email,
+  start,
+  end,
+  lat,
+  lon,
+  attributes,
+  options,
+  explain,
+  output,
+  stats,
+  group,
+  limit,
+  offset,
+  order,
+  where,
+  gddbase,
+  gddmax,
+  gddmin,
 ) => {
   start = start.replace(/[TZ]/g, ' ');
   end = end.replace(/[TZ]/g, ' ');
@@ -1047,11 +1117,23 @@ const routeDaily = (
 }; // routeDaily
 
 const routeAverages = (
-  req, reply,
-  email, start, end, lat, lon, attributes, options, explain, output,
-  stats, group,
-  limit, offset,
-  order, where,
+  req,
+  reply,
+  email,
+  start,
+  end,
+  lat,
+  lon,
+  attributes,
+  options,
+  explain,
+  output,
+  stats,
+  group,
+  limit,
+  offset,
+  order,
+  where,
 ) => {
   start = start.replace(/[TZ]/g, ' ');
   end = end.replace(/[TZ]/g, ' ');

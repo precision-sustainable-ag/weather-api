@@ -1,10 +1,10 @@
-import { pool, makeSimpleRoute } from 'simple-route';
+import { makeSimpleRoute, pool } from 'simple-route';
 
-import watershed from './watershed.js';
 import routeCounty from './county.js';
 import routeMLRA from './mlra.js';
 import { nvm2, nvm2Query, nvm2Update } from './nvm2.js';
-import { routeHourly, routeDaily, routeAverages } from './query.js';
+import { routeAverages, routeDaily, routeHourly } from './query.js';
+import watershed from './watershed.js';
 import { routeYearly } from './yearly.js';
 
 const database = process.env.DB_DATABASE;
@@ -15,22 +15,34 @@ export default async function apiRoutes(app) {
 
   const elevations = {};
 
-  const lat = { type: 'number', required: true, examples: [35],  description: 'Latitude' };
+  const lat = { type: 'number', required: true, examples: [35], description: 'Latitude' };
   const lon = { type: 'number', required: true, examples: [-79], description: 'Longitude' };
-  const explain   = { type: 'boolean' };
-  const limit     = { type: 'number' };
-  const offset    = { type: 'number' };
-  const start     = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' };
-  const end       = { type: 'string', format: 'date-time', required: true, examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' };
-  const email     = { type: 'string', format: 'email', required: true, examples: ['jd@ex.com'] };
-  
+  const explain = { type: 'boolean' };
+  const limit = { type: 'number' };
+  const offset = { type: 'number' };
+  const start = {
+    type: 'string',
+    format: 'date-time',
+    required: true,
+    examples: ['2018-11-01'],
+    description: 'Start date in YYYY-MM-DD format',
+  };
+  const end = {
+    type: 'string',
+    format: 'date-time',
+    required: true,
+    examples: ['2018-11-30'],
+    description: 'End date in YYYY-MM-DD format',
+  };
+  const email = { type: 'string', format: 'email', required: true, examples: ['jd@ex.com'] };
+
   const polygonarray = {
     type: 'array',
     items: {},
   };
 
   // await simpleRoute('/ip',
-  //   'Other', 
+  //   'Other',
   //   'Get IP address',
   //   async (reply, req) => {
   //     const res = await fetch('https://api.ipify.org?format=json');
@@ -50,7 +62,8 @@ export default async function apiRoutes(app) {
   // );
 
   // Weather -----------------------------------------------------------------------------------------------------------------------
-  await simpleRoute('/hourly',
+  await simpleRoute(
+    '/hourly',
     'Weather',
     'Hourly weather data',
     routeHourly,
@@ -67,14 +80,15 @@ export default async function apiRoutes(app) {
     { 200: {} },
   );
 
-  await simpleRoute('/daily',
+  await simpleRoute(
+    '/daily',
     'Weather',
     'Daily weather data',
     routeDaily,
     {
       email,
-      lat:        { examples: [35] },
-      lon:        { examples: [-79] },
+      lat: { examples: [35] },
+      lon: { examples: [-79] },
       start,
       end,
       limit,
@@ -84,7 +98,8 @@ export default async function apiRoutes(app) {
     { 200: {} },
   );
 
-  await simpleRoute('/averages',
+  await simpleRoute(
+    '/averages',
     'Weather',
     '5-year hourly weather averages',
     routeAverages,
@@ -92,8 +107,18 @@ export default async function apiRoutes(app) {
       email,
       lat: { description: 'Latitude', examples: [35] },
       lon: { description: 'Longitude', examples: [-79] },
-      start: { type: 'string', format: 'date-time', examples: ['2018-11-01'], description: 'Start date in YYYY-MM-DD format' },
-      end  : { type: 'string', format: 'date-time', examples: ['2018-11-30'], description: 'End date in YYYY-MM-DD format' },
+      start: {
+        type: 'string',
+        format: 'date-time',
+        examples: ['2018-11-01'],
+        description: 'Start date in YYYY-MM-DD format',
+      },
+      end: {
+        type: 'string',
+        format: 'date-time',
+        examples: ['2018-11-30'],
+        description: 'End date in YYYY-MM-DD format',
+      },
       limit,
       offset,
       explain,
@@ -101,7 +126,8 @@ export default async function apiRoutes(app) {
     { 200: {} },
   );
 
-  await simpleRoute('/yearly',
+  await simpleRoute(
+    '/yearly',
     'Weather',
     'Yearly weather data',
     routeYearly,
@@ -109,12 +135,17 @@ export default async function apiRoutes(app) {
       email,
       lat: { description: 'Latitude', examples: [35] },
       lon: { description: 'Longitude', examples: [-79] },
-      year: { type: 'string', examples: ['2020', '2018-2020'], description: 'Year or range of years (e.g., 2018-2020)' },
+      year: {
+        type: 'string',
+        examples: ['2020', '2018-2020'],
+        description: 'Year or range of years (e.g., 2018-2020)',
+      },
     },
     { 200: {} },
   );
-  
-  await simpleRoute('/yearlyprecipitation',
+
+  await simpleRoute(
+    '/yearlyprecipitation',
     'Weather',
     'Yearly Precipitation',
     `
@@ -151,14 +182,15 @@ export default async function apiRoutes(app) {
   //         ABS(a.sum - b.sum) > $1
   //       ORDER BY 1 DESC
   //     `, [num]);
-      
+
   //     return rows;
   //   },
   //   { lat, lon, num: { type: 'number', examples: [50] } },
   //   { numbers: ['delta', 'alat', 'alon', 'asum', 'blat', 'blon', 'bsum'] },
   // );
 
-  await simpleRoute('/frost',
+  await simpleRoute(
+    '/frost',
     'Weather',
     'Frost data',
     `
@@ -192,7 +224,8 @@ export default async function apiRoutes(app) {
   // );
 
   // Other -----------------------------------------------------------------------------------------------------------------------
-  await simpleRoute('/elevation',
+  await simpleRoute(
+    '/elevation',
     'Other',
     'Elevation',
     async (lat, lon, reply) => {
@@ -224,7 +257,8 @@ export default async function apiRoutes(app) {
     },
   );
 
-  await simpleRoute('/watershed',
+  await simpleRoute(
+    '/watershed',
     'Other',
     'Watershed',
     watershed,
@@ -235,31 +269,62 @@ export default async function apiRoutes(app) {
     },
     {
       strings: [
-        'huc12', 'name', 'huc10', 'huc10name', 'huc8', 'huc8name', 'huc6', 'huc6name', 'huc4', 'huc4name', 'huc2', 'huc2name',
-        'tnmid', 'metasourceid', 'sourcedatadesc', 'sourceoriginator', 'sourcefeatureid', 'referencegnis_ids',
-        'states', 'hutype', 'humod', 'tohuc', 'globalid', 'polygon',
+        'huc12',
+        'name',
+        'huc10',
+        'huc10name',
+        'huc8',
+        'huc8name',
+        'huc6',
+        'huc6name',
+        'huc4',
+        'huc4name',
+        'huc2',
+        'huc2name',
+        'tnmid',
+        'metasourceid',
+        'sourcedatadesc',
+        'sourceoriginator',
+        'sourcefeatureid',
+        'referencegnis_ids',
+        'states',
+        'hutype',
+        'humod',
+        'tohuc',
+        'globalid',
+        'polygon',
       ],
-      numbers: ['areaacres', 'areasqkm', 'noncontributingareaacres', 'noncontributingareasqkm', 'shape_length', 'shape_area'],
-      dates: [ 'loaddate' ],
-      other: { polygonarray },      
+      numbers: [
+        'areaacres',
+        'areasqkm',
+        'noncontributingareaacres',
+        'noncontributingareasqkm',
+        'shape_length',
+        'shape_area',
+      ],
+      dates: ['loaddate'],
+      other: { polygonarray },
     },
   );
 
-  await simpleRoute('/county',
+  await simpleRoute(
+    '/county',
     'Other',
     'County',
     routeCounty,
     {
-      lat, lon,
+      lat,
+      lon,
       polygon: { type: 'boolean' },
     },
     {
       strings: ['county', 'state', 'state_code', 'countyfips', 'statefips', 'polygon'],
-      other: { polygonarray },      
+      other: { polygonarray },
     },
   );
 
-  await simpleRoute('/hardinesszone',
+  await simpleRoute(
+    '/hardinesszone',
     'Other',
     'Hardiness Zone',
     `
@@ -285,7 +350,8 @@ export default async function apiRoutes(app) {
     },
   );
 
-  await simpleRoute('/mlra',
+  await simpleRoute(
+    '/mlra',
     'Other',
     'MLRA',
     routeMLRA,
@@ -295,12 +361,24 @@ export default async function apiRoutes(app) {
       polygon: { type: 'boolean' },
     },
     {
-      strings: ['name', 'mlrarsym', 'lrrsym', 'lrrname', 'counties', 'states', 'state_codes', 'countyfips', 'statefips', 'polygon'],
-      other: { polygonarray },      
+      strings: [
+        'name',
+        'mlrarsym',
+        'lrrsym',
+        'lrrname',
+        'counties',
+        'states',
+        'state_codes',
+        'countyfips',
+        'statefips',
+        'polygon',
+      ],
+      other: { polygonarray },
     },
   );
 
-  await simpleRoute('/rosetta',
+  await simpleRoute(
+    '/rosetta',
     'Other',
     'Rosetta',
     async (soildata) => {
@@ -309,7 +387,7 @@ export default async function apiRoutes(app) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ soildata }),
       });
-      
+
       const data = await resp.json();
       return data;
     },
@@ -332,7 +410,8 @@ export default async function apiRoutes(app) {
   );
 
   // Database -----------------------------------------------------------------------------------------------------------------------
-  await simpleRoute('/status',
+  await simpleRoute(
+    '/status',
     'Database Utilities',
     'Health check',
     `
@@ -349,8 +428,7 @@ export default async function apiRoutes(app) {
 
   const dbRoutes = {
     DatabaseSize: `SELECT pg_size_pretty(pg_database_size('${database}')) AS pretty_size, pg_database_size('${database}') AS size`,
-    Tables:
-      `
+    Tables: `
         SELECT
           row_number() OVER (ORDER BY table_name),
           table_name AS table,
@@ -367,8 +445,7 @@ export default async function apiRoutes(app) {
         ON a.table_name = b.relname
         WHERE reltuples > 0
       `,
-    CountTablesRows:
-      `
+    CountTablesRows: `
         SELECT
           COUNT(*) AS tables,
           SUM(reltuples) AS rows,
@@ -381,8 +458,7 @@ export default async function apiRoutes(app) {
         ON a.table_name = b.relname
         WHERE reltuples > 0
       `,
-    Indexes: 
-      `
+    Indexes: `
         SELECT
           row_number() OVER (ORDER BY ix.indexname),
           ix.schemaname,
@@ -403,14 +479,12 @@ export default async function apiRoutes(app) {
       `,
     CountIndexes: `SELECT COUNT(*) AS indexes FROM pg_indexes WHERE schemaname = 'public'`,
     Addresses: 'SELECT row_number() OVER (ORDER BY address), * FROM addresses',
-    Running_Queries:
-      `
+    Running_Queries: `
         SELECT pid, state, (now() - query_start)::text AS runtime, query
         FROM pg_stat_activity
         WHERE state <> 'idle' AND query NOT LIKE '%idle%'
       `,
-    Partitions:
-      `
+    Partitions: `
         SELECT
           n.nspname AS schema,
           c.relname AS parent,
@@ -431,14 +505,16 @@ export default async function apiRoutes(app) {
   };
 
   for (const [route, query] of Object.entries(dbRoutes)) {
-    await simpleRoute(`/${route.toLowerCase()}`,
+    await simpleRoute(
+      `/${route.toLowerCase()}`,
       'Database Utilities',
       route.replace(/[A-Z]/g, (c) => ` ${c}`).trim(),
       query,
     );
   }
 
-  await simpleRoute('/hits',
+  await simpleRoute(
+    '/hits',
     'Database Utilities',
     'API Hits',
     `
@@ -468,40 +544,41 @@ export default async function apiRoutes(app) {
     `,
     {
       order: { type: 'string', enum: ['date', 'ms'], examples: ['date'] },
-      days: { type: 'number', default: 14, examples: [7], description: 'Number of days to look back from today' },
+      days: {
+        type: 'number',
+        default: 14,
+        examples: [7],
+        description: 'Number of days to look back from today',
+      },
     },
   );
 
   // NVM -----------------------------------------------------------------------------------------------------------------------
-  await simpleRoute('/nvm2Data',
+  await simpleRoute(
+    '/nvm2Data',
     'NLDAS vs. MRMS',
     'NVM data',
     'SELECT DISTINCT lat, lon, year FROM nvm2',
   );
 
-  await simpleRoute('/nvm2',
+  await simpleRoute(
+    '/nvm2',
     'NLDAS vs. MRMS',
     'NVM output',
     nvm2,
     {
-      lat, lon,
+      lat,
+      lon,
       year: { type: 'number', examples: [2019] },
     },
     { html: true },
   );
 
-  await simpleRoute('/nvm2Query',
-    'NLDAS vs. MRMS',
-    'NVM query',
-    nvm2Query,
-    { condition: { examples: ['mrms IS NOT NULL'] } },
-  );
+  await simpleRoute('/nvm2Query', 'NLDAS vs. MRMS', 'NVM query', nvm2Query, {
+    condition: { examples: ['mrms IS NOT NULL'] },
+  });
 
-  await simpleRoute('/nvm2Update',
-    'NLDAS vs. MRMS',
-    'NVM update',
-    nvm2Update,
-  );
+  await simpleRoute('/nvm2Update', 'NLDAS vs. MRMS', 'NVM update', nvm2Update);
 
   /*
   // IT -----------------------------------------------------------------------------------------------------------------------
