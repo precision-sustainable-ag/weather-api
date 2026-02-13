@@ -94,7 +94,13 @@ const nvm2 = async (lat, lon, year) => {
           </thead>
           <tbody>
             <tr>
-              ${results2.rows.map((r) => Object.keys(r).map((v) => `<td>${r[v]}`).join('')).join('<tr>')}
+              ${results2.rows
+                .map((r) =>
+                  Object.keys(r)
+                    .map((v) => `<td>${r[v]}`)
+                    .join(''),
+                )
+                .join('<tr>')}
             </tr>
           </tbody>
         </table>
@@ -110,10 +116,13 @@ const nvm2 = async (lat, lon, year) => {
     return s;
   }; // runNvmQuery
 
-  const { rows } = await pool.query(`
+  const { rows } = await pool.query(
+    `
     SELECT data FROM nvm2
     WHERE lat = $1 and lon = $2 and year = $3
-  `, [lat, lon, year]);
+  `,
+    [lat, lon, year],
+  );
 
   if (rows.length) {
     return rows[0].data;
@@ -126,7 +135,7 @@ const nvm2Query = async (condition) => {
   const sq = `
     SELECT lat, lon
     FROM nvm2
-    WHERE ${condition.replace(/select|insert|update|drop|delete/ig, '')}
+    WHERE ${condition.replace(/select|insert|update|drop|delete/gi, '')}
     ORDER BY lat, lon
   `;
 

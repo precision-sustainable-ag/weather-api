@@ -1,19 +1,25 @@
-import { setup, pool } from 'simple-route';
+import { pool, setup } from 'simple-route';
 
-import { getLocation } from './routes/query.js';
 import apiRoutes from './routes/api.js';
 import mrvRoutes from './routes/mrv.js';
+import { getLocation } from './routes/query.js';
 
 const TRUSTED_HOSTS = [
   'localhost',
   '127.0.0.1',
   '::1',
-  'vegspec.org',                'develop.vegspec.org',
-  'covercrop-selector.org',     'develop.covercrop-selector.org',
-  'covercrop-seedcalc.org',     'develop.covercrop-seedcalc.org',
-  'covercrop-ncalc.org',        'develop.covercrop-ncalc.org',
-  'weather.covercrop-data.org', 'developweather.covercrop-data.org',
-  'covercrop-imagery.org',      'develop.covercrop-imagery.org',
+  'vegspec.org',
+  'develop.vegspec.org',
+  'covercrop-selector.org',
+  'develop.covercrop-selector.org',
+  'covercrop-seedcalc.org',
+  'develop.covercrop-seedcalc.org',
+  'covercrop-ncalc.org',
+  'develop.covercrop-ncalc.org',
+  'weather.covercrop-data.org',
+  'developweather.covercrop-data.org',
+  'covercrop-imagery.org',
+  'develop.covercrop-imagery.org',
 ];
 
 const validEmails = {
@@ -23,13 +29,11 @@ const validEmails = {
 const isTrusted = async (req) => {
   const src = req.headers.origin || req.headers.referer || req.headers;
   req.email = req?.query?.email?.toLowerCase();
-  
+
   if (req.email && !validEmails[req.email]) {
     console.log(`Checking email: ${req.email}`);
     const { rows } = await pool.query('SELECT * FROM invalid_emails');
-    if (rows.some(({ email }) => (
-      new RegExp(email, 'i').test(req.email)
-    ))) {
+    if (rows.some(({ email }) => new RegExp(email, 'i').test(req.email))) {
       console.log(`Rejected invalid email: ${req.email}`);
       req.query.email = null;
       return false;
@@ -42,18 +46,21 @@ const isTrusted = async (req) => {
     try {
       const host = new URL(src).hostname;
       if (req.query && !req.query.email) {
-        if (/vegspec\.org/.test(host))                      req.email = req.email ?? 'vegspec@psa.org';
-        else if (/mrv/.test(host))                          req.email = req.email ?? 'mrv@psa.org';
-        else if (/covercrop-selector\.org/.test(host))      req.email = req.email ?? 'selector@psa.org';
-        else if (/covercrop-seedcalc\.org/.test(host))      req.email = req.email ?? 'seedcalc@psa.org';
-        else if (/covercrop-ncalc\.org/.test(host))         req.email = req.email ?? 'ncalc@psa.org';
-        else if (/weather\.covercrop-data\.org/.test(host)) req.email = req.email ?? 'weather@psa.org';
-        else if (/covercrop-imagery\.org/.test(host))       req.email = req.email ?? 'imagery@psa.org';
-        else if (/localhost/.test(host))                    req.email = req.email ?? 'localhost@psa.org';
+        if (/vegspec\.org/.test(host)) req.email = req.email ?? 'vegspec@psa.org';
+        else if (/mrv/.test(host)) req.email = req.email ?? 'mrv@psa.org';
+        else if (/covercrop-selector\.org/.test(host)) req.email = req.email ?? 'selector@psa.org';
+        else if (/covercrop-seedcalc\.org/.test(host)) req.email = req.email ?? 'seedcalc@psa.org';
+        else if (/covercrop-ncalc\.org/.test(host)) req.email = req.email ?? 'ncalc@psa.org';
+        else if (/weather\.covercrop-data\.org/.test(host))
+          req.email = req.email ?? 'weather@psa.org';
+        else if (/covercrop-imagery\.org/.test(host)) req.email = req.email ?? 'imagery@psa.org';
+        else if (/localhost/.test(host)) req.email = req.email ?? 'localhost@psa.org';
       }
 
       if (TRUSTED_HOSTS.some((h) => host === h || host.endsWith(`.${h}`))) return true;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
   if (['127.0.0.1', '::1'].includes(req.ip)) {
     req.email = 'localhost@psa.org';
@@ -63,13 +70,11 @@ const isTrusted = async (req) => {
   }
 };
 
-const clientIp = (req) => (
-  (req.ip ||
-   req.headers['cf-connecting-ip'] ||
-   req.headers['true-client-ip']   ||
-   ''
-  ).replace(/^::ffff:/, '')
-);
+const clientIp = (req) =>
+  (req.ip || req.headers['cf-connecting-ip'] || req.headers['true-client-ip'] || '').replace(
+    /^::ffff:/,
+    '',
+  );
 
 await setup({
   title: 'Weather API',
@@ -77,7 +82,7 @@ await setup({
   trusted: ['https://weather.covercrop-data.org/', 'https://developweather.covercrop-data.org/'],
   plugins: {
     '': apiRoutes,
-    'mrv': mrvRoutes,
+    mrv: mrvRoutes,
   },
   preValidation: async (req, _reply) => {
     if (!req.query || !req?.routeOptions?.schema?.querystring) return;
@@ -92,7 +97,10 @@ await setup({
     }
 
     if (req.query.location) {
-      const location = (req.query.location || '').replace(/[^a-z0-9 ]/ig, '').replace(/\s+/g, ' ').toLowerCase();
+      const location = (req.query.location || '')
+        .replace(/[^a-z0-9 ]/gi, '')
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
       const results = {};
       const rect = /\brect\b/.test(req.query?.options);
       await getLocation(location, results, rect);
@@ -161,7 +169,7 @@ await setup({
         } else {
           v += 'Z';
         }
-  
+
         if (averages) {
           const day = v.split('-')[2];
           if (!day) {
@@ -184,7 +192,7 @@ await setup({
   onResponse: async (req, _reply) => {
     if (req.url?.startsWith('/hits')) return;
 
-    const time = new Date() - req.startTime;
+    const time = Date.now() - req.startTime;
 
     const sql = `
       INSERT INTO public.hits
