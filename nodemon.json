@@ -1,4 +1,0 @@
-{
-  "watch": [".env", "./src/*", "../simple_route/*", "public/*"],
-  "ext": "js,env,html"
-}

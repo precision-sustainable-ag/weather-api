@@ -1,26 +1,23 @@
 {
-  "name": "vegspec-api",
+  "name": "weather-api",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch --watch-path=.env --watch-path=src --watch-path=../simple-route --watch-path=public src/server.js",
     "start": "node src/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "eslint-plugin-import": "^2.32.0",
     "pg": "^8.16.3",
     "sharp": "^0.34.4",
     "simple-route": "github:precision-sustainable-ag/simple-route",
     "sql-formatter": "^15.6.10"
   },
   "devDependencies": {
-    "@eslint/js": "^9.35.0",
-    "eslint": "^9.35.0",
-    "nodemon": "^3.1.10"
+    "@biomejs/biome": "2.3.15"
   }
 }
