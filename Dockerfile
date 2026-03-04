@@ -1,7 +1,11 @@
-FROM node:22 as builder
-WORKDIR /
-COPY . .
+FROM node:22-bookworm
+
+WORKDIR /app
+
+COPY package*.json ./
 RUN npm install
 
+COPY . .
+
 EXPOSE 80
-ENTRYPOINT npm start
+CMD ["npm", "start"]
