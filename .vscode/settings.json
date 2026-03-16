@@ -2,6 +2,6 @@
   "editor.formatOnSave": true,
   "[javascript]": { "editor.defaultFormatter": "biomejs.biome" },
   "[javascriptreact]": { "editor.defaultFormatter": "biomejs.biome" },
-  "eslint.enable": true,
-  "eslint.format.enable": false,
+  "eslint.enable": false,
+  "eslint.format.enable": false
 }
