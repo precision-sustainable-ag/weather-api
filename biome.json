@@ -23,19 +23,15 @@
         "noNoninteractiveElementInteractions": "warn",
         "noRedundantRoles": "warn"
       },
-
       "style": {
-        "useSingleVarDeclarator": "off"
+        "useSingleVarDeclarator": "warn"
       },
-
       "suspicious": {
         "noExplicitAny": "off"
       },
-
       "security": {
         "noDangerouslySetInnerHtml": "warn"
       },
-
       "correctness": {
         "noUndeclaredVariables": "error"
       }
