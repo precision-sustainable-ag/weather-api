@@ -239,16 +239,24 @@
     </li>
 
     <li>
-      <code>output=[json|html|csv]</code><br>
+      <code>output=[json|html|csv|xlsx]</code><br>
       <em>(optional, defaults to <code>json</code>)</em>
       <p>
         Specifies the format of the response:
         <ul>
           <li><code>json</code> &ndash; Standard structured data (default)</li>
-          <li><code>html</code> &ndash; Browser-friendly table view.  (Click a column header to sort.)</li>
+          <li><code>html</code> &ndash; Browser-friendly table view. (Click a column header to sort.)</li>
           <li><code>csv</code> &ndash; Comma-separated values, suitable for spreadsheets</li>
+          <li><code>xlsx</code> &ndash; Excel workbook format</li>
         </ul>
       </p>
+
+      <p>
+        For <code>csv</code> and <code>xlsx</code>, you may optionally specify a filename by including it in the
+        <code>output</code> value (for example, <code>output=myfile.csv</code> or <code>output=report.xlsx</code>).
+        Otherwise, the filename will default to <code>output.csv</code> or <code>output.xlsx</code>.
+      </p>
+
       <h4>Examples</h4>
       <ul>
         <li>
@@ -262,6 +270,18 @@
         <li>
           <p><strong>CSV output</strong></p>
           $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&output=csv]
+        </li>
+        <li>
+          <p><strong>CSV with filename</strong></p>
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&output=weather.csv]
+        </li>
+        <li>
+          <p><strong>XLSX output</strong></p>
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&output=xlsx]
+        </li>
+        <li>
+          <p><strong>XLSX with filename</strong></p>
+          $ANCHOR[/hourly?email=jd@ex.com&lat=35.5&lon=-80.8&start=2018-11-01&end=2018-11-30&output=weather.xlsx]
         </li>
       </ul>
       <hr>
