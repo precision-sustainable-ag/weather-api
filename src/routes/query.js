@@ -5,7 +5,9 @@ const googleAPIKey = process.env.GoogleAPI;
 
 const testing = false;
 
-// const { rows } = pool.query('SELECT DISTINCT lat, lon FROM weather'); // !!! new server
+const { rows } = await pool.query('SELECT EXISTS (SELECT 1 FROM mrms);');
+const hasMRMS = rows[0].exists;
+console.log({ hasMRMS });
 
 /** ____________________________________________________________________________________________________________________________________
  * Removes the leading whitespace indentation from a string.
@@ -1003,6 +1005,7 @@ const runQuery = async (inputs) => {
   }
 
   mrms =
+    hasMRMS &&
     options.includes('mrms') &&
     !explain &&
     !daily &&
