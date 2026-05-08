@@ -51,4 +51,19 @@ export default async function mrvRoutes(app) {
     undefined,
     { 200: {} },
   );
+
+  await simpleRoute(
+    '/dates',
+    'MRV',
+    'MRV Dates',
+    `
+      SELECT DISTINCT TO_CHAR(date, 'YY-MMDD') as date
+      FROM mrv
+      WHERE UPPER(state) = UPPER($1)
+      ORDER BY date
+    `,
+    {
+      state: { examples: ['SPAINCALIBRACIONPRISMA2025'] },
+    },
+  );
 }
