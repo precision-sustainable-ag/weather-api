@@ -1,5 +1,4 @@
 import { pool, setup } from 'simple-route';
-
 import apiRoutes from './routes/api.js';
 import mapRoutes from './routes/map.js';
 import mrvRoutes from './routes/mrv.js';

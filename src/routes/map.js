@@ -11,23 +11,22 @@ export default async function mapRoutes(app) {
       console.log({ user, lat, lon });
       await pool.query(
         `
-        DELETE FROM marker_locations
-        WHERE user_id=$1
-      `,
-        [user],
-      );
-
-      await pool.query(
-        `
-        INSERT INTO marker_locations (user_id, lat, lon)
-        VALUES ($1, $2, $3)
-      `,
+          INSERT INTO marker_locations (user_id, lat, lon)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (user_id)
+          DO UPDATE SET
+            lat = EXCLUDED.lat,
+            lon = EXCLUDED.lon
+        `,
         [user, lat, lon],
       );
+
+      return {};
     },
     {},
     {
-      method: 'POST',
+      // method: 'POST',
+      response: {},
     },
   );
 
