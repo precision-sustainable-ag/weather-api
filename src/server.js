@@ -1,6 +1,7 @@
 import { pool, setup } from 'simple-route';
 
 import apiRoutes from './routes/api.js';
+import mapRoutes from './routes/map.js';
 import mrvRoutes from './routes/mrv.js';
 import { getLocation } from './routes/query.js';
 
@@ -83,6 +84,7 @@ await setup({
   plugins: {
     '': apiRoutes,
     mrv: mrvRoutes,
+    map: mapRoutes,
   },
   preValidation: async (req, _reply) => {
     if (!req.query || !req?.routeOptions?.schema?.querystring) return;
