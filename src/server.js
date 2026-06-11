@@ -71,7 +71,7 @@ const isTrusted = async (req) => {
 };
 
 const clientIp = (req) =>
-  (req.ip || req.headers['cf-connecting-ip'] || req.headers['true-client-ip'] || '').replace(
+  (req.headers['cf-connecting-ip'] || req.headers['true-client-ip'] || req.ip || '').replace(
     /^::ffff:/,
     '',
   );
