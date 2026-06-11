@@ -899,6 +899,7 @@ const runQuery = async (inputs) => {
             if (nolon) delete row.lon;
           });
         }
+        await client.query('COMMIT');
       } catch (e) {
         await client.query('ROLLBACK');
         throw e;
