@@ -1,6 +1,6 @@
 import { pool, setup } from 'simple-route';
-
 import apiRoutes from './routes/api.js';
+import mapRoutes from './routes/map.js';
 import mrvRoutes from './routes/mrv.js';
 import { getLocation } from './routes/query.js';
 
@@ -71,7 +71,7 @@ const isTrusted = async (req) => {
 };
 
 const clientIp = (req) =>
-  (req.ip || req.headers['cf-connecting-ip'] || req.headers['true-client-ip'] || '').replace(
+  (req.headers['cf-connecting-ip'] || req.headers['true-client-ip'] || req.ip || '').replace(
     /^::ffff:/,
     '',
   );
@@ -83,6 +83,7 @@ await setup({
   plugins: {
     '': apiRoutes,
     mrv: mrvRoutes,
+    map: mapRoutes,
   },
   preValidation: async (req, _reply) => {
     if (!req.query || !req?.routeOptions?.schema?.querystring) return;
