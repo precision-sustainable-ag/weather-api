@@ -527,12 +527,14 @@ export default async function apiRoutes(app) {
           'gi'
         ) AS query,
         country,
-        region
+        region,
+        CASE WHEN email ~ 'psa.org' THEN email ELSE NULL END AS user
       FROM hits
       WHERE
         query NOT LIKE '%explain%' AND query NOT LIKE '%nvm%' AND
-        (date > now() - LEAST($2, 30) * interval '1 day')
-        AND ip <> '127.0.0.1'
+        (date > now() - LEAST($2, 30) * interval '1 day') AND
+        ip <> '127.0.0.1' AND
+        ($3 = '' OR email = $3)
       ORDER BY
         CASE
           WHEN $1 = 'ms' THEN ms
@@ -552,6 +554,7 @@ export default async function apiRoutes(app) {
         examples: [7],
         description: 'Number of days to look back from today',
       },
+      user: { type: 'string', format: 'email' },
     },
   );
 
