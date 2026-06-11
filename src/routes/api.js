@@ -525,7 +525,9 @@ export default async function apiRoutes(app) {
           '[A-Za-z0-9._%+-]+(?:@|%40)[A-Za-z0-9.-]+\\.[A-Za-z]{2,}',
           '[redacted]',
           'gi'
-        ) AS query
+        ) AS query,
+        country,
+        region
       FROM hits
       WHERE
         query NOT LIKE '%explain%' AND query NOT LIKE '%nvm%' AND
