@@ -195,14 +195,23 @@ await setup({
 
     const time = Date.now() - req.startTime;
 
+    const cfRay = req.headers['cf-ray'] || null;
+    const region = cfRay?.split('-')[1] || null;
+
     const sql = `
       INSERT INTO public.hits
-      (date, ip, query, ms, email)
-      VALUES (NOW(), $1, $2, $3, $4)
+      (date, ip, query, ms, email, country, region)
+      VALUES (NOW(), $1, $2, $3, $4, $5, $6)
       RETURNING *;
     `;
 
-    await pool.query(sql, [clientIp(req), req.url, time, req.email]);
-    await pool.query('COMMIT;');
+    await pool.query(sql, [
+      clientIp(req),
+      req.url,
+      time,
+      req.email,
+      req.headers['cf-ipcountry'] || req.headers['x-country-code'] || null,
+      region,
+    ]);
   },
 });
