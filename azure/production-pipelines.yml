@@ -34,14 +34,14 @@ stages:
       vmImage: $(vmImageName)
     steps:
     - script: |
-        echo "DB_DATABASE=$(DB_DATABASE)" >> /home/vsts/work/1/s/.env
-        echo "DB_HOST=$(DB_HOST)" >> /home/vsts/work/1/s/.env
-        echo "DB_PORT=$(DB_PORT)" >> /home/vsts/work/1/s/.env
-        echo "DB_USERNAME=$(DB_USERNAME)" >> /home/vsts/work/1/s/.env
-        echo "DB_PASSWORD=$(DB_PASSWORD)" >> /home/vsts/work/1/s/.env
-        echo "DB_SSL=$(DB_SSL)" >> /home/vsts/work/1/s/.env
-        echo "GoogleAPI=$(GoogleAPI)" >> /home/vsts/work/1/s/.env
-        cat /home/vsts/work/1/s/.env
+        echo "DB_DATABASE=$(DB_DATABASE)" >> $(Build.SourcesDirectory)/.env
+        echo "DB_HOST=$(DB_HOST)" >> $(Build.SourcesDirectory)/.env
+        echo "DB_PORT=$(DB_PORT)" >> $(Build.SourcesDirectory)/.env
+        echo "DB_USERNAME=$(DB_USERNAME)" >> $(Build.SourcesDirectory)/.env
+        echo "DB_PASSWORD=$(DB_PASSWORD)" >> $(Build.SourcesDirectory)/.env
+        echo "DB_SSL=$(DB_SSL)" >> $(Build.SourcesDirectory)/.env
+        echo "GoogleAPI=$(GoogleAPI)" >> $(Build.SourcesDirectory)/.env
+        cat $(Build.SourcesDirectory)/.env
       displayName: "Create .env"
     - task: Docker@2
       displayName: Build and push an image to container registry
